@@ -137,6 +137,7 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
                     error: null,
                     stale: false,
                     pendingRefetch: false,
+                    generation: 0,
                 };
 
             const patchRequest = (key: string, changes: Partial<KeyedRequest>): void => {
@@ -216,15 +217,21 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
             };
 
             const run = (key: string): void => {
-                patchRequest(key, {loading: true, error: null});
+                const generation = requestOf(key).generation + 1;
+                patchRequest(key, {loading: true, error: null, generation});
                 fetchOne(key, args.get(key)).subscribe({
                     next: response => {
-                        applyLoaded(key, response, {
-                            loading: false,
-                            loadedAt: Date.now(),
-                            error: null,
-                            stale: false,
-                        });
+                        // An invalidation or a newer fetch while this was out. The rows still land,
+                        // but the key stays stale so the next load re-reads it rather than
+                        // answering from a response that was already known to be behind.
+                        const superseded = requestOf(key).generation !== generation;
+                        applyLoaded(
+                            key,
+                            response,
+                            superseded
+                                ? {loading: false, error: null}
+                                : {loading: false, loadedAt: Date.now(), error: null, stale: false},
+                        );
                         drain(key);
                     },
                     error: (err: unknown) => {
@@ -271,15 +278,21 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
             };
 
             const invalidate = (key: string): void => {
-                if (!(key in requestsSignal())) return;
-                patchRequest(key, {loadedAt: 0, stale: true});
+                const current = requestsSignal()[key];
+                if (!current) return;
+                patchRequest(key, {loadedAt: 0, stale: true, generation: current.generation + 1});
             };
 
             const invalidateAll = (): void => {
                 const all = requestsSignal();
                 const next: Record<string, KeyedRequest> = {};
                 for (const [key, request] of Object.entries(all)) {
-                    next[key] = {...request, loadedAt: 0, stale: true};
+                    next[key] = {
+                        ...request,
+                        loadedAt: 0,
+                        stale: true,
+                        generation: request.generation + 1,
+                    };
                 }
                 patchState(source, {[requestsKey]: next});
             };

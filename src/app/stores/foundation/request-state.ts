@@ -11,4 +11,9 @@ export interface KeyedRequest {
     stale: boolean;
     /** A refetch asked for while this key's request was still in flight. */
     pendingRefetch: boolean;
+    /**
+     * Bumped by every fetch and every invalidation. A response minted under an older one is
+     * superseded: its rows still land, but it may not report the key as freshly loaded.
+     */
+    generation: number;
 }

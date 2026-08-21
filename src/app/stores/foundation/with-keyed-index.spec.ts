@@ -320,6 +320,58 @@ describe('withKeyedIndex', () => {
         });
     });
 
+    describe('an invalidation while a request is out', () => {
+        it('keeps the key stale when the response lands', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            store.invalidateStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+
+            expect(store.stockLoaded('c1')).toBe(false);
+            expect(store.stockLoadedAt('c1')).toBe(0);
+        });
+
+        it('still takes the rows the response carried', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            store.invalidateStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+
+            expect(
+                store
+                    .stockFor('c1')()
+                    .map(r => r.id),
+            ).toEqual(['a']);
+        });
+
+        it('refetches on the next load rather than answering from the superseded response', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            store.invalidateStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+            store.loadStock('c1');
+
+            expect(api.stockCalls).toEqual(['c1', 'c1']);
+        });
+
+        it('reports a clean load as fresh', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            settle(api.stockPending, 0, [row('a')]);
+
+            expect(store.stockLoaded('c1')).toBe(true);
+        });
+
+        it('supersedes an invalidateAll the same way', () => {
+            const {store, api} = setup();
+            store.loadStock('c1');
+            store.invalidateAllStock();
+            settle(api.stockPending, 0, [row('a')]);
+
+            expect(store.stockLoaded('c1')).toBe(false);
+        });
+    });
+
     describe('failures', () => {
         it('leaves the key unloaded and retryable', () => {
             const {store, api} = setup();
