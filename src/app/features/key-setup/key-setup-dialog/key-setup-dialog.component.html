@@ -6,7 +6,7 @@
     [modal]="true"
     [resizable]="false"
     [style]="{width: '480px'}"
-    [visible]="visible"
+    [visible]="visible()"
     appendTo="body"
     styleClass="key-setup-dialog"
 >
@@ -19,7 +19,7 @@
                     </div>
                 </div>
 
-                @if (dismissible) {
+                @if (dismissible()) {
                     <!-- Deferred prompt. -->
                     <h2 class="ks-title">Keep your messages</h2>
                     <p class="ks-subtitle">
@@ -62,7 +62,7 @@
                     styleClass="w-full justify-center mt-2"
                 />
 
-                @if (dismissible) {
+                @if (dismissible()) {
                     <p-button
                         (onClick)="dismiss()"
                         [text]="true"

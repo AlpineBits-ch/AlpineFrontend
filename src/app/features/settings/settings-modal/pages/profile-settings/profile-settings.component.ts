@@ -1,4 +1,4 @@
-import {Component, computed, effect, ElementRef, inject, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, effect, ElementRef, inject, OnInit, signal, viewChild} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
@@ -95,8 +95,8 @@ export class ProfileSettingsComponent implements OnInit {
     private steamService = inject(SteamService);
     private externalLink = inject(ExternalLinkService);
     private toast = inject(ToastService);
-    @ViewChild('fileInput') private fileInputRef!: ElementRef<HTMLInputElement>;
-    @ViewChild('bannerFileInput') private bannerFileInputRef!: ElementRef<HTMLInputElement>;
+    private readonly fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
+    private readonly bannerFileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('bannerFileInput');
     private detailsSynced = false;
 
     constructor() {
@@ -199,7 +199,7 @@ export class ProfileSettingsComponent implements OnInit {
     }
 
     protected pickFile(): void {
-        this.fileInputRef.nativeElement.click();
+        this.fileInputRef().nativeElement.click();
     }
 
     protected onFileSelected(event: Event): void {
@@ -267,7 +267,7 @@ export class ProfileSettingsComponent implements OnInit {
     }
 
     protected pickBannerFile(): void {
-        this.bannerFileInputRef.nativeElement.click();
+        this.bannerFileInputRef().nativeElement.click();
     }
 
     protected onBannerFileSelected(event: Event): void {

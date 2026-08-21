@@ -1,4 +1,4 @@
-﻿import {Component, computed, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
+﻿import {Component, computed, effect, HostListener, inject, OnDestroy, signal, viewChild} from '@angular/core';
 import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
@@ -149,7 +149,7 @@ export class MainPageComponent implements OnDestroy {
     protected readonly keyPackagesFailed = signal(false);
     /** Serialized permission string for the events panel, re-fetched whenever it's opened for a guild. */
     protected readonly eventsMemberPermissions = signal('');
-    @ViewChild(QuickSettingsComponent) private quickSettings!: QuickSettingsComponent;
+    private readonly quickSettings = viewChild.required(QuickSettingsComponent);
     /** Opaque handle for the session-loaded signing key, set after device unlock. */
     protected readonly keyHandle = signal<string | null>(null);
     private websocketService = inject(MessagingWebsocketService);
@@ -298,7 +298,7 @@ export class MainPageComponent implements OnDestroy {
     }
 
     protected openAccountSettings(): void {
-        this.quickSettings.openProfileSettings();
+        this.quickSettings().openProfileSettings();
     }
 
     /** Where a clicked household notification lands: the channel in the payload, else the guild. */

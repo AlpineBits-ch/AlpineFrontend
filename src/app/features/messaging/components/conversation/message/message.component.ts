@@ -12,7 +12,6 @@ import {
     signal,
     untracked,
     viewChild,
-    ViewChild,
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {
@@ -539,7 +538,7 @@ export class MessageComponent {
     private readonly contextMenu = viewChild.required<MessageContextMenuComponent>('contextMenu');
     /** Read only to pick the wording of the save confirmation. See {@link download}. */
     private capabilities = inject(PlatformCapabilities);
-    @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
+    private readonly editAreaRef = viewChild<ElementRef<HTMLTextAreaElement>>('editArea');
     private readonly replyCtx = computed(() => ({
         id: this.message().inReplyTo,
         conversationId: this.message().conversationId,
@@ -707,7 +706,7 @@ export class MessageComponent {
         this.editText.set(this.content());
         this.isEditing.set(true);
         setTimeout(() => {
-            const el = this.editAreaRef?.nativeElement;
+            const el = this.editAreaRef()?.nativeElement;
             if (el) {
                 el.focus();
                 el.setSelectionRange(el.value.length, el.value.length);

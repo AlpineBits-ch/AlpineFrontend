@@ -10,7 +10,7 @@ import {
     input,
     signal,
     untracked,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 
@@ -359,9 +359,9 @@ export class ChannelConversationComponent implements AfterViewInit {
     });
 
     // ── Scroll state ─────────────────────────────────────────────────────────
-    @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
-    @ViewChild('messageList') private messageListRef?: ElementRef<HTMLDivElement>;
-    @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
+    private readonly scrollRef = viewChild<ElementRef<HTMLDivElement>>('messageScroll');
+    private readonly messageListRef = viewChild<ElementRef<HTMLDivElement>>('messageList');
+    private readonly composerRef = viewChild(ComposerComponent);
 
     private readonly destroyRef = inject(DestroyRef);
 
@@ -439,11 +439,11 @@ export class ChannelConversationComponent implements AfterViewInit {
 
         effect(() => {
             const _ = this.channel();
-            setTimeout(() => this.composerRef?.focus(), 0);
+            setTimeout(() => this.composerRef()?.focus(), 0);
         });
 
         afterEveryRender(() => {
-            this.scroll.onRender(this.messageListRef?.nativeElement, this.scrollRef?.nativeElement);
+            this.scroll.onRender(this.messageListRef()?.nativeElement, this.scrollRef()?.nativeElement);
         });
 
         effect(() => {
@@ -480,7 +480,7 @@ export class ChannelConversationComponent implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        const el = this.scrollRef?.nativeElement;
+        const el = this.scrollRef()?.nativeElement;
         if (el) this.scroll.attach(el);
         this.scroll.scrollToBottom();
     }
@@ -549,7 +549,7 @@ export class ChannelConversationComponent implements AfterViewInit {
 
     protected onReply(msg: MessageDto): void {
         this.replyingTo.set(msg);
-        setTimeout(() => this.composerRef?.focus(), 0);
+        setTimeout(() => this.composerRef()?.focus(), 0);
     }
 
     protected onCancelReply(): void {

@@ -1,4 +1,4 @@
-import {Component, computed, EventEmitter, inject, Input, Output, signal} from '@angular/core';
+import {Component, computed, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -54,7 +54,7 @@ type ResetStep = '' | 'confirm' | 'orphans';
     templateUrl: './master-key-recovery-dialog.component.html',
 })
 export class MasterKeyRecoveryDialogComponent {
-    @Input() visible = false;
+    readonly visible = input(false);
     @Output() dismissed = new EventEmitter<void>();
 
     protected readonly state = inject(MasterKeyStateService);

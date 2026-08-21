@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/core';
+import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
@@ -22,9 +22,9 @@ type Step = 'password' | 'entropy' | 'recovery-code' | 'confirm-code' | 'process
     styleUrl: './key-setup-dialog.component.css',
 })
 export class KeySetupDialogComponent {
-    @Input() visible = false;
+    readonly visible = input(false);
     /** Whether the user may back out. */
-    @Input() dismissible = false;
+    readonly dismissible = input(false);
     @Output() setupComplete = new EventEmitter<void>();
     @Output() dismissed = new EventEmitter<void>();
 

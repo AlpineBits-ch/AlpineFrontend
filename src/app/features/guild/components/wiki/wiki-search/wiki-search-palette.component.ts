@@ -8,7 +8,7 @@ import {
     input,
     output,
     signal,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
@@ -49,7 +49,7 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
     readonly closed = output<void>();
     readonly pageSelected = output<WikiPageSummaryDto>();
 
-    @ViewChild('queryInput') queryInput?: ElementRef<HTMLInputElement>;
+    readonly queryInput = viewChild<ElementRef<HTMLInputElement>>('queryInput');
 
     protected readonly query = signal('');
     protected readonly activeIndex = signal(0);
@@ -157,7 +157,7 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
                 // Filters left armed from last time would silently hide results the next search should have found.
                 this.clearFilters();
                 this.filtersOpen.set(false);
-                setTimeout(() => this.queryInput?.nativeElement.focus(), 0);
+                setTimeout(() => this.queryInput()?.nativeElement.focus(), 0);
             }
         });
 
@@ -182,7 +182,7 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        if (this.open()) this.queryInput?.nativeElement.focus();
+        if (this.open()) this.queryInput()?.nativeElement.focus();
     }
 
     protected onKeydown(event: KeyboardEvent): void {
@@ -218,7 +218,7 @@ export class WikiSearchPaletteComponent implements AfterViewInit {
 
     protected applyRecent(query: string): void {
         this.query.set(query);
-        this.queryInput?.nativeElement.focus();
+        this.queryInput()?.nativeElement.focus();
     }
 
     protected clearFilters(): void {

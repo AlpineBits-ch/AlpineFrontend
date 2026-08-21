@@ -8,7 +8,6 @@ import {
     input,
     signal,
     untracked,
-    ViewChild,
     viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -109,12 +108,12 @@ export class ChannelListComponent {
     readonly channelMenu = viewChild.required<ContextMenuComponent>('channelMenu');
     readonly categoryMenu = viewChild.required<ContextMenuComponent>('categoryMenu');
     readonly listMenu = viewChild.required<ContextMenuComponent>('listMenu');
-    @ViewChild('invitePopover') invitePopover!: Popover;
-    @ViewChild(GuildSettingsModalComponent) guildSettingsModal?: GuildSettingsModalComponent;
-    @ViewChild(ChannelSettingsModalComponent) channelSettingsModal?: ChannelSettingsModalComponent;
-    @ViewChild(CategorySettingsModalComponent) categorySettingsModal?: CategorySettingsModalComponent;
-    @ViewChild(CreateChannelModalComponent) createChannelModal?: CreateChannelModalComponent;
-    @ViewChild(CreateCategoryModalComponent) createCategoryModal?: CreateCategoryModalComponent;
+    readonly invitePopover = viewChild<Popover>('invitePopover');
+    readonly guildSettingsModal = viewChild(GuildSettingsModalComponent);
+    readonly channelSettingsModal = viewChild(ChannelSettingsModalComponent);
+    readonly categorySettingsModal = viewChild(CategorySettingsModalComponent);
+    readonly createChannelModal = viewChild(CreateChannelModalComponent);
+    readonly createCategoryModal = viewChild(CreateCategoryModalComponent);
     protected readonly ChannelType = ChannelType;
     protected navService = inject(NavigationService);
     protected drag = inject(ChannelListDragService);
@@ -389,7 +388,7 @@ export class ChannelListComponent {
             if (!request || request.guildId !== this.guild().id) return;
             this.settingsUi.consumeGuild();
             untracked(() => {
-                this.guildSettingsModal?.activePage.set(request.page);
+                this.guildSettingsModal()?.activePage.set(request.page);
                 this.showGuildSettings.set(true);
             });
         });
@@ -654,7 +653,7 @@ export class ChannelListComponent {
             {
                 label: 'Edit Channel',
                 icon: 'pi pi-pencil',
-                command: () => this.channelSettingsModal?.open(channel, this.guild()),
+                command: () => this.channelSettingsModal()?.open(channel, this.guild()),
             },
             // Voice channels only: the endpoint behind it answers 400 for anything else. Opens its panel on hover as well as on click, so it carries both.
             ...(channel.type === ChannelType.Voice
@@ -687,7 +686,7 @@ export class ChannelListComponent {
                 label: 'Delete Channel',
                 icon: 'pi pi-trash',
                 danger: true,
-                command: () => this.channelSettingsModal?.open(channel, this.guild()),
+                command: () => this.channelSettingsModal()?.open(channel, this.guild()),
             },
         ];
     }
@@ -697,7 +696,7 @@ export class ChannelListComponent {
             {
                 label: 'Edit Category',
                 icon: 'pi pi-pencil',
-                command: () => this.categorySettingsModal?.open(category, this.guild()),
+                command: () => this.categorySettingsModal()?.open(category, this.guild()),
             },
             {
                 label: 'Create Channel in Category',
@@ -709,7 +708,7 @@ export class ChannelListComponent {
                 label: 'Delete Category',
                 icon: 'pi pi-trash',
                 danger: true,
-                command: () => this.categorySettingsModal?.open(category, this.guild()),
+                command: () => this.categorySettingsModal()?.open(category, this.guild()),
             },
         ];
     }
@@ -750,14 +749,14 @@ export class ChannelListComponent {
         if (!open) {
             this.invitePanelChannel.set(channel);
             // Anchored via show(event) alone, never show(event, target): that overload stops the click, but the menu this came from needs to see it in order to close.
-            this.invitePopover.show(event);
+            this.invitePopover()?.show(event);
             return;
         }
 
         // Moving to a different channel: a popover only measures its position on enter, so an already-open one must hide before re-anchoring, or it stays beside the old row.
         const anchor = event.currentTarget as HTMLElement;
         this.invitePanelMovingTo = channel;
-        this.invitePopover.hide();
+        this.invitePopover()?.hide();
 
         setTimeout(() => {
             const next = this.invitePanelMovingTo;
@@ -765,7 +764,7 @@ export class ChannelListComponent {
             if (!next) return;
 
             this.invitePanelChannel.set(next);
-            this.invitePopover.show({currentTarget: anchor} as unknown as MouseEvent);
+            this.invitePopover()?.show({currentTarget: anchor} as unknown as MouseEvent);
         });
     }
 
@@ -778,7 +777,7 @@ export class ChannelListComponent {
     /** Five names give way to the whole roster. The panel closes behind it. */
     protected openRingPicker(): void {
         this.pickerChannel.set(this.invitePanelChannel());
-        this.invitePopover.hide();
+        this.invitePopover()?.hide();
         this.showRingPicker.set(true);
     }
 
@@ -886,10 +885,10 @@ export class ChannelListComponent {
         const position = categoryId
             ? this.categoryChannels(categoryId).length
             : this.uncategorizedChannels().length;
-        this.createChannelModal?.open(categoryId, position);
+        this.createChannelModal()?.open(categoryId, position);
     }
 
     protected openCreateCategory(): void {
-        this.createCategoryModal?.open(this.localCategories().length);
+        this.createCategoryModal()?.open(this.localCategories().length);
     }
 }

@@ -1,4 +1,4 @@
-import {Component, output, ViewChild} from '@angular/core';
+import {Component, output, viewChild} from '@angular/core';
 import {Popover} from 'primeng/popover';
 import {SelfProfileMenuComponent} from '../self-profile-menu/self-profile-menu.component';
 
@@ -15,35 +15,36 @@ export class SelfProfilePopoverComponent {
     /** Asked for here, routed by the host - this popover owns no navigation. */
     addAccount = output<void>();
 
-    @ViewChild('popover') private popoverRef!: Popover;
-    @ViewChild(SelfProfileMenuComponent) private menu!: SelfProfileMenuComponent;
+    private readonly popoverRef = viewChild<Popover>('popover');
+    // The popover renders its content only while open, so the menu is absent most of the time.
+    private readonly menu = viewChild(SelfProfileMenuComponent);
 
     toggle(event: Event): void {
-        this.popoverRef.toggle(event);
+        this.popoverRef()?.toggle(event);
     }
 
     /** Back to the root view, so reopening never resumes halfway inside a submenu. */
     protected onHide(): void {
-        this.menu?.reset();
+        this.menu()?.reset();
     }
 
     /** Re-anchor the overlay after the menu swaps to a different-height view. */
     protected realign(): void {
-        setTimeout(() => this.popoverRef?.align());
+        setTimeout(() => this.popoverRef()?.align());
     }
 
     protected onEditProfile(): void {
-        this.popoverRef.hide();
+        this.popoverRef()?.hide();
         this.editProfile.emit();
     }
 
     protected onOpenAdmin(): void {
-        this.popoverRef.hide();
+        this.popoverRef()?.hide();
         this.openAdmin.emit();
     }
 
     protected onAddAccount(): void {
-        this.popoverRef.hide();
+        this.popoverRef()?.hide();
         this.addAccount.emit();
     }
 }

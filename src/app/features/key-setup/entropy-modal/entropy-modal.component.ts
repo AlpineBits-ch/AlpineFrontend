@@ -6,7 +6,7 @@ import {
     OnDestroy,
     Output,
     signal,
-    ViewChild,
+    viewChild,
 } from '@angular/core';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
@@ -24,7 +24,7 @@ interface GridCell {
     styleUrl: './entropy-modal.component.css',
 })
 export class EntropyModalComponent implements AfterViewInit, OnDestroy {
-    @ViewChild('entropyCanvas', {static: true}) canvasRef!: ElementRef<HTMLCanvasElement>;
+    readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('entropyCanvas');
     @Output() done = new EventEmitter<number[]>();
 
     protected readonly timeRemaining = signal(11);
@@ -55,7 +55,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
             Array.from({length: this.COLS}, () => ({brightness: 0, visited: false})),
         );
 
-        const canvas = this.canvasRef.nativeElement;
+        const canvas = this.canvasRef().nativeElement;
         this.ctx = canvas.getContext('2d')!;
         // Defer resize so PrimeNG dialog has finished laying out
         setTimeout(() => {
@@ -85,7 +85,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
     private readonly onMouseMove = (e: MouseEvent) => this.handleMouse(e);
 
     private resize(): void {
-        const el = this.canvasRef.nativeElement;
+        const el = this.canvasRef().nativeElement;
         el.width = el.offsetWidth;
         el.height = el.offsetHeight;
     }
@@ -93,7 +93,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
     private handleMouse(event: MouseEvent): void {
         if (this.finished) return;
 
-        const canvas = this.canvasRef.nativeElement;
+        const canvas = this.canvasRef().nativeElement;
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -127,7 +127,7 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
     }
 
     private renderLoop(): void {
-        const canvas = this.canvasRef.nativeElement;
+        const canvas = this.canvasRef().nativeElement;
         const ctx = this.ctx;
         const cw = canvas.width / this.COLS;
         const ch = canvas.height / this.ROWS;

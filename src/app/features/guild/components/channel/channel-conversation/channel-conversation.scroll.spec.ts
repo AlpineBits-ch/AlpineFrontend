@@ -5,7 +5,7 @@
  */
 import {describe, expect, it} from 'vitest';
 
-import {attachScroll, scrollInnards, scrollStub, setup} from './channel-conversation.harness';
+import {attachScroll, scrollInnards, setup, stubScrollRef} from './channel-conversation.harness';
 
 const ANCHORED = {chan1: {offset: 0, hasMore: false, anchored: true, hasNewer: true}};
 
@@ -13,12 +13,11 @@ describe('ChannelConversationComponent entering a channel', () => {
     it('opens an ordinary channel at its newest message', async () => {
         const {component} = await setup();
 
-        const inner = scrollInnards(component);
-        inner.scrollRef = scrollStub({scrollTop: 0, scrollHeight: 900, clientHeight: 300});
+        const ref = stubScrollRef(component, {scrollTop: 0, scrollHeight: 900, clientHeight: 300});
 
         component.ngAfterViewInit();
 
-        expect(inner.scrollRef.nativeElement.scrollTop).toBe(900);
+        expect(ref.nativeElement.scrollTop).toBe(900);
     });
 
     it('leaves the scroll alone while anchored, so the window opens at its first message', async () => {

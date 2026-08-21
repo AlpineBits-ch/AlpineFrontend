@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnDestroy, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, inject, OnDestroy, OnInit, signal, viewChild} from '@angular/core';
 import {NavigationEnd, Router} from '@angular/router';
 import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
 import {filter} from 'rxjs';
@@ -63,7 +63,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     });
     private readonly aboutLabel = toSignal(this.translate.stream('TITLEBAR.HELP_ABOUT'), {initialValue: ''});
 
-    @ViewChild('inboxPopover') private inboxPopover?: Popover;
+    private readonly inboxPopover = viewChild<Popover>('inboxPopover');
 
     /** Whether the app shell is on screen. */
     protected readonly inAppShell = signal(false);
@@ -189,7 +189,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
 
     /** The inbox fetch is on the popover's `onShow`, not here. */
     protected toggleInbox(event: Event): void {
-        this.inboxPopover?.toggle(event);
+        this.inboxPopover()?.toggle(event);
     }
 
     private readonly onMouseUp = (event: MouseEvent): void => {

@@ -1,4 +1,4 @@
-import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/core';
+import {Component, EventEmitter, inject, input, Output, signal} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
@@ -24,7 +24,7 @@ type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'export-unavail
     styleUrl: './logout-dialog.component.css',
 })
 export class LogoutDialogComponent {
-    @Input() visible = false;
+    readonly visible = input(false);
     @Output() visibleChange = new EventEmitter<boolean>();
 
     protected readonly step = signal<Step>('export-prompt');

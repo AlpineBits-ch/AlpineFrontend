@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, ElementRef, inject, signal, ViewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild} from '@angular/core';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
 import {TranslateModule} from '@ngx-translate/core';
@@ -24,7 +24,7 @@ type Step = 'idle' | 'passphrase' | 'restoring' | 'offer-adopt' | 'done';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class KeyBackupRestoreComponent {
-    @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
+    private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
     protected readonly step = signal<Step>('idle');
     protected readonly fileName = signal('');
@@ -46,7 +46,7 @@ export class KeyBackupRestoreComponent {
 
     protected choose(): void {
         this.errorMsg.set('');
-        this.fileInput?.nativeElement.click();
+        this.fileInput()?.nativeElement.click();
     }
 
     protected async onFileChosen(event: Event): Promise<void> {
