@@ -16,4 +16,8 @@ export interface KeyedRequest {
      * superseded: its rows still land, but it may not report the key as freshly loaded.
      */
     generation: number;
+    /** Where the page behind this key's rows starts. `null` means it holds everything. */
+    cursor: string | null;
+    /** A page is in the air. Distinct from `loading`, which blanks the list. */
+    loadingMore: boolean;
 }

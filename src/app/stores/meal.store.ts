@@ -120,8 +120,6 @@ interface MealScopedState {
     /** The week each opened board is showing, as a plain date. */
     weekByChannel: Record<string, string>;
     configByChannel: Record<string, MealPlanConfig>;
-    /** Per channel, the cursor for older recipes. `null` means the list is complete. */
-    recipesCursor: Record<string, string | null>;
 }
 
 /**
@@ -138,9 +136,9 @@ export const MealStore = signalStore(
     {providedIn: 'root'},
     withEntities<Recipe, 'recipe'>({entity: type<Recipe>(), collection: 'recipe'}),
     withEntities<MealPlanEntry, 'entry'>({entity: type<MealPlanEntry>(), collection: 'entry'}),
-    withState<MealScopedState>({weekByChannel: {}, configByChannel: {}, recipesCursor: {}}),
+    withState<MealScopedState>({weekByChannel: {}, configByChannel: {}}),
 
-    withKeyedIndex<Recipe, 'recipes', 'recipe', never, RecipePage, MealScopedState>({
+    withKeyedIndex<Recipe, 'recipes', 'recipe', never, RecipePage>({
         collection: 'recipes',
         entities: 'recipe',
         sort: byTitle,
@@ -152,9 +150,13 @@ export const MealStore = signalStore(
             return (channelId: string) => api.listRecipes(channelId);
         },
         rows: page => page.items.map(wholeRecipe),
-        onLoaded: (page, channelId, state) => ({
-            recipesCursor: {...state.recipesCursor, [channelId]: page.nextCursor ?? null},
-        }),
+        paging: {
+            cursorOf: page => page.nextCursor ?? null,
+            fetch: () => {
+                const api = inject(MealApiService);
+                return (channelId: string, cursor: string) => api.listRecipes(channelId, undefined, cursor);
+            },
+        },
     }),
 
     withKeyedIndex<MealPlanEntry, 'plan', 'entry', string>({
@@ -193,10 +195,6 @@ export const MealStore = signalStore(
                 next: config => putConfig(channelId, config),
                 error: () => undefined,
             });
-        };
-
-        const setCursor = (channelId: string, cursor: string | null): void => {
-            patchState(store, {recipesCursor: {...store.recipesCursor(), [channelId]: cursor}});
         };
 
         const reload = (channelId: string, force: boolean): void => {
@@ -266,7 +264,7 @@ export const MealStore = signalStore(
 
                         return {
                             recipes: store.recipesFor(channelId)(),
-                            recipesCursor: store.recipesCursor()[channelId] ?? null,
+                            recipesCursor: store.recipesCursor(channelId),
                             plan: planRows(channelId).filter(entry => isInWeek(weekStart, entry.date)),
                             weekStart,
                             config: store.configByChannel()[channelId] ?? null,
@@ -316,24 +314,6 @@ export const MealStore = signalStore(
             shiftWeek(channelId: string, weeks: number): void {
                 const moved = addPlanDays(parsePlanDate(weekOf(channelId)), weeks * 7);
                 setWeek(channelId, toPlanDate(moved));
-            },
-
-            loadMoreRecipes(channelId: string): void {
-                const cursor = store.recipesCursor()[channelId] ?? null;
-                if (!cursor || store.recipesLoading(channelId) || store.planLoading(channelId)) {
-                    return;
-                }
-
-                api.listRecipes(channelId, undefined, cursor).subscribe({
-                    next: page => {
-                        if ((store.recipesCursor()[channelId] ?? null) !== cursor) return;
-                        for (const recipe of page.items) {
-                            store.attachToRecipes(channelId, normalizeRecipe(recipe));
-                        }
-                        setCursor(channelId, page.nextCursor ?? null);
-                    },
-                    error: () => undefined,
-                });
             },
 
             addRecipe(channelId: string, body: CreateRecipeDto): Observable<Recipe> {

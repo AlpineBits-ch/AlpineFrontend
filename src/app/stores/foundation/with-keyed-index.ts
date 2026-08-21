@@ -22,6 +22,14 @@ import {
 } from '@ngrx/signals/entities';
 import {KeyedRequest, LoadFailure} from './request-state';
 
+/** Cursor paging for a key whose first page is only the head of the list. */
+export interface KeyedPaging<A, R> {
+    /** `null` means the key holds everything. A page shorter than the limit does not. */
+    cursorOf: (response: R) => string | null;
+    /** Resolved once, inside the injection context, like the first-page `fetch`. */
+    fetch: () => (key: string, cursor: string, arg?: A) => Observable<R>;
+}
+
 /**
  * A key-to-ids index over the entity map `withEntities` already holds, plus that key's request
  * state. Compose it more than once to hold one entity under two differently keyed lists.
@@ -44,6 +52,11 @@ export interface KeyedIndexConfig<T, C extends string, A, E extends string, R, S
     /** Applied when a key's list is read, so a row attached by a realtime event lands in the right place. */
     sort?: (a: T, b: T) => number;
     selectId?: SelectEntityId<T>;
+    /**
+     * Where an attached row lands in a key that does not hold it. Invisible when `sort` is set, and
+     * not applied to a `paging` append, which always goes behind what the key holds.
+     */
+    insertAt?: 'start' | 'end';
     /** Resolved once, inside the injection context. The function it returns is called per load. */
     fetch: () => (key: string, arg?: A) => Observable<R>;
     /** Pulls the rows out of the response. Omit when the response is the rows. */
@@ -54,6 +67,8 @@ export interface KeyedIndexConfig<T, C extends string, A, E extends string, R, S
      * Not called on a failure.
      */
     onLoaded?: (response: R, key: string, state: S) => Partial<S>;
+    /** Omit for a key whose first response is the whole list. */
+    paging?: KeyedPaging<A, R>;
 }
 
 export interface LoadOptions<A> {
@@ -75,18 +90,21 @@ type KeyedIndexMethods<T, C extends string, A> = Record<`${C}For`, (key: string)
     Record<`${C}Loaded`, (key: string) => boolean> &
     Record<`${C}Held`, (key: string) => boolean> &
     Record<`${C}LoadedAt`, (key: string) => number> &
+    Record<`${C}Cursor`, (key: string) => string | null> &
+    Record<`${C}LoadingMore`, (key: string) => boolean> &
     Record<`load${Capitalize<C>}`, (key: string, options?: LoadOptions<A>) => void> &
+    Record<`loadMore${Capitalize<C>}`, (key: string) => void> &
     Record<`invalidate${Capitalize<C>}`, (key: string) => void> &
     Record<`invalidateAll${Capitalize<C>}`, () => void> &
     Record<`apply${Capitalize<C>}`, (key: string, items: T[]) => void> &
     Record<`attachTo${Capitalize<C>}`, (key: string, entity: T) => void> &
     Record<`detachFrom${Capitalize<C>}`, (key: string, id: EntityId) => void>;
 
-type KeyedIndexOutput<T, C extends string, A> = {
+interface KeyedIndexOutput<T, C extends string, A> {
     state: KeyedIndexState<C>;
     props: EmptyFeatureResult['props'];
     methods: KeyedIndexMethods<T, C, A>;
-};
+}
 
 // `${collection}For` caches one computed per key for the life of the store, bounded by the number
 // of channels or guilds opened in a session. Indexing by message id would need eviction first.
@@ -112,6 +130,7 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
     const capitalized = collection.charAt(0).toUpperCase() + collection.slice(1);
     const entities = config.entities;
     const entityMapKey = entities === undefined ? 'entityMap' : `${entities}EntityMap`;
+    const insertAt = config.insertAt ?? 'end';
 
     const feature = signalStoreFeature(
         {state: type<EntityState<T>>()},
@@ -125,7 +144,9 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
 
             const selectId = config.selectId ?? ((entity: T) => (entity as {id: EntityId}).id);
             const rowsOf = config.rows ?? ((response: R) => response as unknown as T[]);
+            const paging = config.paging;
             const fetchOne = config.fetch();
+            const fetchPage = paging?.fetch();
             const views = new Map<string, Signal<T[]>>();
             // The argument the last load for a key was issued under, replayed by a queued refetch.
             const args = new Map<string, A | undefined>();
@@ -138,6 +159,8 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
                     stale: false,
                     pendingRefetch: false,
                     generation: 0,
+                    cursor: null,
+                    loadingMore: false,
                 };
 
             const patchRequest = (key: string, changes: Partial<KeyedRequest>): void => {
@@ -191,10 +214,16 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
              */
             const applyLoaded = (key: string, response: R, request: Partial<KeyedRequest>): void => {
                 const items = rowsOf(response);
+                const paged = paging ? {cursor: paging.cursorOf(response), loadingMore: false} : undefined;
                 const updaters: unknown[] = [
                     upsertRows(items),
                     {[idsKey]: {...idsSignal(), [key]: items.map(selectId)}},
-                    {[requestsKey]: {...requestsSignal(), [key]: {...requestOf(key), ...request}}},
+                    {
+                        [requestsKey]: {
+                            ...requestsSignal(),
+                            [key]: {...requestOf(key), ...paged, ...request},
+                        },
+                    },
                 ];
                 if (config.onLoaded) {
                     updaters.push(config.onLoaded(response, key, getState(source) as unknown as S));
@@ -202,10 +231,55 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
                 patchState(source as never, ...(updaters as never[]));
             };
 
+            /**
+             * A page behind what the key already holds. Always appended, whatever `insertAt` says:
+             * a cursor reaches backwards, while `insertAt` is about a row that has just arrived.
+             * Rows the key holds are left alone, because a page is a snapshot from when it was
+             * requested and a socket arrival since then is newer.
+             */
+            const appendPage = (key: string, response: R): void => {
+                const held = idsSignal()[key] ?? [];
+                const fresh = unheld(held, rowsOf(response));
+                patchState(
+                    source as never,
+                    upsertRows(fresh.rows),
+                    {[idsKey]: {...idsSignal(), [key]: [...held, ...fresh.ids]}} as never,
+                    {
+                        [requestsKey]: {
+                            ...requestsSignal(),
+                            [key]: {
+                                ...requestOf(key),
+                                cursor: paging ? paging.cursorOf(response) : null,
+                                loadingMore: false,
+                            },
+                        },
+                    } as never,
+                );
+            };
+
+            /** What of `rows` this key does not already hold, in order and without repeats. */
+            const unheld = (held: EntityId[], rows: T[]): {ids: EntityId[]; rows: T[]} => {
+                const seen = new Set(held);
+                const ids: EntityId[] = [];
+                const fresh: T[] = [];
+                for (const row of rows) {
+                    const id = selectId(row);
+                    if (seen.has(id)) continue;
+                    seen.add(id);
+                    ids.push(id);
+                    fresh.push(row);
+                }
+                return {ids, rows: fresh};
+            };
+
+            const placed = (held: EntityId[], added: EntityId[]): EntityId[] => {
+                if (added.length === 0) return held;
+                return insertAt === 'start' ? [...added, ...held] : [...held, ...added];
+            };
+
             const attachTo = (key: string, entity: T): void => {
-                const id = selectId(entity);
-                const ids = idsSignal()[key] ?? [];
-                writeIds(key, ids.includes(id) ? ids : [...ids, id], [entity]);
+                const held = idsSignal()[key] ?? [];
+                writeIds(key, placed(held, unheld(held, [entity]).ids), [entity]);
             };
 
             const detachFrom = (key: string, id: EntityId): void => {
@@ -277,6 +351,34 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
                 run(key);
             };
 
+            /**
+             * Appends the page behind what the key holds. A no-op with no cursor, with a page
+             * already out, or while a first-page load is running, so a button can bind straight to
+             * it. A failure touches only `loadingMore`: the rows on screen stay readable.
+             */
+            const loadMore = (key: string): void => {
+                if (!fetchPage) return;
+                const current = requestsSignal()[key];
+                const cursor = current?.cursor;
+                if (!current || !cursor || current.loadingMore || current.loading) return;
+
+                const generation = current.generation;
+                patchRequest(key, {loadingMore: true});
+                fetchPage(key, cursor, args.get(key)).subscribe({
+                    next: response => {
+                        // A first-page load that landed while this was out threw away everything
+                        // the page sits behind; appending it would leave a hole in the middle.
+                        const held = requestOf(key);
+                        if (held.generation !== generation || held.cursor !== cursor) {
+                            patchRequest(key, {loadingMore: false});
+                            return;
+                        }
+                        appendPage(key, response);
+                    },
+                    error: () => patchRequest(key, {loadingMore: false}),
+                });
+            };
+
             const invalidate = (key: string): void => {
                 const current = requestsSignal()[key];
                 if (!current) return;
@@ -305,7 +407,10 @@ export function withKeyedIndex<T, C extends string, A, E extends string, R, S ex
                 [`${collection}Loaded`]: (key: string) => (requestsSignal()[key]?.loadedAt ?? 0) > 0,
                 [`${collection}Held`]: (key: string) => key in requestsSignal() || key in idsSignal(),
                 [`${collection}LoadedAt`]: (key: string) => requestsSignal()[key]?.loadedAt ?? 0,
+                [`${collection}Cursor`]: (key: string) => requestsSignal()[key]?.cursor ?? null,
+                [`${collection}LoadingMore`]: (key: string) => requestsSignal()[key]?.loadingMore ?? false,
                 [`load${capitalized}`]: load,
+                [`loadMore${capitalized}`]: loadMore,
                 [`invalidate${capitalized}`]: invalidate,
                 [`invalidateAll${capitalized}`]: invalidateAll,
                 [`apply${capitalized}`]: apply,

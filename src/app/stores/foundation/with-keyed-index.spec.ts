@@ -25,10 +25,15 @@ function tag(id: string, label = id): Tag {
     return {id, label};
 }
 
-/** A response that is not the rows: what `rows` and `onLoaded` exist for. */
+/** A response that is not the rows: what `rows`, `onLoaded` and `paging` exist for. */
 interface Page {
     items: Row[];
     total: number;
+    cursor: string | null;
+}
+
+function page(items: Row[], cursor: string | null = null, total = items.length): Page {
+    return {items, total, cursor};
 }
 
 interface Totals {
@@ -42,10 +47,12 @@ class FakeApi {
     readonly ownerCalls: string[] = [];
     readonly tagCalls: string[] = [];
     readonly pageCalls: string[] = [];
+    readonly afterCalls: string[] = [];
     readonly stockPending: Subject<Row[]>[] = [];
     readonly ownerPending: Subject<Row[]>[] = [];
     readonly tagPending: Subject<Tag[]>[] = [];
     readonly pagePending: Subject<Page>[] = [];
+    readonly afterPending: Subject<Page>[] = [];
 
     listStock(key: string): Observable<Row[]> {
         this.stockCalls.push(key);
@@ -72,6 +79,13 @@ class FakeApi {
         this.pageCalls.push(key);
         const subject = new Subject<Page>();
         this.pagePending.push(subject);
+        return subject.asObservable();
+    }
+
+    listPageAfter(key: string, cursor: string): Observable<Page> {
+        this.afterCalls.push(cursor);
+        const subject = new Subject<Page>();
+        this.afterPending.push(subject);
         return subject.asObservable();
     }
 }
@@ -129,7 +143,29 @@ const _WrongCollection = signalStore(
     withKeyedIndex<Row, 'stock', 'nope'>({
         collection: 'stock',
         entities: 'nope',
-        fetch: () => (key: string) => new Subject<Row[]>().asObservable(),
+        fetch: () => () => new Subject<Row[]>().asObservable(),
+    }),
+);
+
+/** Newest first without a sort, plus cursor paging: the decision and ledger shapes together. */
+const PagedStore = signalStore(
+    {providedIn: 'root'},
+    withEntities<Row>(),
+    withKeyedIndex<Row, 'stock', never, Page>({
+        collection: 'stock',
+        insertAt: 'start',
+        fetch: () => {
+            const api = inject(FakeApi);
+            return (key: string) => api.listPage(key);
+        },
+        rows: response => response.items,
+        paging: {
+            cursorOf: response => response.cursor,
+            fetch: () => {
+                const api = inject(FakeApi);
+                return (key: string, cursor: string) => api.listPageAfter(key, cursor);
+            },
+        },
     }),
 );
 
@@ -144,8 +180,8 @@ const MetaStore = signalStore(
             const api = inject(FakeApi);
             return (key: string) => api.listPage(key);
         },
-        rows: page => page.items,
-        onLoaded: (page, key, state) => ({totalByKey: {...state.totalByKey, [key]: page.total}}),
+        rows: response => response.items,
+        onLoaded: (response, key, state) => ({totalByKey: {...state.totalByKey, [key]: response.total}}),
     }),
 );
 
@@ -157,6 +193,11 @@ function setup() {
 function setupMeta() {
     TestBed.configureTestingModule({});
     return {store: TestBed.inject(MetaStore), api: TestBed.inject(FakeApi)};
+}
+
+function setupPaged() {
+    TestBed.configureTestingModule({});
+    return {store: TestBed.inject(PagedStore), api: TestBed.inject(FakeApi)};
 }
 
 function setupNamed() {
@@ -508,7 +549,7 @@ describe('withKeyedIndex', () => {
         it('takes the rows out of a response that is not the rows', () => {
             const {store, api} = setupMeta();
             store.loadStock('c1');
-            api.pagePending[0].next({items: [row('a'), row('b')], total: 42});
+            api.pagePending[0].next(page([row('a'), row('b')], null, 42));
 
             expect(
                 store
@@ -528,7 +569,7 @@ describe('withKeyedIndex', () => {
             });
 
             store.loadStock('c1');
-            api.pagePending[0].next({items: [row('a'), row('b')], total: 42});
+            api.pagePending[0].next(page([row('a'), row('b')], null, 42));
 
             // Neither half is ever visible without the other: the rows and the total move together.
             expect(seen).toContainEqual([2, 42]);
@@ -539,7 +580,7 @@ describe('withKeyedIndex', () => {
         it('leaves the sibling state alone on a failure', () => {
             const {store, api} = setupMeta();
             store.loadStock('c1');
-            api.pagePending[0].next({items: [row('a')], total: 7});
+            api.pagePending[0].next(page([row('a')], null, 7));
             store.loadStock('c1', {force: true});
             api.pagePending[1].error(new HttpErrorResponse({status: 500}));
 
@@ -632,6 +673,145 @@ describe('withKeyedIndex', () => {
             store.loadByOwner('c1');
 
             expect(api.ownerCalls).toEqual(['c1']);
+        });
+    });
+
+    describe('insertAt', () => {
+        it('appends by default', () => {
+            const {store} = setup();
+            store.applyStock('c1', [row('a')]);
+            store.attachToStock('c1', row('b'));
+            store.attachToStock('c1', row('c'));
+
+            expect(store.stockIds()['c1']).toEqual(['a', 'b', 'c']);
+        });
+
+        it('prepends when the index asks for it', () => {
+            const {store} = setupPaged();
+            store.applyStock('c1', [row('a')]);
+            store.attachToStock('c1', row('b'));
+            store.attachToStock('c1', row('c'));
+
+            expect(store.stockIds()['c1']).toEqual(['c', 'b', 'a']);
+        });
+
+        it('leaves a held id where it stands and still updates the row', () => {
+            const {store} = setupPaged();
+            store.applyStock('c1', [row('a'), row('b')]);
+            store.attachToStock('c1', row('b', 'Zed'));
+
+            expect(store.stockIds()['c1']).toEqual(['a', 'b']);
+            expect(store.entityMap()['b'].name).toBe('Zed');
+        });
+
+        it('creates the key when nothing held it', () => {
+            const {store} = setupPaged();
+            store.attachToStock('c1', row('a'));
+
+            expect(store.stockIds()['c1']).toEqual(['a']);
+        });
+    });
+
+    describe('paging', () => {
+        it('asks for the page with the cursor the response handed back', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            expect(store.stockCursor('c1')).toBe('cur1');
+
+            store.loadMoreStock('c1');
+
+            expect(api.afterCalls).toEqual(['cur1']);
+            expect(store.stockLoadingMore('c1')).toBe(true);
+        });
+
+        it('lands the page behind the first and moves the cursor on', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            store.loadMoreStock('c1');
+            api.afterPending[0].next(page([row('a')], null));
+
+            expect(store.stockIds()['c1']).toEqual(['b', 'a']);
+            expect(store.stockCursor('c1')).toBeNull();
+            expect(store.stockLoadingMore('c1')).toBe(false);
+        });
+
+        it('leaves a row the key already holds alone', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b', 'Fresh')], 'cur1'));
+            store.loadMoreStock('c1');
+            api.afterPending[0].next(page([row('b', 'Stale'), row('a')], null));
+
+            expect(store.entityMap()['b'].name).toBe('Fresh');
+            expect(store.stockIds()['c1']).toEqual(['b', 'a']);
+        });
+
+        it('does nothing with no cursor', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], null));
+            store.loadMoreStock('c1');
+
+            expect(api.afterCalls).toEqual([]);
+        });
+
+        it('does nothing with a page already out', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            store.loadMoreStock('c1');
+            store.loadMoreStock('c1');
+
+            expect(api.afterCalls).toEqual(['cur1']);
+        });
+
+        it('does nothing while a first-page load is running', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            store.loadStock('c1', {force: true});
+            store.loadMoreStock('c1');
+
+            expect(api.afterCalls).toEqual([]);
+        });
+
+        it('does nothing for a key nobody fetched', () => {
+            const {store, api} = setupPaged();
+            store.loadMoreStock('c1');
+
+            expect(api.afterCalls).toEqual([]);
+            expect(store.stockTracked('c1')).toBe(false);
+        });
+
+        it('leaves loadedAt, stale and error alone when a page fails', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            store.loadMoreStock('c1');
+            api.afterPending[0].error(new HttpErrorResponse({status: 500}));
+
+            expect(store.stockLoaded('c1')).toBe(true);
+            expect(store.stockError('c1')).toBeNull();
+            expect(store.stockCursor('c1')).toBe('cur1');
+            expect(store.stockLoadingMore('c1')).toBe(false);
+            expect(store.stockIds()['c1']).toEqual(['b']);
+        });
+
+        it('drops a page whose cursor moved while it was out', () => {
+            const {store, api} = setupPaged();
+            store.loadStock('c1');
+            api.pagePending[0].next(page([row('b')], 'cur1'));
+            store.loadMoreStock('c1');
+
+            store.loadStock('c1', {force: true});
+            api.pagePending[1].next(page([row('b')], 'cur_fresh'));
+            api.afterPending[0].next(page([row('a')], 'cur2'));
+
+            expect(store.stockIds()['c1']).toEqual(['b']);
+            expect(store.stockCursor('c1')).toBe('cur_fresh');
+            expect(store.stockLoadingMore('c1')).toBe(false);
         });
     });
 

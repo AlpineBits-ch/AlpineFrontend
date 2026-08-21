@@ -1,5 +1,5 @@
 import {computed, inject, Signal} from '@angular/core';
-import {catchError, defer, forkJoin, map, Observable, tap, throwError} from 'rxjs';
+import {catchError, defer, forkJoin, Observable, tap, throwError} from 'rxjs';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {removeEntities, withEntities} from '@ngrx/signals/entities';
 import {

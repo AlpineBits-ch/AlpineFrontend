@@ -1,6 +1,6 @@
 import {computed, inject, Signal} from '@angular/core';
 import {map, Observable, tap} from 'rxjs';
-import {patchState, signalStore, type, withHooks, withMethods, withState} from '@ngrx/signals';
+import {patchState, signalStore, type, withHooks, withMethods} from '@ngrx/signals';
 import {removeEntity, upsertEntity, withEntities} from '@ngrx/signals/entities';
 import {
     AssetStatus,
@@ -76,12 +76,6 @@ interface AttentionEntry extends MaintenanceAttentionEntry {
 
 function toAttentionEntry(entry: MaintenanceAttentionEntry): AttentionEntry {
     return {...entry, id: entry.asset.id};
-}
-
-interface MaintenanceScopedState {
-    /** Per channel, the `nextCursor` off the log's last page. `null` means the log is complete. */
-    recordsCursor: Record<string, string | null>;
-    loadingMore: Record<string, boolean>;
 }
 
 // `upsertEntities` merges rather than replaces, so a field the server drops to clear it would
@@ -187,7 +181,6 @@ export const MaintenanceStore = signalStore(
     withEntities<MaintenanceAsset, 'asset'>({entity: type<MaintenanceAsset>(), collection: 'asset'}),
     withEntities<MaintenanceRecord, 'record'>({entity: type<MaintenanceRecord>(), collection: 'record'}),
     withEntities<AttentionEntry, 'attn'>({entity: type<AttentionEntry>(), collection: 'attn'}),
-    withState<MaintenanceScopedState>({recordsCursor: {}, loadingMore: {}}),
 
     withKeyedIndex<MaintenanceAsset, 'assets', 'asset'>({
         collection: 'assets',
@@ -200,14 +193,7 @@ export const MaintenanceStore = signalStore(
         },
     }),
 
-    withKeyedIndex<
-        MaintenanceRecord,
-        'records',
-        'record',
-        never,
-        MaintenanceRecordPage,
-        MaintenanceScopedState
-    >({
+    withKeyedIndex<MaintenanceRecord, 'records', 'record', never, MaintenanceRecordPage>({
         collection: 'records',
         entities: 'record',
         sort: byNewest,
@@ -216,9 +202,13 @@ export const MaintenanceStore = signalStore(
             return (channelId: string) => api.listRecords(channelId);
         },
         rows: page => page.items.map(wholeRecord),
-        onLoaded: (page, channelId, state) => ({
-            recordsCursor: {...state.recordsCursor, [channelId]: page.nextCursor ?? null},
-        }),
+        paging: {
+            cursorOf: page => page.nextCursor ?? null,
+            fetch: () => {
+                const api = inject(MaintenanceApiService);
+                return (channelId: string, cursor: string) => api.listRecords(channelId, {cursor});
+            },
+        },
     }),
 
     withKeyedIndex<AttentionEntry, 'attention', 'attn'>({
@@ -243,14 +233,6 @@ export const MaintenanceStore = signalStore(
         // must still reach that channel, so an id list counts as having opened it.
         const opened = (channelId: string): boolean =>
             store.assetsHeld(channelId) || store.recordsHeld(channelId);
-
-        const setLoadingMore = (channelId: string, value: boolean): void => {
-            patchState(store, {loadingMore: {...store.loadingMore(), [channelId]: value}});
-        };
-
-        const setCursor = (channelId: string, cursor: string | null): void => {
-            patchState(store, {recordsCursor: {...store.recordsCursor(), [channelId]: cursor}});
-        };
 
         /**
          * Keeps a loaded board's copy of one asset current. It never adds a row: whether an asset
@@ -299,8 +281,8 @@ export const MaintenanceStore = signalStore(
                         return {
                             assets,
                             records,
-                            recordsCursor: store.recordsCursor()[channelId] ?? null,
-                            loadingMore: store.loadingMore()[channelId] ?? false,
+                            recordsCursor: store.recordsCursor(channelId),
+                            loadingMore: store.recordsLoadingMore(channelId),
                             loading,
                             loaded: tracked && store.recordsTracked(channelId) && !loading,
                             forbidden,
@@ -347,35 +329,6 @@ export const MaintenanceStore = signalStore(
             },
 
             refresh,
-
-            loadMoreRecords(channelId: string): void {
-                const cursor = store.recordsCursor()[channelId] ?? null;
-                if (
-                    !cursor ||
-                    store.loadingMore()[channelId] ||
-                    store.assetsLoading(channelId) ||
-                    store.recordsLoading(channelId)
-                ) {
-                    return;
-                }
-
-                setLoadingMore(channelId, true);
-                api.listRecords(channelId, {cursor}).subscribe({
-                    next: page => {
-                        setLoadingMore(channelId, false);
-                        // A refresh that landed while this was in the air threw away everything the
-                        // page sits behind; appending it would leave a hole in the middle of the log.
-                        if ((store.recordsCursor()[channelId] ?? null) !== cursor) return;
-
-                        const held = new Set(recordsIn(channelId).map(r => r.id));
-                        for (const raw of page.items) {
-                            if (!held.has(raw.id)) upsertRecord(channelId, raw);
-                        }
-                        setCursor(channelId, page.nextCursor ?? null);
-                    },
-                    error: () => setLoadingMore(channelId, false),
-                });
-            },
 
             // ── Writes ───────────────────────────────────────────────────────
 
