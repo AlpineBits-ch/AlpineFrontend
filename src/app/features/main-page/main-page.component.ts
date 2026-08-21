@@ -19,7 +19,6 @@ import {ActivityFeedComponent} from './components/activity-feed/activity-feed.co
 import {ConversationInfoPanelComponent} from '../messaging/components/conversation-info-panel/conversation-info-panel.component';
 import {NavigationService} from './navigation.service';
 import {NotificationService} from '../../services/notification.service';
-import {HouseholdAlertService} from '../../services/household-alert.service';
 import {ConversationStore} from '../../stores/conversation.store';
 import {firstValueFrom, Subscription} from 'rxjs';
 import {VoiceWebsocketService} from '../../services/voice-websocket.service';
@@ -183,7 +182,6 @@ export class MainPageComponent implements OnDestroy {
     private socialWebsocketService = inject(SocialWebsocketService);
     private notificationService = inject(NotificationService);
     /** Injected for its constructor side effect only; removing the injection silently kills household alerts. */
-    private householdAlerts = inject(HouseholdAlertService);
     /** Injected for its constructor side effect only; removing the injection silently kills go-live notifications. */
     private goLiveNotifications = inject(GoLiveNotificationService);
     private callFocus = inject(CallFocusService);

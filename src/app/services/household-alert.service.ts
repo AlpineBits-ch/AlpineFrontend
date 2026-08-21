@@ -13,8 +13,9 @@ import {RealtimeConnectionService} from './realtime-connection.service';
  * The single listener for `guild.HouseholdAlert`, and the only place a household event becomes an
  * OS notification.
  *
- * Must stay injected by the shell: a listener owned by a feature service only exists once that
- * feature has been opened. Nothing is filtered here, the server owns recipients and quiet hours.
+ * Must stay on the {@link REALTIME_LISTENER} list: a listener owned by a feature service only
+ * exists once that feature has been opened. Nothing is filtered here, the server owns recipients
+ * and quiet hours.
  */
 @Injectable({providedIn: 'root'})
 export class HouseholdAlertService {

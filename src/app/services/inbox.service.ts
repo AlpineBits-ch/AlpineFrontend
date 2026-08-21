@@ -149,8 +149,8 @@ export class InboxService {
     private wasConnected = false;
 
     constructor() {
-        // Root singleton injected by the always-rendered titlebar, so this registers exactly once
-        // at bootstrap. `on` is safe before `start`.
+        // Root singleton on the REALTIME_LISTENER list, so this registers exactly once at launch.
+        // `on` is safe before `start`.
         this.realtime.on('inbox.MentionAdded', (d: InboxMentionAdded) => this.onMentionAdded(d));
         this.realtime.on('inbox.ReadStateChanged', (d: InboxReadStateChanged) => this.onReadStateChanged(d));
 
@@ -348,9 +348,7 @@ export class InboxService {
         this.adjustTaskCount(-1);
 
         try {
-            await firstValueFrom(
-                this.api.dismissTask(task.kind, task.targetId, task.breadcrumb.guildId),
-            );
+            await firstValueFrom(this.api.dismissTask(task.kind, task.targetId, task.breadcrumb.guildId));
         } catch {
             this._tasks.set(before);
             this.adjustTaskCount(1);
@@ -546,9 +544,7 @@ export class InboxService {
 
     /** The task half of the badge, moved on its own by a dismissal. */
     private adjustTaskCount(delta: number): void {
-        this._summary.update(s =>
-            s.capped ? s : {...s, taskCount: Math.max(0, s.taskCount + delta)},
-        );
+        this._summary.update(s => (s.capped ? s : {...s, taskCount: Math.max(0, s.taskCount + delta)}));
     }
 
     /** Moves the badge by a delta. Clamped at zero, and left alone once `capped`. */

@@ -41,6 +41,7 @@ import {HttpPersonaApi, PersonaApi} from './services/persona-api.service';
 import {HttpRoleplayApi, RoleplayApi} from './services/roleplay-api.service';
 import {DraftApi, HttpDraftApi} from './services/draft-api.service';
 import {HttpWikiPublicationApi, WikiPublicationApi} from './services/wiki-publication-api.service';
+import {provideRealtimeListeners, REALTIME_LISTENER} from './services/realtime-listeners';
 
 registerLocaleData(localeDe);
 registerLocaleData(localeFr);
@@ -133,9 +134,12 @@ export const appConfig: ApplicationConfig = {
         {provide: DraftApi, useClass: HttpDraftApi},
         {provide: WikiPublicationApi, useClass: HttpWikiPublicationApi},
         provideAnimations(),
+        provideRealtimeListeners(),
         provideAppInitializer(() => {
             inject(ThemeService);
             inject(LanguageService);
+            // The one resolution of the token. See `realtime-listeners.ts` for what it buys.
+            inject(REALTIME_LISTENER);
         }),
     ],
 };

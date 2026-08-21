@@ -114,10 +114,8 @@ export class ChoreService {
         this.realtime.on('guild.ChoreOccurrenceNudged', (d: ChoreOccurrenceNudged) =>
             this.onOccurrenceNudged(d),
         );
-        // The due-date reminder is not registered here. It arrives as `guild.HouseholdAlert` now,
-        // and is handled by `HouseholdAlertService`, which the shell constructs at launch - this
-        // service only exists once somebody has opened a chores board, which is precisely the
-        // person a reminder does not need to reach.
+        // The due-date reminder is not registered here. It arrives as `guild.HouseholdAlert`, which
+        // covers decisions and bills too, and `HouseholdAlertService` owns the dedupe behind it.
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────

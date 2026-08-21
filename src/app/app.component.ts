@@ -47,7 +47,6 @@ import {LegalConsentDialogComponent} from './components/legal-consent-dialog/leg
 import {StatusBannerComponent} from './components/status-banner/status-banner.component';
 import {PlatformStatusService} from './services/platform-status.service';
 import {VoiceRingCardComponent} from './shared/call/voice-ring-card/voice-ring-card.component';
-import {VoiceRingStateService} from './services/voice-ring-state.service';
 
 function isEditableTarget(target: EventTarget | null): boolean {
     const element = target instanceof Element ? target : null;
@@ -100,8 +99,6 @@ export class AppComponent implements OnInit, OnDestroy {
     // Do not remove: injected for its side effect, keeping crash-report identity in step with consent.
     private telemetryConsent = inject(TelemetryConsentService);
     private platformStatus = inject(PlatformStatusService);
-    // Do not remove: constructed here so a ring arriving before the card renders is still caught.
-    private voiceRings = inject(VoiceRingStateService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
     private host = inject(ElementRef<HTMLElement>);
 
