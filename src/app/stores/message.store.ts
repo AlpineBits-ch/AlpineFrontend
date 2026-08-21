@@ -96,6 +96,19 @@ interface SearchEntry {
     searching: boolean;
 }
 
+/** Which side of the store a call addresses. Everything paged or searched is scoped by one of these. */
+type MessageContext = {kind: 'conversation'; id: string} | {kind: 'channel'; id: string};
+
+const conversationContext = (id: string): MessageContext => ({kind: 'conversation', id});
+const channelContext = (id: string): MessageContext => ({kind: 'channel', id});
+
+/** Delegates so `conv:` / `chan:` has exactly one definition, in the cache service. */
+function contextKey(ctx: MessageContext): string {
+    return ctx.kind === 'conversation'
+        ? messageContextKey({conversationId: ctx.id})
+        : messageContextKey({channelId: ctx.id});
+}
+
 interface MessageState {
     conversationMeta: Record<string, ConversationMeta>;
     searchEntries: Record<string, SearchEntry>;
@@ -149,151 +162,151 @@ export const MessageStore = signalStore(
             mlsHealth = inject(MlsHealthService),
             messageCache = inject(MessageCacheService),
         ) => {
-            // Ids one `loadFor*` call painted from the cache: bookkeeping for one in-flight load,
-            // never store state and never widened to the full entity map. See `reconcile`.
-            const conversationCachePaint = new Map<string, MessageDto[]>();
-            const channelCachePaint = new Map<string, MessageDto[]>();
+            // Ids one `loadFirstPage` call painted from the cache: bookkeeping for one in-flight
+            // load, never store state and never widened to the full entity map. See `reconcile`.
+            // Keyed on `contextKey`, whose two prefixes are disjoint.
+            const cachePaint = new Map<string, MessageDto[]>();
+
+            function readMeta(ctx: MessageContext): ConversationMeta | undefined {
+                return ctx.kind === 'conversation'
+                    ? store.conversationMeta()[ctx.id]
+                    : store.channelMeta()[ctx.id];
+            }
+
+            /** `null` drops the entry, which is what makes a retry possible. */
+            function metaPatch(ctx: MessageContext, next: ConversationMeta | null): Partial<MessageState> {
+                const record =
+                    ctx.kind === 'conversation' ? {...store.conversationMeta()} : {...store.channelMeta()};
+                if (next) record[ctx.id] = next;
+                else delete record[ctx.id];
+                return ctx.kind === 'conversation' ? {conversationMeta: record} : {channelMeta: record};
+            }
+
+            function requestPage(ctx: MessageContext, offset: number): Observable<MessageDto[]> {
+                const page =
+                    ctx.kind === 'conversation'
+                        ? messagingService.getMessagesForConversation(ctx.id, offset, PAGE_SIZE)
+                        : messagingService.getMessagesForChannel(ctx.id, offset, PAGE_SIZE);
+                return page.pipe(
+                    switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))),
+                );
+            }
+
+            /** Painted first, replaced on arrival. `offset` is a server-side cursor and never moves here. */
+            function paintFromCache(ctx: MessageContext): void {
+                const key = contextKey(ctx);
+                void messageCache
+                    .recall(key)
+                    .then(cached => {
+                        if (cached.length === 0) return;
+                        if (!readMeta(ctx)?.loadingMore) return;
+                        return decryptMessages(cached, mlsService, mlsSync, mlsHealth).then(decrypted => {
+                            // Re-checked before the commit: a slow cache read must never overwrite
+                            // fresher server data.
+                            if (!readMeta(ctx)?.loadingMore) return;
+
+                            // Only ids this paint adds: a websocket message that raced in is fresher
+                            // than the cache and is not an eviction candidate.
+                            const existingIds = new Set(store.entities().map(m => m.id));
+                            const painted = decrypted.filter(m => !existingIds.has(m.id));
+                            if (painted.length === 0) return;
+
+                            cachePaint.set(key, painted);
+                            patchState(store, addEntities(painted));
+                        });
+                    })
+                    // A cache failure must stay silent: the network fetch is the source of truth.
+                    .catch(() => {});
+            }
+
+            function loadFirstPage(ctx: MessageContext): void {
+                // Already fetched, so nothing to do
+                if (readMeta(ctx)) return;
+
+                // Optimistically mark as loading so concurrent calls don't double-fetch
+                patchState(store, metaPatch(ctx, {offset: 0, hasMore: true, loadingMore: true}));
+
+                paintFromCache(ctx);
+
+                const key = contextKey(ctx);
+                requestPage(ctx, 0).subscribe({
+                    next: messages => {
+                        // Exactly the ids this load painted, never every entity the store holds.
+                        const painted = cachePaint.get(key) ?? [];
+                        cachePaint.delete(key);
+
+                        const settled = reconcile(painted, messages);
+                        const dropped = painted.filter(c => !settled.some(s => s.id === c.id)).map(c => c.id);
+
+                        // Scoped to the painted ids alone: an id that arrived by any other route must
+                        // keep `addEntities`'s no-op-on-existing, or this page clobbers it.
+                        const paintedIds = new Set(painted.map(m => m.id));
+                        const confirmedFromCache = messages.filter(m => paintedIds.has(m.id));
+                        const fromNetworkOnly = messages.filter(m => !paintedIds.has(m.id));
+
+                        patchState(
+                            store,
+                            removeEntities(dropped),
+                            addEntities(fromNetworkOnly),
+                            upsertEntities(confirmedFromCache),
+                            metaPatch(ctx, {
+                                offset: messages.length,
+                                hasMore: messages.length === PAGE_SIZE,
+                                loadingMore: false,
+                            }),
+                        );
+                        // Caught, not discarded: a loose rejection reaches `GlobalErrorHandler`, which
+                        // reloads the window after three in five seconds.
+                        void messageCache
+                            .remember(key, messages)
+                            .catch((err: unknown) => trace('Message page not cached', err));
+                    },
+                    error: (err: HttpErrorResponse) => {
+                        cachePaint.delete(key);
+                        patchState(
+                            store,
+                            metaPatch(ctx, {
+                                offset: 0,
+                                hasMore: false,
+                                loadingMore: false,
+                                error: err.status || 0,
+                            }),
+                        );
+                    },
+                });
+            }
+
+            function loadNextPage(ctx: MessageContext): void {
+                const meta = readMeta(ctx);
+                if (!meta || meta.loadingMore || !meta.hasMore) return;
+
+                patchState(store, metaPatch(ctx, {...meta, loadingMore: true}));
+
+                requestPage(ctx, meta.offset).subscribe({
+                    next: messages => {
+                        patchState(
+                            store,
+                            addEntities(messages),
+                            metaPatch(ctx, {
+                                offset: meta.offset + messages.length,
+                                hasMore: messages.length === PAGE_SIZE,
+                                loadingMore: false,
+                            }),
+                        );
+                    },
+                    error: () => {
+                        patchState(store, metaPatch(ctx, {...meta, loadingMore: false}));
+                    },
+                });
+            }
 
             return {
                 loadForConversation(conversationId: string): void {
-                    // Already fetched, so nothing to do
-                    if (store.conversationMeta()[conversationId]) return;
-
-                    // Optimistically mark as loading so concurrent calls don't double-fetch
-                    patchState(store, {
-                        conversationMeta: {
-                            ...store.conversationMeta(),
-                            [conversationId]: {offset: 0, hasMore: true, loadingMore: true},
-                        },
-                    });
-
-                    // Painted first, replaced on arrival. `offset` is a server-side cursor and never moves here.
-                    void messageCache
-                        .recall(messageContextKey({conversationId}))
-                        .then(cached => {
-                            if (cached.length === 0) return;
-                            if (!store.conversationMeta()[conversationId]?.loadingMore) return;
-                            return decryptMessages(cached, mlsService, mlsSync, mlsHealth).then(decrypted => {
-                                // Re-checked before the commit: a slow cache read must never overwrite
-                                // fresher server data.
-                                if (!store.conversationMeta()[conversationId]?.loadingMore) return;
-
-                                // Only ids this paint adds: a websocket message that raced in is fresher
-                                // than the cache and is not an eviction candidate.
-                                const existingIds = new Set(store.entities().map(m => m.id));
-                                const painted = decrypted.filter(m => !existingIds.has(m.id));
-                                if (painted.length === 0) return;
-
-                                conversationCachePaint.set(conversationId, painted);
-                                patchState(store, addEntities(painted));
-                            });
-                        })
-                        // A cache failure must stay silent: the network fetch below is the source of truth.
-                        .catch(() => {});
-
-                    messagingService
-                        .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                // Exactly the ids this load painted, never every entity the store holds.
-                                const painted = conversationCachePaint.get(conversationId) ?? [];
-                                conversationCachePaint.delete(conversationId);
-
-                                const settled = reconcile(painted, messages);
-                                const dropped = painted
-                                    .filter(c => !settled.some(s => s.id === c.id))
-                                    .map(c => c.id);
-
-                                // Scoped to the painted ids alone: an id that arrived by any other route
-                                // must keep `addEntities`'s no-op-on-existing, or this page clobbers it.
-                                const paintedIds = new Set(painted.map(m => m.id));
-                                const confirmedFromCache = messages.filter(m => paintedIds.has(m.id));
-                                const fromNetworkOnly = messages.filter(m => !paintedIds.has(m.id));
-
-                                patchState(
-                                    store,
-                                    removeEntities(dropped),
-                                    addEntities(fromNetworkOnly),
-                                    upsertEntities(confirmedFromCache),
-                                    {
-                                        conversationMeta: {
-                                            ...store.conversationMeta(),
-                                            [conversationId]: {
-                                                offset: messages.length,
-                                                hasMore: messages.length === PAGE_SIZE,
-                                                loadingMore: false,
-                                            },
-                                        },
-                                    },
-                                );
-                                // Caught, not discarded: a loose rejection reaches `GlobalErrorHandler`,
-                                // which reloads the window after three in five seconds.
-                                void messageCache
-                                    .remember(messageContextKey({conversationId}), messages)
-                                    .catch((err: unknown) => trace('Conversation page not cached', err));
-                            },
-                            error: (err: HttpErrorResponse) => {
-                                conversationCachePaint.delete(conversationId);
-                                patchState(store, {
-                                    conversationMeta: {
-                                        ...store.conversationMeta(),
-                                        [conversationId]: {
-                                            offset: 0,
-                                            hasMore: false,
-                                            loadingMore: false,
-                                            error: err.status || 0,
-                                        },
-                                    },
-                                });
-                            },
-                        });
+                    loadFirstPage(conversationContext(conversationId));
                 },
 
                 loadMoreForConversation(conversationId: string): void {
-                    const meta = store.conversationMeta()[conversationId];
-                    if (!meta || meta.loadingMore || !meta.hasMore) return;
-
-                    patchState(store, {
-                        conversationMeta: {
-                            ...store.conversationMeta(),
-                            [conversationId]: {...meta, loadingMore: true},
-                        },
-                    });
-
-                    messagingService
-                        .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                patchState(store, addEntities(messages), {
-                                    conversationMeta: {
-                                        ...store.conversationMeta(),
-                                        [conversationId]: {
-                                            offset: meta.offset + messages.length,
-                                            hasMore: messages.length === PAGE_SIZE,
-                                            loadingMore: false,
-                                        },
-                                    },
-                                });
-                            },
-                            error: () => {
-                                patchState(store, {
-                                    conversationMeta: {
-                                        ...store.conversationMeta(),
-                                        [conversationId]: {...meta, loadingMore: false},
-                                    },
-                                });
-                            },
-                        });
+                    loadNextPage(conversationContext(conversationId));
                 },
 
                 clearConversationError(conversationId: string): void {
@@ -621,92 +634,7 @@ export const MessageStore = signalStore(
                 },
 
                 loadForChannel(channelId: string): void {
-                    if (store.channelMeta()[channelId]) return;
-                    patchState(store, {
-                        channelMeta: {
-                            ...store.channelMeta(),
-                            [channelId]: {offset: 0, hasMore: true, loadingMore: true},
-                        },
-                    });
-
-                    // Same treatment as `loadForConversation`; see the comments there.
-                    void messageCache
-                        .recall(messageContextKey({channelId}))
-                        .then(cached => {
-                            if (cached.length === 0) return;
-                            if (!store.channelMeta()[channelId]?.loadingMore) return;
-                            return decryptMessages(cached, mlsService, mlsSync, mlsHealth).then(decrypted => {
-                                if (!store.channelMeta()[channelId]?.loadingMore) return;
-
-                                const existingIds = new Set(store.entities().map(m => m.id));
-                                const painted = decrypted.filter(m => !existingIds.has(m.id));
-                                if (painted.length === 0) return;
-
-                                channelCachePaint.set(channelId, painted);
-                                patchState(store, addEntities(painted));
-                            });
-                        })
-                        // A cache failure here must stay silent, exactly as in `loadForConversation`.
-                        .catch(() => {});
-
-                    messagingService
-                        .getMessagesForChannel(channelId, 0, PAGE_SIZE)
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                const painted = channelCachePaint.get(channelId) ?? [];
-                                channelCachePaint.delete(channelId);
-
-                                const settled = reconcile(painted, messages);
-                                const dropped = painted
-                                    .filter(c => !settled.some(s => s.id === c.id))
-                                    .map(c => c.id);
-
-                                // Scoped to the painted ids alone; see `loadForConversation`.
-                                const paintedIds = new Set(painted.map(m => m.id));
-                                const confirmedFromCache = messages.filter(m => paintedIds.has(m.id));
-                                const fromNetworkOnly = messages.filter(m => !paintedIds.has(m.id));
-
-                                patchState(
-                                    store,
-                                    removeEntities(dropped),
-                                    addEntities(fromNetworkOnly),
-                                    upsertEntities(confirmedFromCache),
-                                    {
-                                        channelMeta: {
-                                            ...store.channelMeta(),
-                                            [channelId]: {
-                                                offset: messages.length,
-                                                hasMore: messages.length === PAGE_SIZE,
-                                                loadingMore: false,
-                                            },
-                                        },
-                                    },
-                                );
-                                // Swallowed: an unavailable cache must never reach the global error handler.
-                                void messageCache
-                                    .remember(messageContextKey({channelId}), messages)
-                                    .catch((err: unknown) => trace('Channel page not cached', err));
-                            },
-                            error: (err: HttpErrorResponse) => {
-                                channelCachePaint.delete(channelId);
-                                patchState(store, {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {
-                                            offset: 0,
-                                            hasMore: false,
-                                            loadingMore: false,
-                                            error: err.status || 0,
-                                        },
-                                    },
-                                });
-                            },
-                        });
+                    loadFirstPage(channelContext(channelId));
                 },
 
                 /**
@@ -835,43 +763,7 @@ export const MessageStore = signalStore(
                 },
 
                 loadMoreForChannel(channelId: string): void {
-                    const meta = store.channelMeta()[channelId];
-                    if (!meta || meta.loadingMore || !meta.hasMore) return;
-                    patchState(store, {
-                        channelMeta: {
-                            ...store.channelMeta(),
-                            [channelId]: {...meta, loadingMore: true},
-                        },
-                    });
-                    messagingService
-                        .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
-                        .pipe(
-                            switchMap(messages =>
-                                from(decryptMessages(messages, mlsService, mlsSync, mlsHealth)),
-                            ),
-                        )
-                        .subscribe({
-                            next: messages => {
-                                patchState(store, addEntities(messages), {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {
-                                            offset: meta.offset + messages.length,
-                                            hasMore: messages.length === PAGE_SIZE,
-                                            loadingMore: false,
-                                        },
-                                    },
-                                });
-                            },
-                            error: () => {
-                                patchState(store, {
-                                    channelMeta: {
-                                        ...store.channelMeta(),
-                                        [channelId]: {...meta, loadingMore: false},
-                                    },
-                                });
-                            },
-                        });
+                    loadNextPage(channelContext(channelId));
                 },
 
                 clearChannelError(channelId: string): void {
