@@ -1,4 +1,4 @@
-import {Component, output, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, output, viewChild} from '@angular/core';
 import {Popover} from 'primeng/popover';
 import {SelfProfileMenuComponent} from '../self-profile-menu/self-profile-menu.component';
 
@@ -8,6 +8,7 @@ import {SelfProfileMenuComponent} from '../self-profile-menu/self-profile-menu.c
     imports: [Popover, SelfProfileMenuComponent],
     templateUrl: './self-profile-popover.component.html',
     styleUrl: './self-profile-popover.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SelfProfilePopoverComponent {
     editProfile = output<void>();

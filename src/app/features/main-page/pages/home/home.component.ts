@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
@@ -33,11 +33,12 @@ type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
     ],
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomeComponent {
     public readonly tab = signal<FriendsTab>('online');
     public readonly addFriendOpen = signal(false);
-    public friendInput = '';
+    public readonly friendInput = signal('');
     protected profilePopout = inject(ProfilePopoutService);
     protected navService = inject(NavigationService);
     protected readonly OnlineStatus = OnlineStatus;
@@ -106,10 +107,10 @@ export class HomeComponent {
     }
 
     public sendRequest(): void {
-        const username = this.friendInput.trim();
+        const username = this.friendInput().trim();
         if (!username) return;
         this.relationshipStore.sendRequest(username).subscribe(() => {
-            this.friendInput = '';
+            this.friendInput.set('');
             this.addFriendOpen.set(false);
         });
     }

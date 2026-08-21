@@ -1,4 +1,4 @@
-import {Component, computed, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
@@ -17,6 +17,7 @@ import {Activity, ACTIVITY_TYPE_ICONS} from '../../../../models/activity.model';
     imports: [AppAvatarComponent, TranslateModule, NgClass, EmptyStateComponent, ActivityLineComponent],
     templateUrl: './activity-feed.component.html',
     styleUrl: './activity-feed.component.css',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActivityFeedComponent {
     protected profileService = inject(ProfileService);

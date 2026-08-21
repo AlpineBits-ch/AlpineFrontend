@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallSessionService} from '../../../../services/call-session.service';
@@ -16,6 +16,7 @@ import {NoiseSuppressionPopoverComponent} from '../noise-suppression-popover/noi
     selector: 'app-voice-status-bar',
     imports: [TranslateModule, CallLiveBadgeComponent, NoiseSuppressionPopoverComponent],
     templateUrl: './voice-status-bar.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceStatusBarComponent {
     protected voiceSvc = inject(VoiceChannelService);
