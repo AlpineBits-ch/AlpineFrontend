@@ -61,7 +61,7 @@ export class EmbedPlayerComponent {
     constructor() {
         // A different video on the same card must not inherit the previous one's open frame.
         effect(() => {
-            this.video().url;
+            this.video();
             this.playing.set(false);
         });
     }
