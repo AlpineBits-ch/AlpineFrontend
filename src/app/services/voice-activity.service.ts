@@ -252,7 +252,7 @@ export class VoiceActivityService {
 
         analyser.getFloatTimeDomainData(buffer);
         let sum = 0;
-        for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+        for (const sample of buffer) sum += sample * sample;
         const rms = Math.sqrt(sum / buffer.length);
         this.levelSignal.set(rms);
 
