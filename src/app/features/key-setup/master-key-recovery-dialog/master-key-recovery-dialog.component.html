@@ -61,11 +61,17 @@
             </div>
 
             <div class="mt-4">
-                <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"> Password </label>
+                <label
+                    class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+                    for="reset-encryption-password"
+                >
+                    Password
+                </label>
                 <input
                     (input)="onPasswordInput($event)"
                     [feedback]="false"
                     [value]="password()"
+                    id="reset-encryption-password"
                     pPassword
                     placeholder="Your account password"
                     type="password"
@@ -156,7 +162,10 @@
                     </p>
 
                     <div class="mt-4">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                        <label
+                            class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+                            for="rewrap-recovery-code"
+                        >
                             Recovery code
                         </label>
                         <!-- Both fields submit on Enter; onRewrap re-checks that each is filled
@@ -166,13 +175,17 @@
                             (keydown.enter)="onRewrap()"
                             [value]="recoveryCode()"
                             class="w-full font-mono"
+                            id="rewrap-recovery-code"
                             placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
                             type="text"
                         />
                     </div>
 
                     <div class="mt-3">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                        <label
+                            class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+                            for="rewrap-new-password"
+                        >
                             New password
                         </label>
                         <input
@@ -180,6 +193,7 @@
                             (keydown.enter)="onRewrap()"
                             [feedback]="false"
                             [value]="newPassword()"
+                            id="rewrap-new-password"
                             pPassword
                             placeholder="Your new password"
                             type="password"
@@ -216,12 +230,18 @@
                     </p>
 
                     <div class="mt-4">
-                        <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"> Password </label>
+                        <label
+                            class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+                            for="add-recovery-password"
+                        >
+                            Password
+                        </label>
                         <input
                             (input)="onPasswordInput($event)"
                             (keydown.enter)="onAddRecoveryCode()"
                             [feedback]="false"
                             [value]="password()"
+                            id="add-recovery-password"
                             pPassword
                             placeholder="Your account password"
                             type="password"

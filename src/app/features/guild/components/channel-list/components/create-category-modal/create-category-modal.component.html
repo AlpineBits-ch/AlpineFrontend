@@ -13,7 +13,7 @@
     </ng-template>
     <div class="py-2 space-y-4">
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">{{
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2" for="create-category-name">{{
                 'GUILD.CATEGORY_NAME' | translate
             }}</label>
             <input
@@ -22,6 +22,7 @@
                 [ngModel]="name()"
                 [placeholder]="'GUILD.CATEGORY_NAME_PLACEHOLDER' | translate"
                 class="w-full"
+                id="create-category-name"
                 pInputText
             />
         </div>

@@ -262,7 +262,7 @@
     </ng-template>
     <div class="py-2 space-y-4">
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">{{
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2" for="wiki-category-name">{{
                 'WIKI.NAV.CATEGORY_NAME' | translate
             }}</label>
             <input
@@ -270,16 +270,20 @@
                 (ngModelChange)="newCategoryName.set($event)"
                 [ngModel]="newCategoryName()"
                 class="w-full"
+                id="wiki-category-name"
                 pInputText
                 [placeholder]="'WIKI.NAV.CATEGORY_NAME_PLACEHOLDER' | translate"
             />
         </div>
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2"> {{ 'WIKI.PARENT' | translate }}</label>
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-wide mb-2" for="wiki-category-parent">
+                {{ 'WIKI.PARENT' | translate }}
+            </label>
             <p-select
                 (ngModelChange)="newCategoryParentId.set($event)"
                 [ngModel]="newCategoryParentId()"
                 [options]="parentCategoryOptions()"
+                inputId="wiki-category-parent"
                 optionLabel="label"
                 optionValue="value"
                 [placeholder]="'WIKI.NAV.CATEGORY_ROOT' | translate"

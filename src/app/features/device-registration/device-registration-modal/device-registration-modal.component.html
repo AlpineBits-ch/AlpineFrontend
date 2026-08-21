@@ -26,12 +26,13 @@
                 </p>
 
                 <div class="dr-field">
-                    <label class="dr-label">Device Name</label>
+                    <label class="dr-label" for="device-registration-name">Device Name</label>
                     <input
                         (input)="onDeviceNameInput($event)"
                         (keydown.enter)="onRegister()"
                         [value]="deviceName()"
                         data-testid="device-registration-name"
+                        id="device-registration-name"
                         pInputText
                         placeholder="e.g. Work MacBook, iPhone 15"
                         type="text"

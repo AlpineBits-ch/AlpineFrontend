@@ -131,7 +131,7 @@
 
         <!-- Name -->
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">{{
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2" for="create-channel-name">{{
                 'GUILD.CHANNEL_NAME' | translate
             }}</label>
             <div class="relative">
@@ -144,6 +144,7 @@
                     [value]="name()"
                     [placeholder]="'GUILD.CHANNEL_NAME_PLACEHOLDER' | translate"
                     class="w-full !pl-8"
+                    id="create-channel-name"
                     pInputText
                 />
             </div>

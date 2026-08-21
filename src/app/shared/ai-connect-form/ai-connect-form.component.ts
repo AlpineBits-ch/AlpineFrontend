@@ -22,9 +22,9 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
 
             <!-- Provider -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-text-secondary">
+                <span class="text-xs font-medium text-text-secondary">
                     {{ 'AI.CONNECT.PROVIDER' | translate }}
-                </label>
+                </span>
                 <div class="flex flex-wrap gap-2">
                     @for (id of providerIds; track id) {
                         <button
@@ -49,7 +49,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                  a saved key is shown as its presence, not its value. -->
             <div class="flex flex-col gap-2">
                 <div class="flex items-baseline justify-between gap-3">
-                    <label class="text-xs font-medium text-text-secondary">
+                    <label class="text-xs font-medium text-text-secondary" for="ai-connect-key">
                         {{ 'AI.CONNECT.KEY' | translate }}
                     </label>
                     <a
@@ -73,6 +73,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                     class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
                               text-[0.8125rem] text-text-primary outline-none placeholder-white/25
                               focus:border-brand-dim"
+                    id="ai-connect-key"
                     spellcheck="false"
                     type="password"
                 />
@@ -85,7 +86,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
 
             <!-- Model -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-text-secondary">
+                <label class="text-xs font-medium text-text-secondary" for="ai-connect-model">
                     {{ 'AI.CONNECT.MODEL' | translate }}
                 </label>
                 <input
@@ -93,6 +94,7 @@ import {AiPrivacyNoteComponent} from '../ai-privacy-note/ai-privacy-note.compone
                     class="w-full rounded-lg border border-border bg-card px-3 py-2 font-mono
                               text-[0.8125rem] text-text-primary outline-none placeholder-white/25
                               focus:border-brand-dim"
+                    id="ai-connect-model"
                     spellcheck="false"
                     type="text"
                 />

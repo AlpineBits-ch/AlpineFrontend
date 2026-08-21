@@ -156,7 +156,7 @@
             <!-- ── Step: name it ──────────────────────────────────────────── -->
             @case ('details') {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest">
+                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest" for="create-guild-name">
                         {{ 'CREATE_GUILD.NAME_LABEL' | translate: {noun: selectedKind().nounKey | translate} }}
                         <span class="text-rose-400/70 normal-case font-normal">*</span>
                     </label>
@@ -166,15 +166,15 @@
                         [disabled]="loading()"
                         [ngModel]="name()"
                         [placeholder]="selectedKind().namePlaceholderKey | translate"
-                        autofocus
                         class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
                         data-testid="create-guild-name"
+                        id="create-guild-name"
                         pInputText
                     />
                 </div>
 
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest">
+                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest" for="create-guild-description">
                         {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
                         <span class="text-text-faint normal-case font-normal tracking-normal">{{
                             'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate
@@ -186,6 +186,7 @@
                         [ngModel]="description()"
                         [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
                         class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-text-primary placeholder:text-text-muted px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
+                        id="create-guild-description"
                         rows="3"
                     >
                     </textarea>
@@ -204,7 +205,7 @@
             <!-- ── Step: create from a template ───────────────────────────── -->
             @case ('template') {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest">
+                    <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest" for="create-guild-template-id">
                         {{ 'CREATE_GUILD.TEMPLATE.ID_LABEL' | translate }} <span class="text-rose-400/70 normal-case font-normal">*</span>
                     </label>
                     <input
@@ -215,6 +216,7 @@
                         [ngModel]="templateInput()"
                         [placeholder]="'CREATE_GUILD.TEMPLATE.ID_PLACEHOLDER' | translate"
                         class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
+                        id="create-guild-template-id"
                         pInputText
                     />
                     @if (templateLoading()) {
@@ -230,7 +232,10 @@
                     <app-template-preview [template]="tpl" />
 
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest">
+                        <label
+                            class="text-[0.65625rem] font-semibold text-text-muted uppercase tracking-widest"
+                            for="create-guild-template-name"
+                        >
                             {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span class="text-rose-400/70 normal-case font-normal">*</span>
                         </label>
                         <!-- Matches the from-scratch name field above, which already submits on Enter. `createFromTemplate()` re-checks the template, the trimmed name, and the in-flight flag. -->
@@ -241,6 +246,7 @@
                             [ngModel]="templateGuildName()"
                             [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
                             class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
+                            id="create-guild-template-name"
                             pInputText
                         />
                     </div>

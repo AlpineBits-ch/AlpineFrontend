@@ -143,7 +143,7 @@
         </div>
 
         <!-- Category -->
-        <label class="flex flex-col gap-1">
+        <label [attr.for]="canMovePage() ? 'wiki-page-category' : null" class="flex flex-col gap-1">
             <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.CATEGORY' | translate }}</span>
             @if (canMovePage()) {
                 <p-select
@@ -151,6 +151,7 @@
                     [ngModel]="categoryValue()"
                     [options]="categoryOptions()"
                     appendTo="body"
+                    inputId="wiki-page-category"
                     optionLabel="label"
                     optionValue="value"
                     size="small"
@@ -162,7 +163,7 @@
         </label>
 
         <!-- Parent. Its own subtree is not offered: a page cannot be its own ancestor. -->
-        <label class="flex flex-col gap-1">
+        <label [attr.for]="canMovePage() ? 'wiki-page-parent' : null" class="flex flex-col gap-1">
             <span class="text-[0.6875rem] text-text-muted">{{ 'WIKI.PARENT' | translate }}</span>
             @if (canMovePage()) {
                 <p-select
@@ -171,6 +172,7 @@
                     [ngModel]="parentValue()"
                     [options]="parentOptions()"
                     appendTo="body"
+                    inputId="wiki-page-parent"
                     optionLabel="label"
                     optionValue="value"
                     size="small"
