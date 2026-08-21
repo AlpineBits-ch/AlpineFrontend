@@ -40,11 +40,13 @@ Wave C (needs T6):                      T8, then T10;  T9 needs T7
 ### Task 1: Translation keys
 
 **Files:**
+
 - Modify: `src/assets/i18n/locales/en.json`
 - Modify: `src/assets/i18n/locales/de.json`
 - Modify: `src/assets/i18n/locales/fr.json`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: the keys every later UI task renders. Exact key names below; do not invent variants.
 
@@ -159,10 +161,12 @@ git commit -m "chore(i18n): bump locales for the scene folder tree"
 ### Task 2: `scene-leaf.ts`
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-leaf.ts`
 - Test: `src/app/features/guild/scenes/scene-leaf.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `isWaitingOnMe(scene, speakable)` from `./scene-status`.
 - Produces:
   - `interface SceneLeaf {channelId: string; name: string; status: SceneStatus; mine: boolean}`
@@ -182,113 +186,124 @@ import {leavesByFolder, RECENT_LIMIT, recentScenes, sceneLeaf} from './scene-lea
 import {SceneListItemDto, SceneStatus} from '../../../dtos/response/scene.dto';
 
 function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
-    return {
-        channelId: 'ch_1',
-        name: 'The Ford at Dawn',
-        status: SceneStatus.Active,
-        ...over,
-    };
+  return {
+    channelId: 'ch_1',
+    name: 'The Ford at Dawn',
+    status: SceneStatus.Active,
+    ...over,
+  };
 }
 
 const NOBODY: ReadonlySet<string> = new Set();
 
 describe('sceneLeaf', () => {
-    it('marks a scene waiting on a character the reader speaks as', () => {
-        const leaf = sceneLeaf(scene({currentTurnPersonaId: 'p1'}), new Set(['p1']));
+  it('marks a scene waiting on a character the reader speaks as', () => {
+    const leaf = sceneLeaf(scene({currentTurnPersonaId: 'p1'}), new Set(['p1']));
 
-        expect(leaf.mine).toBe(true);
-        expect(leaf.channelId).toBe('ch_1');
-        expect(leaf.name).toBe('The Ford at Dawn');
-    });
+    expect(leaf.mine).toBe(true);
+    expect(leaf.channelId).toBe('ch_1');
+    expect(leaf.name).toBe('The Ford at Dawn');
+  });
 
-    it('does not mark a scene on somebody else', () => {
-        expect(sceneLeaf(scene({currentTurnPersonaId: 'p9'}), new Set(['p1'])).mine).toBe(false);
-    });
+  it('does not mark a scene on somebody else', () => {
+    expect(sceneLeaf(scene({currentTurnPersonaId: 'p9'}), new Set(['p1'])).mine).toBe(false);
+  });
 });
 
 describe('leavesByFolder', () => {
-    it('groups scenes under the folder they are filed on', () => {
-        const grouped = leavesByFolder(
-            [
-                scene({channelId: 'a', folderId: 'f1'}),
-                scene({channelId: 'b', folderId: 'f2'}),
-                scene({channelId: 'c', folderId: 'f1'}),
-            ],
-            NOBODY,
-        );
+  it('groups scenes under the folder they are filed on', () => {
+    const grouped = leavesByFolder(
+      [
+        scene({channelId: 'a', folderId: 'f1'}),
+        scene({channelId: 'b', folderId: 'f2'}),
+        scene({channelId: 'c', folderId: 'f1'}),
+      ],
+      NOBODY,
+    );
 
-        expect(grouped['f1'].map(l => l.channelId)).toEqual(['a', 'c']);
-        expect(grouped['f2'].map(l => l.channelId)).toEqual(['b']);
-    });
+    expect(grouped['f1'].map(l => l.channelId)).toEqual(['a', 'c']);
+    expect(grouped['f2'].map(l => l.channelId)).toEqual(['b']);
+  });
 
-    it('leaves an unfiled scene out entirely', () => {
-        const grouped = leavesByFolder([scene({channelId: 'a'}), scene({channelId: 'b', folderId: null})], NOBODY);
+  it('leaves an unfiled scene out entirely', () => {
+    const grouped = leavesByFolder(
+      [scene({channelId: 'a'}), scene({channelId: 'b', folderId: null})],
+      NOBODY,
+    );
 
-        expect(Object.keys(grouped)).toEqual([]);
-    });
+    expect(Object.keys(grouped)).toEqual([]);
+  });
 });
 
 describe('recentScenes', () => {
-    it('puts a scene waiting on you above a newer one that is not', () => {
-        const rows = recentScenes(
-            [
-                scene({channelId: 'newer', updatedAt: '2026-08-20T12:00:00Z'}),
-                scene({channelId: 'mine', updatedAt: '2026-01-01T00:00:00Z', currentTurnPersonaId: 'p1'}),
-            ],
-            new Set(['p1']),
-        );
+  it('puts a scene waiting on you above a newer one that is not', () => {
+    const rows = recentScenes(
+      [
+        scene({channelId: 'newer', updatedAt: '2026-08-20T12:00:00Z'}),
+        scene({channelId: 'mine', updatedAt: '2026-01-01T00:00:00Z', currentTurnPersonaId: 'p1'}),
+      ],
+      new Set(['p1']),
+    );
 
-        expect(rows.map(r => r.channelId)).toEqual(['mine', 'newer']);
-    });
+    expect(rows.map(r => r.channelId)).toEqual(['mine', 'newer']);
+  });
 
-    it('orders everything else by what moved last', () => {
-        const rows = recentScenes(
-            [
-                scene({channelId: 'old', updatedAt: '2026-01-01T00:00:00Z'}),
-                scene({channelId: 'new', updatedAt: '2026-08-20T12:00:00Z'}),
-                scene({channelId: 'mid', updatedAt: '2026-05-01T00:00:00Z'}),
-            ],
-            NOBODY,
-        );
+  it('orders everything else by what moved last', () => {
+    const rows = recentScenes(
+      [
+        scene({channelId: 'old', updatedAt: '2026-01-01T00:00:00Z'}),
+        scene({channelId: 'new', updatedAt: '2026-08-20T12:00:00Z'}),
+        scene({channelId: 'mid', updatedAt: '2026-05-01T00:00:00Z'}),
+      ],
+      NOBODY,
+    );
 
-        expect(rows.map(r => r.channelId)).toEqual(['new', 'mid', 'old']);
-    });
+    expect(rows.map(r => r.channelId)).toEqual(['new', 'mid', 'old']);
+  });
 
-    it('falls back to when the scene was created', () => {
-        const rows = recentScenes(
-            [
-                scene({channelId: 'created-later', createdAt: '2026-08-01T00:00:00Z'}),
-                scene({channelId: 'created-earlier', createdAt: '2026-02-01T00:00:00Z'}),
-            ],
-            NOBODY,
-        );
+  it('falls back to when the scene was created', () => {
+    const rows = recentScenes(
+      [
+        scene({channelId: 'created-later', createdAt: '2026-08-01T00:00:00Z'}),
+        scene({channelId: 'created-earlier', createdAt: '2026-02-01T00:00:00Z'}),
+      ],
+      NOBODY,
+    );
 
-        expect(rows.map(r => r.channelId)).toEqual(['created-later', 'created-earlier']);
-    });
+    expect(rows.map(r => r.channelId)).toEqual(['created-later', 'created-earlier']);
+  });
 
-    it('sinks a scene with no usable timestamp rather than throwing', () => {
-        const rows = recentScenes(
-            [scene({channelId: 'undated', updatedAt: 'not a date'}), scene({channelId: 'dated', updatedAt: '2026-08-20T12:00:00Z'})],
-            NOBODY,
-        );
+  it('sinks a scene with no usable timestamp rather than throwing', () => {
+    const rows = recentScenes(
+      [
+        scene({channelId: 'undated', updatedAt: 'not a date'}),
+        scene({channelId: 'dated', updatedAt: '2026-08-20T12:00:00Z'}),
+      ],
+      NOBODY,
+    );
 
-        expect(rows.map(r => r.channelId)).toEqual(['dated', 'undated']);
-    });
+    expect(rows.map(r => r.channelId)).toEqual(['dated', 'undated']);
+  });
 
-    it('stops at the limit', () => {
-        const many = Array.from({length: 12}, (_, i) => scene({channelId: `ch_${i}`, updatedAt: `2026-08-0${(i % 9) + 1}T00:00:00Z`}));
+  it('stops at the limit', () => {
+    const many = Array.from({length: 12}, (_, i) =>
+      scene({channelId: `ch_${i}`, updatedAt: `2026-08-0${(i % 9) + 1}T00:00:00Z`}),
+    );
 
-        expect(recentScenes(many, NOBODY)).toHaveLength(RECENT_LIMIT);
-        expect(recentScenes(many, NOBODY, 2)).toHaveLength(2);
-    });
+    expect(recentScenes(many, NOBODY)).toHaveLength(RECENT_LIMIT);
+    expect(recentScenes(many, NOBODY, 2)).toHaveLength(2);
+  });
 
-    it('does not reorder the array it was handed', () => {
-        const input = [scene({channelId: 'a', updatedAt: '2026-01-01T00:00:00Z'}), scene({channelId: 'b', updatedAt: '2026-08-01T00:00:00Z'})];
+  it('does not reorder the array it was handed', () => {
+    const input = [
+      scene({channelId: 'a', updatedAt: '2026-01-01T00:00:00Z'}),
+      scene({channelId: 'b', updatedAt: '2026-08-01T00:00:00Z'}),
+    ];
 
-        recentScenes(input, NOBODY);
+    recentScenes(input, NOBODY);
 
-        expect(input.map(s => s.channelId)).toEqual(['a', 'b']);
-    });
+    expect(input.map(s => s.channelId)).toEqual(['a', 'b']);
+  });
 });
 ```
 
@@ -310,57 +325,57 @@ import {isWaitingOnMe} from './scene-status';
 
 /** A scene as the folder rail draws it. Small on purpose: the rail redraws on the board's clock. */
 export interface SceneLeaf {
-    channelId: string;
-    name: string;
-    status: SceneStatus;
-    /** The scene is on a character this reader may speak as. */
-    mine: boolean;
+  channelId: string;
+  name: string;
+  status: SceneStatus;
+  /** The scene is on a character this reader may speak as. */
+  mine: boolean;
 }
 
 /** Rows the Recent block shows before it stops. */
 export const RECENT_LIMIT = 5;
 
 export function sceneLeaf(scene: SceneListItemDto, speakable: ReadonlySet<string>): SceneLeaf {
-    return {
-        channelId: scene.channelId,
-        name: scene.name,
-        status: scene.status,
-        mine: isWaitingOnMe(scene, speakable),
-    };
+  return {
+    channelId: scene.channelId,
+    name: scene.name,
+    status: scene.status,
+    mine: isWaitingOnMe(scene, speakable),
+  };
 }
 
 /** Scenes filed on each folder, keyed by folder id. An unfiled scene is not in any group. */
 export function leavesByFolder(
-    scenes: readonly SceneListItemDto[],
-    speakable: ReadonlySet<string>,
+  scenes: readonly SceneListItemDto[],
+  speakable: ReadonlySet<string>,
 ): Record<string, SceneLeaf[]> {
-    const grouped: Record<string, SceneLeaf[]> = {};
-    for (const scene of scenes) {
-        if (!scene.folderId) continue;
-        (grouped[scene.folderId] ??= []).push(sceneLeaf(scene, speakable));
-    }
-    return grouped;
+  const grouped: Record<string, SceneLeaf[]> = {};
+  for (const scene of scenes) {
+    if (!scene.folderId) continue;
+    (grouped[scene.folderId] ??= []).push(sceneLeaf(scene, speakable));
+  }
+  return grouped;
 }
 
 /** Waiting on you first, then whatever moved last. */
 export function recentScenes(
-    scenes: readonly SceneListItemDto[],
-    speakable: ReadonlySet<string>,
-    limit = RECENT_LIMIT,
+  scenes: readonly SceneListItemDto[],
+  speakable: ReadonlySet<string>,
+  limit = RECENT_LIMIT,
 ): SceneLeaf[] {
-    return [...scenes]
-        .sort((a, b) => {
-            const mine = Number(isWaitingOnMe(b, speakable)) - Number(isWaitingOnMe(a, speakable));
-            return mine || movedAt(b) - movedAt(a);
-        })
-        .slice(0, limit)
-        .map(scene => sceneLeaf(scene, speakable));
+  return [...scenes]
+    .sort((a, b) => {
+      const mine = Number(isWaitingOnMe(b, speakable)) - Number(isWaitingOnMe(a, speakable));
+      return mine || movedAt(b) - movedAt(a);
+    })
+    .slice(0, limit)
+    .map(scene => sceneLeaf(scene, speakable));
 }
 
 function movedAt(scene: SceneListItemDto): number {
-    const stamp = scene.updatedAt ?? scene.createdAt;
-    const parsed = stamp ? new Date(stamp).getTime() : 0;
-    return Number.isNaN(parsed) ? 0 : parsed;
+  const stamp = scene.updatedAt ?? scene.createdAt;
+  const parsed = stamp ? new Date(stamp).getTime() : 0;
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 ```
 
@@ -386,10 +401,12 @@ git commit -m "feat(scenes): add the folder rail's scene leaf model"
 ### Task 3: `SceneRailStateService`
 
 **Files:**
+
 - Create: `src/app/services/scene-rail-state.service.ts`
 - Test: `src/app/services/scene-rail-state.service.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces:
   - `expanded(guildId: string | null | undefined): readonly string[]`
@@ -417,64 +434,64 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {SCENE_RAIL_STORAGE_KEY, SceneRailStateService} from './scene-rail-state.service';
 
 function service(): SceneRailStateService {
-    TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
-    return TestBed.inject(SceneRailStateService);
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({});
+  return TestBed.inject(SceneRailStateService);
 }
 
 describe('SceneRailStateService', () => {
-    beforeEach(() => localStorage.clear());
+  beforeEach(() => localStorage.clear());
 
-    it('starts with every shelf closed', () => {
-        expect(service().expanded('g1')).toEqual([]);
-    });
+  it('starts with every shelf closed', () => {
+    expect(service().expanded('g1')).toEqual([]);
+  });
 
-    it('opens and closes a shelf', () => {
-        const state = service();
+  it('opens and closes a shelf', () => {
+    const state = service();
 
-        state.toggle('g1', 'f1');
-        expect(state.isExpanded('g1', 'f1')).toBe(true);
+    state.toggle('g1', 'f1');
+    expect(state.isExpanded('g1', 'f1')).toBe(true);
 
-        state.toggle('g1', 'f1');
-        expect(state.isExpanded('g1', 'f1')).toBe(false);
-    });
+    state.toggle('g1', 'f1');
+    expect(state.isExpanded('g1', 'f1')).toBe(false);
+  });
 
-    it('keeps guilds apart', () => {
-        const state = service();
+  it('keeps guilds apart', () => {
+    const state = service();
 
-        state.toggle('g1', 'f1');
+    state.toggle('g1', 'f1');
 
-        expect(state.expanded('g1')).toEqual(['f1']);
-        expect(state.expanded('g2')).toEqual([]);
-    });
+    expect(state.expanded('g1')).toEqual(['f1']);
+    expect(state.expanded('g2')).toEqual([]);
+  });
 
-    it('survives a restart', () => {
-        service().toggle('g1', 'f1');
+  it('survives a restart', () => {
+    service().toggle('g1', 'f1');
 
-        expect(service().isExpanded('g1', 'f1')).toBe(true);
-    });
+    expect(service().isExpanded('g1', 'f1')).toBe(true);
+  });
 
-    it('hides the rail until it is asked for, then remembers', () => {
-        const state = service();
+  it('hides the rail until it is asked for, then remembers', () => {
+    const state = service();
 
-        expect(state.railVisible('g1')).toBe(false);
-        state.setRailVisible('g1', true);
+    expect(state.railVisible('g1')).toBe(false);
+    state.setRailVisible('g1', true);
 
-        expect(service().railVisible('g1')).toBe(true);
-    });
+    expect(service().railVisible('g1')).toBe(true);
+  });
 
-    it('answers for a missing guild id without throwing', () => {
-        const state = service();
+  it('answers for a missing guild id without throwing', () => {
+    const state = service();
 
-        expect(state.expanded(null)).toEqual([]);
-        expect(state.railVisible(undefined)).toBe(false);
-    });
+    expect(state.expanded(null)).toEqual([]);
+    expect(state.railVisible(undefined)).toBe(false);
+  });
 
-    it('reads a corrupt blob as nothing remembered', () => {
-        localStorage.setItem(SCENE_RAIL_STORAGE_KEY, '{not json');
+  it('reads a corrupt blob as nothing remembered', () => {
+    localStorage.setItem(SCENE_RAIL_STORAGE_KEY, '{not json');
 
-        expect(service().expanded('g1')).toEqual([]);
-    });
+    expect(service().expanded('g1')).toEqual([]);
+  });
 });
 ```
 
@@ -498,66 +515,64 @@ export const SCENE_RAIL_STORAGE_KEY = 'venta.scene-rail';
 const EMPTY: readonly string[] = [];
 
 interface RailState {
-    /** Open shelves, per guild. */
-    expanded: Record<string, string[]>;
-    /** Whether the playing screen shows the rail, per guild. */
-    visible: Record<string, boolean>;
+  /** Open shelves, per guild. */
+  expanded: Record<string, string[]>;
+  /** Whether the playing screen shows the rail, per guild. */
+  visible: Record<string, boolean>;
 }
 
 /** What the folder rail remembers between visits: which shelves are open, and whether it is shown. */
 @Injectable({providedIn: 'root'})
 export class SceneRailStateService {
-    private readonly state = signal<RailState>(read());
+  private readonly state = signal<RailState>(read());
 
-    expanded(guildId: string | null | undefined): readonly string[] {
-        if (!guildId) return EMPTY;
-        return this.state().expanded[guildId] ?? EMPTY;
-    }
+  expanded(guildId: string | null | undefined): readonly string[] {
+    if (!guildId) return EMPTY;
+    return this.state().expanded[guildId] ?? EMPTY;
+  }
 
-    isExpanded(guildId: string | null | undefined, folderId: string): boolean {
-        return this.expanded(guildId).includes(folderId);
-    }
+  isExpanded(guildId: string | null | undefined, folderId: string): boolean {
+    return this.expanded(guildId).includes(folderId);
+  }
 
-    toggle(guildId: string, folderId: string): void {
-        this.state.update(state => {
-            const open = state.expanded[guildId] ?? [];
-            const next = open.includes(folderId)
-                ? open.filter(id => id !== folderId)
-                : [...open, folderId];
-            return {...state, expanded: {...state.expanded, [guildId]: next}};
-        });
-        this.persist();
-    }
+  toggle(guildId: string, folderId: string): void {
+    this.state.update(state => {
+      const open = state.expanded[guildId] ?? [];
+      const next = open.includes(folderId) ? open.filter(id => id !== folderId) : [...open, folderId];
+      return {...state, expanded: {...state.expanded, [guildId]: next}};
+    });
+    this.persist();
+  }
 
-    railVisible(guildId: string | null | undefined): boolean {
-        if (!guildId) return false;
-        return !!this.state().visible[guildId];
-    }
+  railVisible(guildId: string | null | undefined): boolean {
+    if (!guildId) return false;
+    return !!this.state().visible[guildId];
+  }
 
-    setRailVisible(guildId: string, visible: boolean): void {
-        this.state.update(state => ({...state, visible: {...state.visible, [guildId]: visible}}));
-        this.persist();
-    }
+  setRailVisible(guildId: string, visible: boolean): void {
+    this.state.update(state => ({...state, visible: {...state.visible, [guildId]: visible}}));
+    this.persist();
+  }
 
-    private persist(): void {
-        try {
-            localStorage.setItem(SCENE_RAIL_STORAGE_KEY, JSON.stringify(this.state()));
-        } catch {
-            // A full or unavailable store costs the memory of which shelves were open, nothing more.
-        }
+  private persist(): void {
+    try {
+      localStorage.setItem(SCENE_RAIL_STORAGE_KEY, JSON.stringify(this.state()));
+    } catch {
+      // A full or unavailable store costs the memory of which shelves were open, nothing more.
     }
+  }
 }
 
 function read(): RailState {
-    const empty: RailState = {expanded: {}, visible: {}};
-    try {
-        const raw = localStorage.getItem(SCENE_RAIL_STORAGE_KEY);
-        if (!raw) return empty;
-        const parsed = JSON.parse(raw) as Partial<RailState>;
-        return {expanded: parsed.expanded ?? {}, visible: parsed.visible ?? {}};
-    } catch {
-        return empty;
-    }
+  const empty: RailState = {expanded: {}, visible: {}};
+  try {
+    const raw = localStorage.getItem(SCENE_RAIL_STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<RailState>;
+    return {expanded: parsed.expanded ?? {}, visible: parsed.visible ?? {}};
+  } catch {
+    return empty;
+  }
 }
 ```
 
@@ -583,10 +598,12 @@ git commit -m "feat(scenes): remember which shelves are open"
 ### Task 4: `SceneArchiveService` stops meaning "finished"
 
 **Files:**
+
 - Modify: `src/app/services/scene-archive.service.ts`
 - Test: `src/app/services/scene-archive.service.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces:
   - `type ArchiveStatus = 'all' | 'running' | 'finished'`
@@ -600,14 +617,14 @@ git commit -m "feat(scenes): remember which shelves are open"
 In `src/app/services/scene-archive.service.spec.ts`, the first test asserts the archive asks only for scenes that ended. That is exactly what this task changes. Replace it:
 
 ```ts
-    it('asks for every scene by default, newest first', () => {
-        const {service, calls} = setup();
+it('asks for every scene by default, newest first', () => {
+  const {service, calls} = setup();
 
-        service.apply(BASE);
+  service.apply(BASE);
 
-        expect(calls[0]).toMatchObject({includeConcluded: true, includeArchived: true, sort: 'ended', offset: 0});
-        expect(calls[0].archivedOnly).toBeUndefined();
-    });
+  expect(calls[0]).toMatchObject({includeConcluded: true, includeArchived: true, sort: 'ended', offset: 0});
+  expect(calls[0].archivedOnly).toBeUndefined();
+});
 ```
 
 - [ ] **Step 2: Add the new tests**
@@ -615,65 +632,65 @@ In `src/app/services/scene-archive.service.spec.ts`, the first test asserts the 
 Append inside the existing `describe('SceneArchiveService', ...)` block:
 
 ```ts
-    it('asks only for finished scenes when the filter says so', () => {
-        const {service, calls} = setup();
+it('asks only for finished scenes when the filter says so', () => {
+  const {service, calls} = setup();
 
-        service.apply({...BASE, status: 'finished'});
+  service.apply({...BASE, status: 'finished'});
 
-        expect(calls[0]).toMatchObject({archivedOnly: true, includeConcluded: true, includeArchived: true});
-    });
+  expect(calls[0]).toMatchObject({archivedOnly: true, includeConcluded: true, includeArchived: true});
+});
 
-    it('asks for the live board alone when the filter says running', () => {
-        const {service, calls} = setup();
+it('asks for the live board alone when the filter says running', () => {
+  const {service, calls} = setup();
 
-        service.apply({...BASE, status: 'running'});
+  service.apply({...BASE, status: 'running'});
 
-        expect(calls[0].archivedOnly).toBeUndefined();
-        expect(calls[0].includeConcluded).toBeUndefined();
-        expect(calls[0].includeArchived).toBeUndefined();
-    });
+  expect(calls[0].archivedOnly).toBeUndefined();
+  expect(calls[0].includeConcluded).toBeUndefined();
+  expect(calls[0].includeArchived).toBeUndefined();
+});
 
-    it('caches each status apart', () => {
-        expect(archiveKey({...BASE, status: 'running'})).not.toBe(archiveKey({...BASE, status: 'finished'}));
-    });
+it('caches each status apart', () => {
+  expect(archiveKey({...BASE, status: 'running'})).not.toBe(archiveKey({...BASE, status: 'finished'}));
+});
 
-    it('treats an absent status as all', () => {
-        expect(archiveKey(BASE)).toBe(archiveKey({...BASE, status: 'all'}));
-    });
+it('treats an absent status as all', () => {
+  expect(archiveKey(BASE)).toBe(archiveKey({...BASE, status: 'all'}));
+});
 
-    it('reads a shelf without moving the selection', () => {
-        const {service, calls, responses} = setup();
+it('reads a shelf without moving the selection', () => {
+  const {service, calls, responses} = setup();
 
-        service.apply(BASE);
-        service.peek('g1', 'f1');
-        responses[1].next(page(2, {folderId: 'f1'}));
+  service.apply(BASE);
+  service.peek('g1', 'f1');
+  responses[1].next(page(2, {folderId: 'f1'}));
 
-        expect(calls[1]).toMatchObject({folderId: 'f1'});
-        expect(service.peeked('g1', 'f1')).toHaveLength(2);
-        // The selection is still every shelf, not the one that was peeked.
-        expect(service.current()?.folderId).toBeNull();
-    });
+  expect(calls[1]).toMatchObject({folderId: 'f1'});
+  expect(service.peeked('g1', 'f1')).toHaveLength(2);
+  // The selection is still every shelf, not the one that was peeked.
+  expect(service.current()?.folderId).toBeNull();
+});
 
-    it('does not re-read a shelf it already holds', () => {
-        const {service, calls, responses} = setup();
+it('does not re-read a shelf it already holds', () => {
+  const {service, calls, responses} = setup();
 
-        service.peek('g1', 'f1');
-        responses[0].next(page(1, {folderId: 'f1'}));
-        service.peek('g1', 'f1');
+  service.peek('g1', 'f1');
+  responses[0].next(page(1, {folderId: 'f1'}));
+  service.peek('g1', 'f1');
 
-        expect(calls).toHaveLength(1);
-    });
+  expect(calls).toHaveLength(1);
+});
 
-    it('shares one request between a peeked shelf and the same shelf selected', () => {
-        const {service, calls, responses} = setup();
+it('shares one request between a peeked shelf and the same shelf selected', () => {
+  const {service, calls, responses} = setup();
 
-        service.peek('g1', 'f1');
-        responses[0].next(page(3, {folderId: 'f1'}));
-        service.apply({...BASE, folderId: 'f1'});
+  service.peek('g1', 'f1');
+  responses[0].next(page(3, {folderId: 'f1'}));
+  service.apply({...BASE, folderId: 'f1'});
 
-        expect(calls).toHaveLength(1);
-        expect(service.scenes()).toHaveLength(3);
-    });
+  expect(calls).toHaveLength(1);
+  expect(service.scenes()).toHaveLength(3);
+});
 ```
 
 - [ ] **Step 3: Run them and watch them fail**
@@ -711,14 +728,14 @@ In `archiveKey`, insert the status between sort and tags:
 
 ```ts
 export function archiveKey(filter: ArchiveFilter): string {
-    return [
-        filter.guildId,
-        filter.folderId ?? '*',
-        filter.sort ?? DEFAULT_SORT,
-        filter.status ?? DEFAULT_STATUS,
-        [...filter.tagIds].sort().join('+'),
-        filter.q,
-    ].join('|');
+  return [
+    filter.guildId,
+    filter.folderId ?? '*',
+    filter.sort ?? DEFAULT_SORT,
+    filter.status ?? DEFAULT_STATUS,
+    [...filter.tagIds].sort().join('+'),
+    filter.q,
+  ].join('|');
 }
 ```
 
@@ -745,9 +762,9 @@ And at the bottom of the file, above `export {UNFILED};`:
 ```ts
 /** `running` sends no flags at all: the live board is what the route returns by default. */
 function statusFlags(status: ArchiveStatus): Partial<SceneListParams> {
-    if (status === 'running') return {};
-    const both = {includeConcluded: true, includeArchived: true};
-    return status === 'finished' ? {...both, archivedOnly: true} : both;
+  if (status === 'running') return {};
+  const both = {includeConcluded: true, includeArchived: true};
+  return status === 'finished' ? {...both, archivedOnly: true} : both;
 }
 ```
 
@@ -786,7 +803,7 @@ And beside `statusFlags`:
 ```ts
 /** No tags and no query, so a shelf and the same shelf selected unfiltered are one cache entry. */
 function shelfFilter(guildId: string, folderId: string | null, status: ArchiveStatus): ArchiveFilter {
-    return {guildId, folderId, tagIds: [], q: '', sort: DEFAULT_SORT, status};
+  return {guildId, folderId, tagIds: [], q: '', sort: DEFAULT_SORT, status};
 }
 ```
 
@@ -814,9 +831,11 @@ git commit -m "feat(scenes): let the archive hold running scenes and read one sh
 `SceneFolderRailComponent` has no spec and Task 6 restructures it. CLAUDE.md requires the tests first, green against the current code, so the refactor has evidence it changed nothing.
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `SceneFolderRailComponent` exactly as it stands today.
 - Produces: a green suite that Task 6 must keep green.
 
@@ -838,94 +857,92 @@ import {folderTree} from './folder-tree';
 import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
 
 function folder(id: string, parentFolderId: string | null = null, position = 0): SceneFolderDto {
-    return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};
+  return {id, guildId: 'g1', name: id.toUpperCase(), position, parentFolderId};
 }
 
 /** Two roots with two children under the first, which is every shape the reorder code branches on. */
-const FOLDERS = [
-    folder('a', null, 0),
-    folder('b', null, 1),
-    folder('a1', 'a', 0),
-    folder('a2', 'a', 1),
-];
+const FOLDERS = [folder('a', null, 0), folder('b', null, 1), folder('a1', 'a', 0), folder('a2', 'a', 1)];
 
 function setup(): {fixture: ComponentFixture<SceneFolderRailComponent>; component: SceneFolderRailComponent} {
-    TestBed.configureTestingModule({
-        imports: [SceneFolderRailComponent],
-        providers: [provideTranslateService()],
-    });
-    const fixture = TestBed.createComponent(SceneFolderRailComponent);
-    fixture.componentRef.setInput('tree', folderTree(FOLDERS, {}));
-    fixture.componentRef.setInput('canManage', true);
-    fixture.detectChanges();
-    return {fixture, component: fixture.componentInstance};
+  TestBed.configureTestingModule({
+    imports: [SceneFolderRailComponent],
+    providers: [provideTranslateService()],
+  });
+  const fixture = TestBed.createComponent(SceneFolderRailComponent);
+  fixture.componentRef.setInput('tree', folderTree(FOLDERS, {}));
+  fixture.componentRef.setInput('canManage', true);
+  fixture.detectChanges();
+  return {fixture, component: fixture.componentInstance};
 }
 
 /** Reaches past `protected` on purpose: these are the methods under characterization. */
 function reach(component: SceneFolderRailComponent): Record<string, (...args: never[]) => unknown> {
-    return component as unknown as Record<string, (...args: never[]) => unknown>;
+  return component as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
 describe('SceneFolderRailComponent reordering', () => {
-    let component: SceneFolderRailComponent;
-    let emitted: string[][];
+  let component: SceneFolderRailComponent;
+  let emitted: string[][];
 
-    beforeEach(() => {
-        component = setup().component;
-        emitted = [];
-        component.reordered.subscribe(ids => emitted.push(ids));
-    });
+  beforeEach(() => {
+    component = setup().component;
+    emitted = [];
+    component.reordered.subscribe(ids => emitted.push(ids));
+  });
 
-    it('emits every folder depth first when a root moves down', () => {
-        reach(component)['nudge'](component.tree()[0] as never, 1 as never);
+  it('emits every folder depth first when a root moves down', () => {
+    reach(component)['nudge'](component.tree()[0] as never, 1 as never);
 
-        expect(emitted[0]).toEqual(['b', 'a', 'a1', 'a2']);
-    });
+    expect(emitted[0]).toEqual(['b', 'a', 'a1', 'a2']);
+  });
 
-    it('emits every folder depth first when a child moves down', () => {
-        reach(component)['nudge'](component.tree()[0].children[0] as never, 1 as never);
+  it('emits every folder depth first when a child moves down', () => {
+    reach(component)['nudge'](component.tree()[0].children[0] as never, 1 as never);
 
-        expect(emitted[0]).toEqual(['a', 'a2', 'a1', 'b']);
-    });
+    expect(emitted[0]).toEqual(['a', 'a2', 'a1', 'b']);
+  });
 
-    it('says nothing when a nudge would leave the group', () => {
-        reach(component)['nudge'](component.tree()[0] as never, -1 as never);
+  it('says nothing when a nudge would leave the group', () => {
+    reach(component)['nudge'](component.tree()[0] as never, -1 as never);
 
-        expect(emitted).toEqual([]);
-    });
+    expect(emitted).toEqual([]);
+  });
 
-    it('finds a root among the roots and a child among its siblings', () => {
-        expect(reach(component)['siblingsOf']('a' as never)).toMatchObject({parentId: null});
-        expect(reach(component)['siblingsOf']('a1' as never)).toMatchObject({parentId: 'a'});
-        expect(reach(component)['siblingsOf']('nope' as never)).toBeNull();
-    });
+  it('finds a root among the roots and a child among its siblings', () => {
+    expect(reach(component)['siblingsOf']('a' as never)).toMatchObject({parentId: null});
+    expect(reach(component)['siblingsOf']('a1' as never)).toMatchObject({parentId: 'a'});
+    expect(reach(component)['siblingsOf']('nope' as never)).toBeNull();
+  });
 });
 
 describe('SceneFolderRailComponent menu', () => {
-    it('offers no menu to a reader who cannot manage scenes', () => {
-        TestBed.configureTestingModule({
-            imports: [SceneFolderRailComponent],
-            providers: [provideTranslateService()],
-        });
-        const fixture = TestBed.createComponent(SceneFolderRailComponent);
-        fixture.componentRef.setInput('tree', folderTree(FOLDERS, {}));
-        fixture.componentRef.setInput('canManage', false);
-        fixture.detectChanges();
-
-        const event = new MouseEvent('contextmenu');
-        reach(fixture.componentInstance)['openMenu'](event as never, fixture.componentInstance.tree()[0] as never);
-
-        expect((fixture.componentInstance as unknown as {menuItems: () => unknown[]}).menuItems()).toEqual([]);
+  it('offers no menu to a reader who cannot manage scenes', () => {
+    TestBed.configureTestingModule({
+      imports: [SceneFolderRailComponent],
+      providers: [provideTranslateService()],
     });
+    const fixture = TestBed.createComponent(SceneFolderRailComponent);
+    fixture.componentRef.setInput('tree', folderTree(FOLDERS, {}));
+    fixture.componentRef.setInput('canManage', false);
+    fixture.detectChanges();
 
-    it('builds a menu for a folder that can be managed', () => {
-        const {component} = setup();
+    const event = new MouseEvent('contextmenu');
+    reach(fixture.componentInstance)['openMenu'](
+      event as never,
+      fixture.componentInstance.tree()[0] as never,
+    );
 
-        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+    expect((fixture.componentInstance as unknown as {menuItems: () => unknown[]}).menuItems()).toEqual([]);
+  });
 
-        const labels = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
-        expect(labels.length).toBeGreaterThan(4);
-    });
+  it('builds a menu for a folder that can be managed', () => {
+    const {component} = setup();
+
+    reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+
+    const labels = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
+    expect(labels.length).toBeGreaterThan(4);
+  });
 });
 ```
 
@@ -959,12 +976,14 @@ git commit -m "test(scenes): pin the folder rail's reordering before the tree re
 ### Task 6: The rail becomes a tree
 
 **Files:**
+
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.ts`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.html`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.css`
 - Test: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `SceneLeaf` from `../scene-leaf` (Task 2), the keys from Task 1, the green suite from Task 5.
 - Produces, on `SceneFolderRailComponent`, in addition to everything it has today:
   - `scenesByFolder = input<Readonly<Record<string, readonly SceneLeaf[]>>>({})`
@@ -985,97 +1004,97 @@ Append to `scene-folder-rail.component.spec.ts`. Keep the existing `setup`, `fol
 
 ```ts
 describe('SceneFolderRailComponent tree', () => {
-    it('says nothing about a shelf nobody has opened', () => {
-        const {fixture} = setup();
-        fixture.componentRef.setInput('scenesByFolder', {
-            a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
-        });
-        fixture.detectChanges();
-
-        expect(fixture.nativeElement.textContent).not.toContain('The Ford at Dawn');
+  it('says nothing about a shelf nobody has opened', () => {
+    const {fixture} = setup();
+    fixture.componentRef.setInput('scenesByFolder', {
+      a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
     });
+    fixture.detectChanges();
 
-    it('draws the scenes of a shelf once it is open', () => {
-        const {fixture} = setup();
-        fixture.componentRef.setInput('scenesByFolder', {
-            a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
-        });
-        fixture.componentRef.setInput('expandedIds', ['a']);
-        fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('The Ford at Dawn');
+  });
 
-        expect(fixture.nativeElement.textContent).toContain('The Ford at Dawn');
+  it('draws the scenes of a shelf once it is open', () => {
+    const {fixture} = setup();
+    fixture.componentRef.setInput('scenesByFolder', {
+      a: [{channelId: 'ch_1', name: 'The Ford at Dawn', status: SceneStatus.Active, mine: false}],
     });
+    fixture.componentRef.setInput('expandedIds', ['a']);
+    fixture.detectChanges();
 
-    it('draws the recent block above everything', () => {
-        const {fixture} = setup();
-        fixture.componentRef.setInput('recent', [
-            {channelId: 'ch_9', name: 'Nightwatch', status: SceneStatus.Active, mine: true},
-        ]);
-        fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('The Ford at Dawn');
+  });
 
-        expect(fixture.nativeElement.textContent).toContain('Nightwatch');
-    });
+  it('draws the recent block above everything', () => {
+    const {fixture} = setup();
+    fixture.componentRef.setInput('recent', [
+      {channelId: 'ch_9', name: 'Nightwatch', status: SceneStatus.Active, mine: true},
+    ]);
+    fixture.detectChanges();
 
-    it('reports a shelf being opened rather than opening it itself', () => {
-        const {fixture, component} = setup();
-        const toggles: string[] = [];
-        component.toggled.subscribe(id => toggles.push(id));
+    expect(fixture.nativeElement.textContent).toContain('Nightwatch');
+  });
 
-        reach(component)['toggle']('a' as never);
+  it('reports a shelf being opened rather than opening it itself', () => {
+    const {fixture, component} = setup();
+    const toggles: string[] = [];
+    component.toggled.subscribe(id => toggles.push(id));
 
-        expect(toggles).toEqual(['a']);
-        // The rail does not hold the state: the host does, and hands it back through expandedIds.
-        expect(fixture.componentInstance.expandedIds()).toEqual([]);
-    });
+    reach(component)['toggle']('a' as never);
 
-    it('offers new scene here at the top of a folder menu', () => {
-        const {component} = setup();
+    expect(toggles).toEqual(['a']);
+    // The rail does not hold the state: the host does, and hands it back through expandedIds.
+    expect(fixture.componentInstance.expandedIds()).toEqual([]);
+  });
 
-        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+  it('offers new scene here at the top of a folder menu', () => {
+    const {component} = setup();
 
-        const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
-        expect(items[0].label).toBe('SCENE.ARCHIVE.NEW_SCENE_HERE');
-    });
+    reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
 
-    it('names the folder when new scene here is chosen', () => {
-        const {component} = setup();
-        const asked: (string | null)[] = [];
-        component.createScene.subscribe(id => asked.push(id));
+    const items = (component as unknown as {menuItems: () => {label?: string}[]}).menuItems();
+    expect(items[0].label).toBe('SCENE.ARCHIVE.NEW_SCENE_HERE');
+  });
 
-        reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
-        const items = (component as unknown as {menuItems: () => {command?: () => void}[]}).menuItems();
-        items[0].command?.();
+  it('names the folder when new scene here is chosen', () => {
+    const {component} = setup();
+    const asked: (string | null)[] = [];
+    component.createScene.subscribe(id => asked.push(id));
 
-        expect(asked).toEqual(['a']);
-    });
+    reach(component)['openMenu'](new MouseEvent('contextmenu') as never, component.tree()[0] as never);
+    const items = (component as unknown as {menuItems: () => {command?: () => void}[]}).menuItems();
+    items[0].command?.();
 
-    it('stops a shelf at the leaf cap and offers the rest', () => {
-        const {fixture, component} = setup();
-        const many = Array.from({length: 20}, (_, i) => ({
-            channelId: `ch_${i}`,
-            name: `Scene ${i}`,
-            status: SceneStatus.Active,
-            mine: false,
-        }));
-        fixture.componentRef.setInput('scenesByFolder', {a: many});
-        fixture.componentRef.setInput('expandedIds', ['a']);
-        fixture.componentRef.setInput('leafCap', 3);
-        fixture.detectChanges();
+    expect(asked).toEqual(['a']);
+  });
 
-        expect(reach(component)['leavesOf']('a' as never)).toHaveLength(3);
-        expect(reach(component)['overflowOf']('a' as never)).toBe(17);
-        expect(fixture.nativeElement.textContent).not.toContain('Scene 19');
-    });
+  it('stops a shelf at the leaf cap and offers the rest', () => {
+    const {fixture, component} = setup();
+    const many = Array.from({length: 20}, (_, i) => ({
+      channelId: `ch_${i}`,
+      name: `Scene ${i}`,
+      status: SceneStatus.Active,
+      mine: false,
+    }));
+    fixture.componentRef.setInput('scenesByFolder', {a: many});
+    fixture.componentRef.setInput('expandedIds', ['a']);
+    fixture.componentRef.setInput('leafCap', 3);
+    fixture.detectChanges();
 
-    it('reports a leaf click as a scene to open', () => {
-        const {component} = setup();
-        const opened: string[] = [];
-        component.openScene.subscribe(id => opened.push(id));
+    expect(reach(component)['leavesOf']('a' as never)).toHaveLength(3);
+    expect(reach(component)['overflowOf']('a' as never)).toBe(17);
+    expect(fixture.nativeElement.textContent).not.toContain('Scene 19');
+  });
 
-        reach(component)['open']('ch_1' as never);
+  it('reports a leaf click as a scene to open', () => {
+    const {component} = setup();
+    const opened: string[] = [];
+    component.openScene.subscribe(id => opened.push(id));
 
-        expect(opened).toEqual(['ch_1']);
-    });
+    reach(component)['open']('ch_1' as never);
+
+    expect(opened).toEqual(['ch_1']);
+  });
 });
 ```
 
@@ -1167,10 +1186,10 @@ the dot paints itself from `currentColor`. Add the map above the component inste
 ```ts
 /** Only the colour half of the status table: the dot is a colour, not a chip. */
 const DOT_COLOUR: Readonly<Record<SceneStatus, string>> = {
-    [SceneStatus.Open]: 'text-text-muted',
-    [SceneStatus.Active]: 'text-online',
-    [SceneStatus.Paused]: 'text-connecting',
-    [SceneStatus.Concluded]: 'text-text-faint',
+  [SceneStatus.Open]: 'text-text-muted',
+  [SceneStatus.Active]: 'text-online',
+  [SceneStatus.Paused]: 'text-connecting',
+  [SceneStatus.Concluded]: 'text-text-faint',
 };
 ```
 
@@ -1181,8 +1200,8 @@ Narrow the existing TODO at the top of the class. The board now passes real coun
 archive is still waiting on the route:
 
 ```ts
-    // TODO(dominic): the archive can only count a shelf it has opened, until the taxonomy route
-    // carries counts. The board's are exact.
+// TODO(dominic): the archive can only count a shelf it has opened, until the taxonomy route
+// carries counts. The board's are exact.
 ```
 
 - [ ] **Step 4: Put "New scene here" at the top of the menu**
@@ -1204,132 +1223,137 @@ Replace the whole of `scene-folder-rail.component.html`:
 
 ```html
 @if (recent().length) {
-    <span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
+<span class="rail-label">{{ 'SCENE.ARCHIVE.RECENT' | translate }}</span>
 
-    @for (leaf of recent(); track leaf.channelId) {
-        <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
-            <span [class]="'rail-dot ' + dotClass(leaf)"></span>
-            <span class="rail-name">{{ leaf.name }}</span>
-            @if (leaf.mine) {
-                <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-            }
-        </button>
-    }
-
-    <div class="rail-rule"></div>
+@for (leaf of recent(); track leaf.channelId) {
+<button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+  <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+  <span class="rail-name">{{ leaf.name }}</span>
+  @if (leaf.mine) {
+  <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+  }
+</button>
 }
 
-<button (click)="picked.emit(null)" [class.is-selected]="selected() === null" class="rail-row rail-row-all" type="button">
-    <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
-</button>
-
-@for (node of tree(); track node.folder.id) {
-    <ng-container *ngTemplateOutlet="shelf; context: {$implicit: node, depth: 0}"></ng-container>
+<div class="rail-rule"></div>
 }
 
 <button
-    (click)="picked.emit(UNFILED)"
-    (dragleave)="onDragLeave()"
-    (dragover)="onDragOver($event, null)"
-    (drop)="onDrop($event, null)"
-    [class.is-drop-target]="dragOver() === UNFILED"
-    [class.is-selected]="selected() === UNFILED"
-    class="rail-row rail-row-unfiled"
-    type="button"
+  (click)="picked.emit(null)"
+  [class.is-selected]="selected() === null"
+  class="rail-row rail-row-all"
+  type="button"
 >
-    <span class="rail-name">{{ 'SCENE.ARCHIVE.UNFILED' | translate }}</span>
+  <span class="rail-name">{{ 'SCENE.ARCHIVE.ALL' | translate }}</span>
+</button>
+
+@for (node of tree(); track node.folder.id) {
+<ng-container *ngTemplateOutlet="shelf; context: {$implicit: node, depth: 0}"></ng-container>
+}
+
+<button
+  (click)="picked.emit(UNFILED)"
+  (dragleave)="onDragLeave()"
+  (dragover)="onDragOver($event, null)"
+  (drop)="onDrop($event, null)"
+  [class.is-drop-target]="dragOver() === UNFILED"
+  [class.is-selected]="selected() === UNFILED"
+  class="rail-row rail-row-unfiled"
+  type="button"
+>
+  <span class="rail-name">{{ 'SCENE.ARCHIVE.UNFILED' | translate }}</span>
 </button>
 
 @if (canManage()) {
-    <button (click)="createFolder.emit(null)" class="rail-add" type="button">
-        <i class="pi pi-plus text-[0.5rem]"></i>
-        {{ 'SCENE.ARCHIVE.NEW_FOLDER' | translate }}
-    </button>
+<button (click)="createFolder.emit(null)" class="rail-add" type="button">
+  <i class="pi pi-plus text-[0.5rem]"></i>
+  {{ 'SCENE.ARCHIVE.NEW_FOLDER' | translate }}
+</button>
 }
 
 <p-context-menu #folderMenu [model]="menuItems()" appendTo="body" />
 
 <ng-template #shelf let-node let-depth="depth">
-    <div [class.is-open]="isOpen(node.folder.id)" [class.rail-shelf-root]="depth === 0" class="rail-shelf">
-        <div
-            (contextmenu)="openMenu($event, node)"
-            (dragend)="onDragEnd()"
-            (dragleave)="onDragLeave()"
-            (dragover)="onDragOver($event, node.folder.id)"
-            (dragstart)="onFolderDragStart($event, node)"
-            (drop)="onDrop($event, node.folder.id)"
-            [attr.draggable]="canManage() ? true : null"
-            [class.is-drop-target]="dragOver() === node.folder.id"
-            [class.is-reorder-after]="reorderOver()?.id === node.folder.id && reorderOver()?.after"
-            [class.is-reorder-before]="reorderOver()?.id === node.folder.id && !reorderOver()?.after"
-            [class.is-selected]="selected() === node.folder.id"
-            [style.--rail-accent]="node.folder.color"
-            [style.--rail-depth]="depth"
-            class="rail-row rail-head"
-        >
-            <button
-                (click)="toggle(node.folder.id)"
-                [attr.aria-expanded]="isOpen(node.folder.id)"
-                [attr.aria-label]="(isOpen(node.folder.id) ? 'SCENE.ARCHIVE.COLLAPSE_FOLDER' : 'SCENE.ARCHIVE.EXPAND_FOLDER') | translate"
-                [class.is-hidden]="!hasContents(node)"
-                class="rail-chevron"
-                type="button"
-            >
-                <i [class]="isOpen(node.folder.id) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" class="text-[0.4375rem]"></i>
-            </button>
+  <div [class.is-open]="isOpen(node.folder.id)" [class.rail-shelf-root]="depth === 0" class="rail-shelf">
+    <div
+      (contextmenu)="openMenu($event, node)"
+      (dragend)="onDragEnd()"
+      (dragleave)="onDragLeave()"
+      (dragover)="onDragOver($event, node.folder.id)"
+      (dragstart)="onFolderDragStart($event, node)"
+      (drop)="onDrop($event, node.folder.id)"
+      [attr.draggable]="canManage() ? true : null"
+      [class.is-drop-target]="dragOver() === node.folder.id"
+      [class.is-reorder-after]="reorderOver()?.id === node.folder.id && reorderOver()?.after"
+      [class.is-reorder-before]="reorderOver()?.id === node.folder.id && !reorderOver()?.after"
+      [class.is-selected]="selected() === node.folder.id"
+      [style.--rail-accent]="node.folder.color"
+      [style.--rail-depth]="depth"
+      class="rail-row rail-head"
+    >
+      <button
+        (click)="toggle(node.folder.id)"
+        [attr.aria-expanded]="isOpen(node.folder.id)"
+        [attr.aria-label]="(isOpen(node.folder.id) ? 'SCENE.ARCHIVE.COLLAPSE_FOLDER' : 'SCENE.ARCHIVE.EXPAND_FOLDER') | translate"
+        [class.is-hidden]="!hasContents(node)"
+        class="rail-chevron"
+        type="button"
+      >
+        <i
+          [class]="isOpen(node.folder.id) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+          class="text-[0.4375rem]"
+        ></i>
+      </button>
 
-            <button (click)="picked.emit(node.folder.id)" (keydown)="onRowKeydown($event, node)" class="rail-pick" type="button">
-                @if (node.folder.icon) {
-                    <span class="rail-icon">{{ node.folder.icon }}</span>
-                }
-                <span class="rail-name">{{ node.folder.name }}</span>
-            </button>
-
-            @if (node.count) {
-                <span class="rail-count">{{ node.count }}</span>
-            }
-
-            @if (canManage()) {
-                <button
-                    (click)="openMenu($event, node)"
-                    [attr.aria-label]="'SCENE.ARCHIVE.FOLDER_ACTIONS' | translate"
-                    class="rail-menu"
-                    type="button"
-                >
-                    <i class="pi pi-ellipsis-h text-[0.5625rem]"></i>
-                </button>
-            }
-        </div>
-
-        @if (isOpen(node.folder.id)) {
-            <div class="rail-body">
-                @for (child of node.children; track child.folder.id) {
-                    <ng-container *ngTemplateOutlet="shelf; context: {$implicit: child, depth: depth + 1}"></ng-container>
-                }
-
-                @for (leaf of leavesOf(node.folder.id); track leaf.channelId) {
-                    <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
-                        <span [class]="'rail-dot ' + dotClass(leaf)"></span>
-                        <span class="rail-name">{{ leaf.name }}</span>
-                        @if (leaf.mine) {
-                            <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
-                        }
-                    </button>
-                }
-
-                @if (overflowOf(node.folder.id); as rest) {
-                    <button (click)="showAll.emit(node.folder.id)" class="rail-row rail-leaf rail-more" type="button">
-                        {{ 'SCENE.ARCHIVE.SHOW_ALL_IN_FOLDER' | translate: {count: rest + leafCap()} }}
-                    </button>
-                }
-
-                @if (isLoading(node.folder.id)) {
-                    <div class="rail-leaf-skeleton"></div>
-                    <div class="rail-leaf-skeleton"></div>
-                }
-            </div>
+      <button
+        (click)="picked.emit(node.folder.id)"
+        (keydown)="onRowKeydown($event, node)"
+        class="rail-pick"
+        type="button"
+      >
+        @if (node.folder.icon) {
+        <span class="rail-icon">{{ node.folder.icon }}</span>
         }
+        <span class="rail-name">{{ node.folder.name }}</span>
+      </button>
+
+      @if (node.count) {
+      <span class="rail-count">{{ node.count }}</span>
+      } @if (canManage()) {
+      <button
+        (click)="openMenu($event, node)"
+        [attr.aria-label]="'SCENE.ARCHIVE.FOLDER_ACTIONS' | translate"
+        class="rail-menu"
+        type="button"
+      >
+        <i class="pi pi-ellipsis-h text-[0.5625rem]"></i>
+      </button>
+      }
     </div>
+
+    @if (isOpen(node.folder.id)) {
+    <div class="rail-body">
+      @for (child of node.children; track child.folder.id) {
+      <ng-container *ngTemplateOutlet="shelf; context: {$implicit: child, depth: depth + 1}"></ng-container>
+      } @for (leaf of leavesOf(node.folder.id); track leaf.channelId) {
+      <button (click)="open(leaf.channelId)" class="rail-row rail-leaf" type="button">
+        <span [class]="'rail-dot ' + dotClass(leaf)"></span>
+        <span class="rail-name">{{ leaf.name }}</span>
+        @if (leaf.mine) {
+        <span class="rail-mine">{{ 'SCENE.RAIL.YOUR_MOVE' | translate }}</span>
+        }
+      </button>
+      } @if (overflowOf(node.folder.id); as rest) {
+      <button (click)="showAll.emit(node.folder.id)" class="rail-row rail-leaf rail-more" type="button">
+        {{ 'SCENE.ARCHIVE.SHOW_ALL_IN_FOLDER' | translate: {count: rest + leafCap()} }}
+      </button>
+      } @if (isLoading(node.folder.id)) {
+      <div class="rail-leaf-skeleton"></div>
+      <div class="rail-leaf-skeleton"></div>
+      }
+    </div>
+    }
+  </div>
 </ng-template>
 ```
 
@@ -1339,123 +1363,123 @@ In `scene-folder-rail.component.css`, delete the `.rail-row-child` rule (nothing
 
 ```css
 .rail-shelf {
-    border-radius: 0.625rem;
-    overflow: hidden;
-    margin-bottom: 0.1875rem;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  margin-bottom: 0.1875rem;
 }
 
 .rail-shelf.is-open {
-    margin-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 /* A root folder is a labelled shelf, which is what makes two levels read as two levels. */
 .rail-shelf-root > .rail-head {
-    border-left: 2px solid var(--rail-accent, transparent);
-    border-radius: 0;
-    background: rgba(255, 255, 255, 0.035);
-    font-size: 0.59375rem;
-    font-weight: 700;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--color-text-secondary);
+  border-left: 2px solid var(--rail-accent, transparent);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.59375rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
 }
 
 .rail-shelf-root.is-open > .rail-head {
-    background: rgba(255, 255, 255, 0.055);
-    color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--color-text-primary);
 }
 
 .rail-shelf-root > .rail-head .rail-name {
-    font-size: inherit;
+  font-size: inherit;
 }
 
 .rail-body {
-    padding: 0.1875rem 0 0.125rem 0.375rem;
+  padding: 0.1875rem 0 0.125rem 0.375rem;
 }
 
 .rail-chevron {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    width: 0.75rem;
-    height: 0.75rem;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    color: var(--color-text-faint);
-    cursor: pointer;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--color-text-faint);
+  cursor: pointer;
 }
 
 /* Held rather than removed: a folder gaining a scene must not shift every name beside it. */
 .rail-chevron.is-hidden {
-    visibility: hidden;
+  visibility: hidden;
 }
 
 .rail-count {
-    flex-shrink: 0;
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0;
-    color: var(--color-text-faint);
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-text-faint);
 }
 
 .rail-leaf {
-    gap: 0.4375rem;
-    font-size: 0.78125rem;
+  gap: 0.4375rem;
+  font-size: 0.78125rem;
 }
 
 .rail-dot {
-    flex-shrink: 0;
-    width: 0.3125rem;
-    height: 0.3125rem;
-    border-radius: 50%;
-    background: currentColor;
+  flex-shrink: 0;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .rail-mine {
-    flex-shrink: 0;
-    font-size: 0.53125rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--color-connecting);
+  flex-shrink: 0;
+  font-size: 0.53125rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-connecting);
 }
 
 .rail-more {
-    color: var(--color-text-faint);
-    font-size: 0.6875rem;
+  color: var(--color-text-faint);
+  font-size: 0.6875rem;
 }
 
 .rail-label {
-    display: block;
-    padding: 0 0.5rem;
-    margin: 0.125rem 0 0.3125rem;
-    font-size: 0.5625rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-text-faint);
+  display: block;
+  padding: 0 0.5rem;
+  margin: 0.125rem 0 0.3125rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
 }
 
 .rail-rule {
-    height: 1px;
-    margin: 0.5rem 0.5rem;
-    background: rgba(255, 255, 255, 0.07);
+  height: 1px;
+  margin: 0.5rem 0.5rem;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .rail-leaf-skeleton {
-    height: 1.25rem;
-    margin: 0.125rem 0.5rem;
-    border-radius: 0.375rem;
-    background: rgba(255, 255, 255, 0.03);
-    animation: rail-pulse 1.4s ease-in-out infinite;
+  height: 1.25rem;
+  margin: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.03);
+  animation: rail-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes rail-pulse {
-    50% {
-        opacity: 0.45;
-    }
+  50% {
+    opacity: 0.45;
+  }
 }
 ```
 
@@ -1491,6 +1515,7 @@ git commit -m "feat(scenes): draw the folder rail as a tree with its scenes"
 `scene-detail-sheet.component` holds a searchable folder picker inline. Task 9 needs the same picker in the create dialog, so it moves out rather than getting a second implementation.
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-archive/scene-folder-picker.component.ts`
 - Create: `src/app/features/guild/scenes/scene-archive/scene-folder-picker.component.html`
 - Create: `src/app/features/guild/scenes/scene-archive/scene-folder-picker.component.css`
@@ -1500,6 +1525,7 @@ git commit -m "feat(scenes): draw the folder rail as a tree with its scenes"
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-detail-sheet.component.css`
 
 **Interfaces:**
+
 - Consumes: `SceneTaxonomyService.folders(guildId)`.
 - Produces:
   - `SceneFolderPickerComponent`, selector `app-scene-folder-picker`
@@ -1521,68 +1547,73 @@ import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.service'
 import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
 
 function folder(id: string, name: string, parentFolderId: string | null = null): SceneFolderDto {
-    return {id, guildId: 'g1', name, position: 0, parentFolderId};
+  return {id, guildId: 'g1', name, position: 0, parentFolderId};
 }
 
 const FOLDERS = [folder('a', 'Act I'), folder('a1', 'Greyford', 'a'), folder('b', 'Act II')];
 
-function setup(): {fixture: ComponentFixture<SceneFolderPickerComponent>; component: SceneFolderPickerComponent} {
-    TestBed.configureTestingModule({
-        imports: [SceneFolderPickerComponent],
-        providers: [
-            provideTranslateService(),
-            {provide: SceneTaxonomyService, useValue: {folders: () => FOLDERS, ensureGuild: () => undefined}},
-        ],
-    });
-    const fixture = TestBed.createComponent(SceneFolderPickerComponent);
-    fixture.componentRef.setInput('guildId', 'g1');
-    fixture.detectChanges();
-    return {fixture, component: fixture.componentInstance};
+function setup(): {
+  fixture: ComponentFixture<SceneFolderPickerComponent>;
+  component: SceneFolderPickerComponent;
+} {
+  TestBed.configureTestingModule({
+    imports: [SceneFolderPickerComponent],
+    providers: [
+      provideTranslateService(),
+      {provide: SceneTaxonomyService, useValue: {folders: () => FOLDERS, ensureGuild: () => undefined}},
+    ],
+  });
+  const fixture = TestBed.createComponent(SceneFolderPickerComponent);
+  fixture.componentRef.setInput('guildId', 'g1');
+  fixture.detectChanges();
+  return {fixture, component: fixture.componentInstance};
 }
 
 function reach(component: SceneFolderPickerComponent): Record<string, (...args: never[]) => unknown> {
-    return component as unknown as Record<string, (...args: never[]) => unknown>;
+  return component as unknown as Record<string, (...args: never[]) => unknown>;
 }
 
 describe('SceneFolderPickerComponent', () => {
-    it('lists every parent followed by its own children', () => {
-        const {component} = setup();
+  it('lists every parent followed by its own children', () => {
+    const {component} = setup();
 
-        const rows = (component as unknown as {folderMatches: () => {folder: SceneFolderDto; child: boolean}[]}).folderMatches();
+    const rows = (
+      component as unknown as {folderMatches: () => {folder: SceneFolderDto; child: boolean}[]}
+    ).folderMatches();
 
-        expect(rows.map(r => r.folder.id)).toEqual(['a', 'a1', 'b']);
-        expect(rows[1].child).toBe(true);
-    });
+    expect(rows.map(r => r.folder.id)).toEqual(['a', 'a1', 'b']);
+    expect(rows[1].child).toBe(true);
+  });
 
-    it('searches on the parent name too', () => {
-        const {component} = setup();
+  it('searches on the parent name too', () => {
+    const {component} = setup();
 
-        reach(component)['folderQuery'];
-        (component as unknown as {folderQuery: {set: (v: string) => void}}).folderQuery.set('Act I');
-        const rows = (component as unknown as {folderMatches: () => {folder: SceneFolderDto}[]}).folderMatches();
+    reach(component)['folderQuery'];
+    (component as unknown as {folderQuery: {set: (v: string) => void}}).folderQuery.set('Act I');
+    const rows = (component as unknown as {folderMatches: () => {folder: SceneFolderDto}[]}).folderMatches();
 
-        expect(rows.map(r => r.folder.id)).toEqual(['a', 'a1']);
-    });
+    expect(rows.map(r => r.folder.id)).toEqual(['a', 'a1']);
+  });
 
-    it('reports the chosen folder', () => {
-        const {component} = setup();
-        const picks: (string | null)[] = [];
-        component.picked.subscribe(id => picks.push(id));
+  it('reports the chosen folder', () => {
+    const {component} = setup();
+    const picks: (string | null)[] = [];
+    component.picked.subscribe(id => picks.push(id));
 
-        reach(component)['choose']('a1' as never);
+    reach(component)['choose']('a1' as never);
 
-        expect(picks).toEqual(['a1']);
-    });
+    expect(picks).toEqual(['a1']);
+  });
 
-    it('reports unfiled as null', () => {
-        const {component} = setup();
-        const picks: (string | null)[] = [];
-        component.picked.subscribe(id => picks.push(id));
+  it('reports unfiled as null', () => {
+    const {component} = setup();
+    const picks: (string | null)[] = [];
+    component.picked.subscribe(id => picks.push(id));
 
-        reach(component)['choose'](null as never);
+    reach(component)['choose'](null as never);
 
-        expect(picks).toEqual([null]);
-    });
+    expect(picks).toEqual([null]);
+  });
 });
 ```
 
@@ -1599,7 +1630,17 @@ Expected: FAIL, cannot resolve `./scene-folder-picker.component`.
 `scene-folder-picker.component.ts`:
 
 ```ts
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -1608,77 +1649,75 @@ import {SceneFolderDto} from '../../../../dtos/response/scene.dto';
 
 /** One folder as the picker lists it, carrying the nesting a flat list cannot show. */
 interface FolderRow {
-    folder: SceneFolderDto;
-    child: boolean;
-    parentName: string | null;
+  folder: SceneFolderDto;
+  child: boolean;
+  parentName: string | null;
 }
 
 /** Choosing a shelf. The detail sheet files a finished scene with it; the dialog seeds a new one. */
 @Component({
-    selector: 'app-scene-folder-picker',
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, TranslateModule],
-    templateUrl: './scene-folder-picker.component.html',
-    styleUrl: './scene-folder-picker.component.css',
-    host: {class: 'flex flex-col gap-1.5'},
+  selector: 'app-scene-folder-picker',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule, TranslateModule],
+  templateUrl: './scene-folder-picker.component.html',
+  styleUrl: './scene-folder-picker.component.css',
+  host: {class: 'flex flex-col gap-1.5'},
 })
 export class SceneFolderPickerComponent {
-    readonly guildId = input.required<string>();
-    readonly selected = input<string | null>(null);
-    /** Null is unfiled. */
-    readonly picked = output<string | null>();
+  readonly guildId = input.required<string>();
+  readonly selected = input<string | null>(null);
+  /** Null is unfiled. */
+  readonly picked = output<string | null>();
 
-    private readonly taxonomy = inject(SceneTaxonomyService);
+  private readonly taxonomy = inject(SceneTaxonomyService);
 
-    protected readonly folderQuery = signal('');
+  protected readonly folderQuery = signal('');
 
-    constructor() {
-        effect(() => {
-            const guildId = this.guildId();
-            untracked(() => this.taxonomy.ensureGuild(guildId));
-        });
+  constructor() {
+    effect(() => {
+      const guildId = this.guildId();
+      untracked(() => this.taxonomy.ensureGuild(guildId));
+    });
+  }
+
+  private readonly folders = computed(() => this.taxonomy.folders(this.guildId()));
+
+  /** Every parent in order, each followed by its own children. */
+  private readonly folderRows = computed<FolderRow[]>(() => {
+    const all = this.folders();
+    const rows: FolderRow[] = [];
+    const placed = new Set<string>();
+
+    for (const parent of all.filter(f => !f.parentFolderId)) {
+      rows.push({folder: parent, child: false, parentName: null});
+      placed.add(parent.id);
+      for (const child of all.filter(f => f.parentFolderId === parent.id)) {
+        rows.push({folder: child, child: true, parentName: parent.name});
+        placed.add(child.id);
+      }
     }
 
-    private readonly folders = computed(() => this.taxonomy.folders(this.guildId()));
-
-    /** Every parent in order, each followed by its own children. */
-    private readonly folderRows = computed<FolderRow[]>(() => {
-        const all = this.folders();
-        const rows: FolderRow[] = [];
-        const placed = new Set<string>();
-
-        for (const parent of all.filter(f => !f.parentFolderId)) {
-            rows.push({folder: parent, child: false, parentName: null});
-            placed.add(parent.id);
-            for (const child of all.filter(f => f.parentFolderId === parent.id)) {
-                rows.push({folder: child, child: true, parentName: parent.name});
-                placed.add(child.id);
-            }
-        }
-
-        // A folder whose parent is not in the local copy would otherwise drop out of the picker.
-        for (const folder of all) {
-            if (!placed.has(folder.id)) rows.push({folder, child: false, parentName: null});
-        }
-        return rows;
-    });
-
-    protected readonly folderMatches = computed(() => {
-        const query = this.folderQuery().trim().toLowerCase();
-        if (!query) return this.folderRows();
-        return this.folderRows().filter(
-            row =>
-                row.folder.name.toLowerCase().includes(query) ||
-                !!row.parentName?.toLowerCase().includes(query),
-        );
-    });
-
-    protected readonly searching = computed(() => !!this.folderQuery().trim());
-
-    protected choose(folderId: string | null): void {
-        this.folderQuery.set('');
-        this.picked.emit(folderId);
+    // A folder whose parent is not in the local copy would otherwise drop out of the picker.
+    for (const folder of all) {
+      if (!placed.has(folder.id)) rows.push({folder, child: false, parentName: null});
     }
+    return rows;
+  });
+
+  protected readonly folderMatches = computed(() => {
+    const query = this.folderQuery().trim().toLowerCase();
+    if (!query) return this.folderRows();
+    return this.folderRows().filter(
+      row => row.folder.name.toLowerCase().includes(query) || !!row.parentName?.toLowerCase().includes(query),
+    );
+  });
+
+  protected readonly searching = computed(() => !!this.folderQuery().trim());
+
+  protected choose(folderId: string | null): void {
+    this.folderQuery.set('');
+    this.picked.emit(folderId);
+  }
 }
 ```
 
@@ -1686,43 +1725,38 @@ export class SceneFolderPickerComponent {
 
 ```html
 <label class="pick-search">
-    <i aria-hidden="true" class="pi pi-search text-[0.625rem]"></i>
-    <input
-        (ngModelChange)="folderQuery.set($event)"
-        [ngModel]="folderQuery()"
-        [placeholder]="'SCENE.ARCHIVE.FOLDER_SEARCH' | translate"
-        type="search"
-    />
+  <i aria-hidden="true" class="pi pi-search text-[0.625rem]"></i>
+  <input
+    (ngModelChange)="folderQuery.set($event)"
+    [ngModel]="folderQuery()"
+    [placeholder]="'SCENE.ARCHIVE.FOLDER_SEARCH' | translate"
+    type="search"
+  />
 </label>
 
 <div class="pick-rows thin-scrollbar">
-    @if (!searching()) {
-        <button (click)="choose(null)" [class.is-current]="selected() === null" class="pick-row" type="button">
-            {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
-        </button>
+  @if (!searching()) {
+  <button (click)="choose(null)" [class.is-current]="selected() === null" class="pick-row" type="button">
+    {{ 'SCENE.ARCHIVE.UNFILED' | translate }}
+  </button>
+  } @for (row of folderMatches(); track row.folder.id) {
+  <button
+    (click)="choose(row.folder.id)"
+    [class.is-child]="row.child && !searching()"
+    [class.is-current]="selected() === row.folder.id"
+    class="pick-row"
+    type="button"
+  >
+    @if (row.folder.icon) {
+    <span>{{ row.folder.icon }}</span>
+    } @if (row.parentName && searching()) {
+    <span class="pick-parent">{{ row.parentName }} /</span>
     }
-
-    @for (row of folderMatches(); track row.folder.id) {
-        <button
-            (click)="choose(row.folder.id)"
-            [class.is-child]="row.child && !searching()"
-            [class.is-current]="selected() === row.folder.id"
-            class="pick-row"
-            type="button"
-        >
-            @if (row.folder.icon) {
-                <span>{{ row.folder.icon }}</span>
-            }
-            @if (row.parentName && searching()) {
-                <span class="pick-parent">{{ row.parentName }} /</span>
-            }
-            <span class="truncate">{{ row.folder.name }}</span>
-        </button>
-    }
-
-    @if (!folderMatches().length) {
-        <span class="pick-empty">{{ 'SCENE.ARCHIVE.NO_FOLDER_MATCH' | translate }}</span>
-    }
+    <span class="truncate">{{ row.folder.name }}</span>
+  </button>
+  } @if (!folderMatches().length) {
+  <span class="pick-empty">{{ 'SCENE.ARCHIVE.NO_FOLDER_MATCH' | translate }}</span>
+  }
 </div>
 ```
 
@@ -1739,9 +1773,9 @@ Add one rule the sheet did not need:
 
 ```css
 .pick-empty {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.6875rem;
-    color: var(--color-text-faint);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--color-text-faint);
 }
 ```
 
@@ -1752,14 +1786,14 @@ Delete the copied rules from `scene-detail-sheet.component.css`. Leave `.sheet-p
 In `scene-detail-sheet.component.html`, replace the block from `@if (picking()) {` through its closing brace (lines 101 to 142) with:
 
 ```html
-            @if (picking()) {
-                <app-scene-folder-picker
-                    (picked)="file($event)"
-                    [guildId]="guildId()"
-                    [selected]="folder()?.id ?? null"
-                    class="sheet-pick-list"
-                />
-            }
+@if (picking()) {
+<app-scene-folder-picker
+  (picked)="file($event)"
+  [guildId]="guildId()"
+  [selected]="folder()?.id ?? null"
+  class="sheet-pick-list"
+/>
+}
 ```
 
 In `scene-detail-sheet.component.ts`:
@@ -1801,11 +1835,13 @@ git commit -m "refactor(scenes): lift the folder picker out of the detail sheet"
 ### Task 8: The archive feeds the tree
 
 **Files:**
+
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-archive.component.ts`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-archive.component.html`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-archive.component.css`
 
 **Interfaces:**
+
 - Consumes: `ArchiveStatus`, `peek`, `peeked`, `peekLoading` (Task 4); `SceneRailStateService` (Task 3); `leavesByFolder`, `recentScenes`, `SceneLeaf` (Task 2); the rail's new inputs and outputs (Task 6).
 - Produces: `createSceneIn = output<string | null>()` on `SceneArchiveComponent`, which Task 10 wires to the dialog.
 
@@ -1839,17 +1875,17 @@ Add `output` to the `@angular/core` import list and `GuildService` to the servic
 Feed the status into the filter effect, beside the other fields:
 
 ```ts
-        effect(() => {
-            const filter = {
-                guildId: this.guildId(),
-                folderId: this.folderId(),
-                tagIds: this.tagIds(),
-                q: this.settledQuery(),
-                sort: this.sort(),
-                status: this.status(),
-            };
-            untracked(() => this.archive.apply(filter));
-        });
+effect(() => {
+  const filter = {
+    guildId: this.guildId(),
+    folderId: this.folderId(),
+    tagIds: this.tagIds(),
+    q: this.settledQuery(),
+    sort: this.sort(),
+    status: this.status(),
+  };
+  untracked(() => this.archive.apply(filter));
+});
 ```
 
 - [ ] **Step 2: Read every open shelf**
@@ -1857,15 +1893,15 @@ Feed the status into the filter effect, beside the other fields:
 Add an effect in the constructor, after the existing two:
 
 ```ts
-        // Every open shelf reads its own page. The service dedupes, so reopening one is free.
-        effect(() => {
-            const guildId = this.guildId();
-            const status = this.status();
-            const open = this.railState.expanded(guildId);
-            untracked(() => {
-                for (const folderId of open) this.archive.peek(guildId, folderId, status);
-            });
-        });
+// Every open shelf reads its own page. The service dedupes, so reopening one is free.
+effect(() => {
+  const guildId = this.guildId();
+  const status = this.status();
+  const open = this.railState.expanded(guildId);
+  untracked(() => {
+    for (const folderId of open) this.archive.peek(guildId, folderId, status);
+  });
+});
 ```
 
 And the selectors the rail reads:
@@ -1924,22 +1960,22 @@ Beside `SORT_LABELS` at the top of the file:
 
 ```ts
 const STATUS_LABELS: Record<ArchiveStatus, string> = {
-    all: 'SCENE.ARCHIVE.STATUS_ALL',
-    running: 'SCENE.ARCHIVE.STATUS_RUNNING',
-    finished: 'SCENE.ARCHIVE.STATUS_FINISHED',
+  all: 'SCENE.ARCHIVE.STATUS_ALL',
+  running: 'SCENE.ARCHIVE.STATUS_RUNNING',
+  finished: 'SCENE.ARCHIVE.STATUS_FINISHED',
 };
 ```
 
 Add the guild's scenes to the existing guild effect so `recent` has something to read:
 
 ```ts
-        effect(() => {
-            const guildId = this.guildId();
-            untracked(() => {
-                this.taxonomy.ensureGuild(guildId);
-                this.scenes.ensureGuild(guildId);
-            });
-        });
+effect(() => {
+  const guildId = this.guildId();
+  untracked(() => {
+    this.taxonomy.ensureGuild(guildId);
+    this.scenes.ensureGuild(guildId);
+  });
+});
 ```
 
 - [ ] **Step 4: Wire the rail in the template**
@@ -1947,25 +1983,25 @@ Add the guild's scenes to the existing guild effect so `recent` has something to
 In `scene-archive.component.html`, replace the `<app-scene-folder-rail ... />` element with:
 
 ```html
-        <app-scene-folder-rail
-            (createFolder)="editing.set({folder: null, seedParentId: $event})"
-            (createScene)="createSceneIn.emit($event)"
-            (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-            (filed)="file($event.channelId, $event.folderId)"
-            (openScene)="openScene($event)"
-            (picked)="folderId.set($event)"
-            (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
-            (reordered)="reorder($event)"
-            (showAll)="folderId.set($event)"
-            (toggled)="toggleShelf($event)"
-            [canManage]="canManage()"
-            [expandedIds]="expandedIds()"
-            [loadingFolderIds]="loadingFolderIds()"
-            [recent]="recent()"
-            [scenesByFolder]="scenesByFolder()"
-            [selected]="folderId()"
-            [tree]="tree()"
-        />
+<app-scene-folder-rail
+  (createFolder)="editing.set({folder: null, seedParentId: $event})"
+  (createScene)="createSceneIn.emit($event)"
+  (deleteFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+  (filed)="file($event.channelId, $event.folderId)"
+  (openScene)="openScene($event)"
+  (picked)="folderId.set($event)"
+  (renameFolder)="editing.set({folder: $event.folder, seedParentId: null})"
+  (reordered)="reorder($event)"
+  (showAll)="folderId.set($event)"
+  (toggled)="toggleShelf($event)"
+  [canManage]="canManage()"
+  [expandedIds]="expandedIds()"
+  [loadingFolderIds]="loadingFolderIds()"
+  [recent]="recent()"
+  [scenesByFolder]="scenesByFolder()"
+  [selected]="folderId()"
+  [tree]="tree()"
+/>
 ```
 
 - [ ] **Step 5: Add the status control to the filter bar**
@@ -1973,10 +2009,10 @@ In `scene-archive.component.html`, replace the `<app-scene-folder-rail ... />` e
 In the same file, immediately after the sort button:
 
 ```html
-            <button (click)="statusMenu.toggle($event)" class="archive-clear archive-sort" type="button">
-                {{ statusLabel() | translate }}
-                <i class="pi pi-chevron-down text-[0.5rem]"></i>
-            </button>
+<button (click)="statusMenu.toggle($event)" class="archive-clear archive-sort" type="button">
+  {{ statusLabel() | translate }}
+  <i class="pi pi-chevron-down text-[0.5rem]"></i>
+</button>
 ```
 
 And beside the existing `<p-menu #sortMenu ... />`:
@@ -2012,11 +2048,13 @@ git commit -m "feat(scenes): show scenes and a status filter in the archive rail
 ### Task 9: Creating a scene into a folder
 
 **Files:**
+
 - Modify: `src/app/features/guild/scenes/scene-dialog/scene-dialog.component.ts`
 - Modify: `src/app/features/guild/scenes/scene-dialog/scene-dialog.component.html`
 - Test: `src/app/features/guild/scenes/scene-dialog/scene-dialog.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `SceneFolderPickerComponent` (Task 7), `SCENE.TOAST.CREATED_NOT_FILED` (Task 1).
 - Produces: `seedFolderId = input<string | null>(null)` on `SceneDialogComponent`.
 
@@ -2038,100 +2076,100 @@ import {SceneDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 
 function created(): SceneDto {
-    return {
-        channelId: 'ch_new',
-        guildId: 'g1',
-        name: 'The Ford at Dawn',
-        status: SceneStatus.Open,
-        turnOrder: ['p1'],
-        participants: [],
-    };
+  return {
+    channelId: 'ch_new',
+    guildId: 'g1',
+    name: 'The Ford at Dawn',
+    status: SceneStatus.Open,
+    turnOrder: ['p1'],
+    participants: [],
+  };
 }
 
 function channel(): ChannelDto {
-    return {id: 'home', name: 'roleplay', type: ChannelType.Text, guildId: 'g1'} as ChannelDto;
+  return {id: 'home', name: 'roleplay', type: ChannelType.Text, guildId: 'g1'} as ChannelDto;
 }
 
 function setup(fileResult: 'ok' | 'fail' = 'ok') {
-    const scenes = {
-        create: vi.fn(() => of(created())),
-        update: vi.fn(() => (fileResult === 'ok' ? of(created()) : throwError(() => new Error('nope')))),
-    };
-    const toast = {success: vi.fn(), warn: vi.fn(), httpError: vi.fn()};
-    const personas = {
-        ensureCast: () => undefined,
-        ensureGuildCast: () => undefined,
-        guildCast: () => [],
-        isGuildCastLoading: () => false,
-        identity: () => null,
-    };
+  const scenes = {
+    create: vi.fn(() => of(created())),
+    update: vi.fn(() => (fileResult === 'ok' ? of(created()) : throwError(() => new Error('nope')))),
+  };
+  const toast = {success: vi.fn(), warn: vi.fn(), httpError: vi.fn()};
+  const personas = {
+    ensureCast: () => undefined,
+    ensureGuildCast: () => undefined,
+    guildCast: () => [],
+    isGuildCastLoading: () => false,
+    identity: () => null,
+  };
 
-    TestBed.configureTestingModule({
-        imports: [SceneDialogComponent],
-        providers: [
-            provideTranslateService(),
-            {provide: SceneService, useValue: scenes},
-            {provide: PersonaService, useValue: personas},
-            {provide: ToastService, useValue: toast},
-        ],
-    });
+  TestBed.configureTestingModule({
+    imports: [SceneDialogComponent],
+    providers: [
+      provideTranslateService(),
+      {provide: SceneService, useValue: scenes},
+      {provide: PersonaService, useValue: personas},
+      {provide: ToastService, useValue: toast},
+    ],
+  });
 
-    const fixture: ComponentFixture<SceneDialogComponent> = TestBed.createComponent(SceneDialogComponent);
-    fixture.componentRef.setInput('guildId', 'g1');
-    fixture.componentRef.setInput('guildChannels', [channel()]);
-    fixture.detectChanges();
+  const fixture: ComponentFixture<SceneDialogComponent> = TestBed.createComponent(SceneDialogComponent);
+  fixture.componentRef.setInput('guildId', 'g1');
+  fixture.componentRef.setInput('guildChannels', [channel()]);
+  fixture.detectChanges();
 
-    const component = fixture.componentInstance as unknown as {
-        name: {set: (v: string) => void};
-        order: {set: (v: string[]) => void};
-        save: (start: boolean) => void;
-    };
-    component.name.set('The Ford at Dawn');
-    component.order.set(['p1']);
+  const component = fixture.componentInstance as unknown as {
+    name: {set: (v: string) => void};
+    order: {set: (v: string[]) => void};
+    save: (start: boolean) => void;
+  };
+  component.name.set('The Ford at Dawn');
+  component.order.set(['p1']);
 
-    return {fixture, component, scenes, toast};
+  return {fixture, component, scenes, toast};
 }
 
 describe('SceneDialogComponent creating into a folder', () => {
-    it('does not file when no folder was seeded', () => {
-        const {component, scenes} = setup();
+  it('does not file when no folder was seeded', () => {
+    const {component, scenes} = setup();
 
-        component.save(false);
+    component.save(false);
 
-        expect(scenes.create).toHaveBeenCalledOnce();
-        expect(scenes.update).not.toHaveBeenCalled();
-    });
+    expect(scenes.create).toHaveBeenCalledOnce();
+    expect(scenes.update).not.toHaveBeenCalled();
+  });
 
-    it('files the scene it just created', () => {
-        const {fixture, component, scenes} = setup();
-        fixture.componentRef.setInput('seedFolderId', 'f1');
+  it('files the scene it just created', () => {
+    const {fixture, component, scenes} = setup();
+    fixture.componentRef.setInput('seedFolderId', 'f1');
 
-        component.save(false);
+    component.save(false);
 
-        expect(scenes.update).toHaveBeenCalledWith('g1', 'ch_new', {folderId: 'f1'});
-    });
+    expect(scenes.update).toHaveBeenCalledWith('g1', 'ch_new', {folderId: 'f1'});
+  });
 
-    it('reports a created scene even when filing it failed', () => {
-        const {fixture, component, toast} = setup('fail');
-        fixture.componentRef.setInput('seedFolderId', 'f1');
+  it('reports a created scene even when filing it failed', () => {
+    const {fixture, component, toast} = setup('fail');
+    fixture.componentRef.setInput('seedFolderId', 'f1');
 
-        component.save(false);
+    component.save(false);
 
-        // The scene exists. Calling this a failed create would send the GM to make a second one.
-        expect(toast.warn).toHaveBeenCalled();
-        expect(toast.httpError).not.toHaveBeenCalled();
-    });
+    // The scene exists. Calling this a failed create would send the GM to make a second one.
+    expect(toast.warn).toHaveBeenCalled();
+    expect(toast.httpError).not.toHaveBeenCalled();
+  });
 
-    it('closes after a create that could not be filed', () => {
-        const {fixture, component} = setup('fail');
-        fixture.componentRef.setInput('seedFolderId', 'f1');
-        const closes: unknown[] = [];
-        fixture.componentInstance.closed.subscribe(() => closes.push(1));
+  it('closes after a create that could not be filed', () => {
+    const {fixture, component} = setup('fail');
+    fixture.componentRef.setInput('seedFolderId', 'f1');
+    const closes: unknown[] = [];
+    fixture.componentInstance.closed.subscribe(() => closes.push(1));
 
-        component.save(false);
+    component.save(false);
 
-        expect(closes).toHaveLength(1);
-    });
+    expect(closes).toHaveLength(1);
+  });
 });
 ```
 
@@ -2194,15 +2232,15 @@ with `import {SceneTaxonomyService} from '../../../../services/scene-taxonomy.se
 Seed the working copy once, in the constructor:
 
 ```ts
-        effect(() => {
-            const seed = this.seedFolderId();
-            untracked(() => {
-                if (!this.seededFolder) {
-                    this.seededFolder = true;
-                    this.folderId.set(seed);
-                }
-            });
-        });
+effect(() => {
+  const seed = this.seedFolderId();
+  untracked(() => {
+    if (!this.seededFolder) {
+      this.seededFolder = true;
+      this.folderId.set(seed);
+    }
+  });
+});
 ```
 
 with the private field `private seededFolder = false;` beside `private seeded = false;`.
@@ -2252,17 +2290,17 @@ In `scene-dialog.component.html`, add above the actions row, inside the create b
 
 ```html
 @if (!isEdit()) {
-    <div class="dialog-field">
-        <span class="dialog-label">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</span>
-        <button (click)="pickingFolder.set(!pickingFolder())" class="dialog-folder" type="button">
-            <span>{{ folderName() ?? ('SCENE.ARCHIVE.UNFILED' | translate) }}</span>
-            <i class="pi pi-chevron-down text-[0.5rem]"></i>
-        </button>
+<div class="dialog-field">
+  <span class="dialog-label">{{ 'SCENE.ARCHIVE.FILE_INTO' | translate }}</span>
+  <button (click)="pickingFolder.set(!pickingFolder())" class="dialog-folder" type="button">
+    <span>{{ folderName() ?? ('SCENE.ARCHIVE.UNFILED' | translate) }}</span>
+    <i class="pi pi-chevron-down text-[0.5rem]"></i>
+  </button>
 
-        @if (pickingFolder()) {
-            <app-scene-folder-picker (picked)="chooseFolder($event)" [guildId]="guildId()" [selected]="folderId()" />
-        }
-    </div>
+  @if (pickingFolder()) {
+  <app-scene-folder-picker (picked)="chooseFolder($event)" [guildId]="guildId()" [selected]="folderId()" />
+  }
+</div>
 }
 ```
 
@@ -2291,12 +2329,14 @@ git commit -m "feat(scenes): file a new scene on the folder it was created from"
 ### Task 10: The playing screen gets the rail
 
 **Files:**
+
 - Modify: `src/app/features/guild/scenes/scene-board/scene-board.component.ts`
 - Modify: `src/app/features/guild/scenes/scene-board/scene-board.component.html`
 - Modify: `src/app/features/guild/scenes/scene-board/scene-board.component.css`
 - Test: `src/app/features/guild/scenes/scene-board/scene-board.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 2, 3, 6, 8, 9.
 - Produces: nothing downstream.
 
@@ -2322,96 +2362,105 @@ import {ProfileService} from '../../../../services/profile.service';
 import {SceneFolderDto, SceneListItemDto, SceneStatus} from '../../../../dtos/response/scene.dto';
 
 function scene(over: Partial<SceneListItemDto> = {}): SceneListItemDto {
-    return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
+  return {channelId: 'ch_1', name: 'Scene', status: SceneStatus.Active, ...over};
 }
 
 function folder(id: string, name: string, position = 0): SceneFolderDto {
-    return {id, guildId: 'g1', name, position, parentFolderId: null};
+  return {id, guildId: 'g1', name, position, parentFolderId: null};
 }
 
 const SCENES = [
-    scene({channelId: 'mine', name: 'The Ford at Dawn', folderId: 'a', currentTurnPersonaId: 'p1'}),
-    scene({channelId: 'other', name: 'Nightwatch', folderId: 'a'}),
-    scene({channelId: 'second', name: 'The Burning Gate', folderId: 'b'}),
-    scene({channelId: 'loose', name: 'Council of Crows'}),
+  scene({channelId: 'mine', name: 'The Ford at Dawn', folderId: 'a', currentTurnPersonaId: 'p1'}),
+  scene({channelId: 'other', name: 'Nightwatch', folderId: 'a'}),
+  scene({channelId: 'second', name: 'The Burning Gate', folderId: 'b'}),
+  scene({channelId: 'loose', name: 'Council of Crows'}),
 ];
 
 function setup() {
-    TestBed.configureTestingModule({
-        imports: [SceneBoardComponent],
-        providers: [
-            provideTranslateService(),
-            {
-                provide: SceneService,
-                useValue: {
-                    scenes: () => SCENES,
-                    speakableIds: () => new Set(['p1']),
-                    now: () => 0,
-                    isLoading: () => false,
-                    ensureGuild: () => undefined,
-                },
-            },
-            {provide: SceneTaxonomyService, useValue: {folders: () => [folder('a', 'Act I', 0), folder('b', 'Act II', 1)], ensureGuild: () => undefined}},
-            {provide: PersonaService, useValue: {identity: () => null}},
-            {provide: GuildService, useValue: {guilds: () => [{id: 'g1', channels: []}], getOwnMember: () => of(null)}},
-            {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'u1'})}},
-        ],
-    });
+  TestBed.configureTestingModule({
+    imports: [SceneBoardComponent],
+    providers: [
+      provideTranslateService(),
+      {
+        provide: SceneService,
+        useValue: {
+          scenes: () => SCENES,
+          speakableIds: () => new Set(['p1']),
+          now: () => 0,
+          isLoading: () => false,
+          ensureGuild: () => undefined,
+        },
+      },
+      {
+        provide: SceneTaxonomyService,
+        useValue: {
+          folders: () => [folder('a', 'Act I', 0), folder('b', 'Act II', 1)],
+          ensureGuild: () => undefined,
+        },
+      },
+      {provide: PersonaService, useValue: {identity: () => null}},
+      {
+        provide: GuildService,
+        useValue: {guilds: () => [{id: 'g1', channels: []}], getOwnMember: () => of(null)},
+      },
+      {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'u1'})}},
+    ],
+  });
 
-    const fixture: ComponentFixture<SceneBoardComponent> = TestBed.createComponent(SceneBoardComponent);
-    fixture.componentRef.setInput('guildId', 'g1');
-    fixture.detectChanges();
-    return {fixture, component: fixture.componentInstance as unknown as {groups: () => SceneGroup[]}};
+  const fixture: ComponentFixture<SceneBoardComponent> = TestBed.createComponent(SceneBoardComponent);
+  fixture.componentRef.setInput('guildId', 'g1');
+  fixture.detectChanges();
+  return {fixture, component: fixture.componentInstance as unknown as {groups: () => SceneGroup[]}};
 }
 
 describe('SceneBoardComponent grouping', () => {
-    beforeEach(() => localStorage.clear());
+  beforeEach(() => localStorage.clear());
 
-    it('groups by status while the rail is hidden', () => {
-        const {component} = setup();
+  it('groups by status while the rail is hidden', () => {
+    const {component} = setup();
 
-        expect(component.groups().map(g => g.key)).toEqual(['yours', 'running']);
-    });
+    expect(component.groups().map(g => g.key)).toEqual(['yours', 'running']);
+  });
 
-    it('groups by folder once the rail is shown', () => {
-        const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
-        fixture.detectChanges();
+  it('groups by folder once the rail is shown', () => {
+    const {fixture, component} = setup();
+    TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+    fixture.detectChanges();
 
-        const keys = component.groups().map(g => g.key);
-        expect(keys[0]).toBe('yours');
-        expect(keys).toContain('folder:a');
-        expect(keys).toContain('folder:b');
-        expect(keys.at(-1)).toBe('unfiled');
-    });
+    const keys = component.groups().map(g => g.key);
+    expect(keys[0]).toBe('yours');
+    expect(keys).toContain('folder:a');
+    expect(keys).toContain('folder:b');
+    expect(keys.at(-1)).toBe('unfiled');
+  });
 
-    it('does not repeat a pinned scene inside its folder section', () => {
-        const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
-        fixture.detectChanges();
+  it('does not repeat a pinned scene inside its folder section', () => {
+    const {fixture, component} = setup();
+    TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+    fixture.detectChanges();
 
-        const actOne = component.groups().find(g => g.key === 'folder:a');
-        expect(actOne?.rows.map(r => r.scene.channelId)).toEqual(['other']);
-    });
+    const actOne = component.groups().find(g => g.key === 'folder:a');
+    expect(actOne?.rows.map(r => r.scene.channelId)).toEqual(['other']);
+  });
 
-    it('names the folder a pinned scene came from', () => {
-        const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
-        fixture.detectChanges();
+  it('names the folder a pinned scene came from', () => {
+    const {fixture, component} = setup();
+    TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+    fixture.detectChanges();
 
-        const yours = component.groups().find(g => g.key === 'yours');
-        expect(yours?.rows[0].folderPath).toBe('Act I');
-    });
+    const yours = component.groups().find(g => g.key === 'yours');
+    expect(yours?.rows[0].folderPath).toBe('Act I');
+  });
 
-    it('shows only the chosen folder when one is selected', () => {
-        const {fixture, component} = setup();
-        TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
-        (fixture.componentInstance as unknown as {folderId: {set: (v: string | null) => void}}).folderId.set('b');
-        fixture.detectChanges();
+  it('shows only the chosen folder when one is selected', () => {
+    const {fixture, component} = setup();
+    TestBed.inject(SceneRailStateService).setRailVisible('g1', true);
+    (fixture.componentInstance as unknown as {folderId: {set: (v: string | null) => void}}).folderId.set('b');
+    fixture.detectChanges();
 
-        const keys = component.groups().map(g => g.key);
-        expect(keys).toEqual(['folder:b']);
-    });
+    const keys = component.groups().map(g => g.key);
+    expect(keys).toEqual(['folder:b']);
+  });
 });
 ```
 
@@ -2429,22 +2478,22 @@ In `scene-board.component.ts`:
 
 ```ts
 export interface SceneRow {
-    scene: SceneListItemDto;
-    identity: PersonaIdentity | null;
-    clock: ReturnType<typeof turnClock>;
-    mine: boolean;
-    /** Named only on a pinned row, which sits outside the folder section it belongs to. */
-    folderPath?: string | null;
+  scene: SceneListItemDto;
+  identity: PersonaIdentity | null;
+  clock: ReturnType<typeof turnClock>;
+  mine: boolean;
+  /** Named only on a pinned row, which sits outside the folder section it belongs to. */
+  folderPath?: string | null;
 }
 
 export interface SceneGroup {
-    key: string;
-    titleKey: string;
-    tone: 'yours' | 'attention' | 'normal' | 'quiet';
-    rows: SceneRow[];
-    /** Set on a folder section: its own name, which no translation key can carry. */
-    title?: string;
-    accent?: string | null;
+  key: string;
+  titleKey: string;
+  tone: 'yours' | 'attention' | 'normal' | 'quiet';
+  rows: SceneRow[];
+  /** Set on a folder section: its own name, which no translation key can carry. */
+  title?: string;
+  accent?: string | null;
 }
 ```
 
@@ -2511,7 +2560,7 @@ Add `SceneFolderRailComponent` to the component's `imports` array. Then:
 Load the taxonomy in the existing guild effect, beside `ensureGuild`:
 
 ```ts
-                this.taxonomy.ensureGuild(guildId);
+this.taxonomy.ensureGuild(guildId);
 ```
 
 - [ ] **Step 5: Make the grouping conditional**
@@ -2639,12 +2688,12 @@ At the bottom of the file, beside any other module functions:
 ```ts
 /** Every node depth first, parents before their children. */
 function flattenTree(nodes: FolderNode[]): FolderNode[] {
-    return nodes.flatMap(node => [node, ...flattenTree(node.children)]);
+  return nodes.flatMap(node => [node, ...flattenTree(node.children)]);
 }
 
 function collect(node: FolderNode, into: Set<string>): void {
-    into.add(node.folder.id);
-    for (const child of node.children) collect(child, into);
+  into.add(node.folder.id);
+  for (const child of node.children) collect(child, into);
 }
 ```
 
@@ -2655,81 +2704,82 @@ Add `import {FolderNode} from '../scene-archive/folder-tree';` to the folder-tre
 In `scene-board.component.html`, add the toggle in the header, immediately after the mode buttons:
 
 ```html
-    @if (mode() === 'playing' && tree().length) {
-        <button
-            (click)="toggleRail()"
-            [attr.aria-pressed]="railVisible()"
-            [class.is-on]="railVisible()"
-            class="board-rail-toggle"
-            type="button"
-        >
-            <i class="pi pi-folder text-[0.5625rem]"></i>
-            {{ 'SCENE.ARCHIVE.SHOW_FOLDERS' | translate }}
-        </button>
-    }
+@if (mode() === 'playing' && tree().length) {
+<button
+  (click)="toggleRail()"
+  [attr.aria-pressed]="railVisible()"
+  [class.is-on]="railVisible()"
+  class="board-rail-toggle"
+  type="button"
+>
+  <i class="pi pi-folder text-[0.5625rem]"></i>
+  {{ 'SCENE.ARCHIVE.SHOW_FOLDERS' | translate }}
+</button>
+}
 ```
 
 Wrap the playing branch's scroller in a flex row with the rail:
 
 ```html
 } @else {
-    <div class="flex min-h-0 flex-1 overflow-hidden">
-        @if (railVisible() && tree().length) {
-            <aside class="board-rail thin-scrollbar">
-                <app-scene-folder-rail
-                    (createScene)="createIn($event)"
-                    (openScene)="openScene($event)"
-                    (picked)="folderId.set($event)"
-                    (showAll)="folderId.set($event)"
-                    (toggled)="toggleShelf($event)"
-                    [canManage]="canManage()"
-                    [expandedIds]="expandedIds()"
-                    [recent]="recent()"
-                    [scenesByFolder]="scenesByFolder()"
-                    [selected]="folderId()"
-                    [tree]="tree()"
-                />
-            </aside>
-        }
+<div class="flex min-h-0 flex-1 overflow-hidden">
+  @if (railVisible() && tree().length) {
+  <aside class="board-rail thin-scrollbar">
+    <app-scene-folder-rail
+      (createScene)="createIn($event)"
+      (openScene)="openScene($event)"
+      (picked)="folderId.set($event)"
+      (showAll)="folderId.set($event)"
+      (toggled)="toggleShelf($event)"
+      [canManage]="canManage()"
+      [expandedIds]="expandedIds()"
+      [recent]="recent()"
+      [scenesByFolder]="scenesByFolder()"
+      [selected]="folderId()"
+      [tree]="tree()"
+    />
+  </aside>
+  }
 
-        <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar">
+  <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar"></div>
+</div>
 ```
 
 and close the extra `</div>` at the end of that branch. Then swap the group heading so a folder section can show its own name:
 
 ```html
-                        <h2 [class]="'board-group board-group-' + group.tone" [style.--group-accent]="group.accent">
-                            {{ group.title ?? (group.titleKey | translate) }}
-                            <span class="board-group-count">{{ group.rows.length }}</span>
-                        </h2>
+<h2 [class]="'board-group board-group-' + group.tone" [style.--group-accent]="group.accent">
+  {{ group.title ?? (group.titleKey | translate) }}
+  <span class="board-group-count">{{ group.rows.length }}</span>
+</h2>
 ```
 
 And name the arc on a pinned row, inside the `board-line` span, after the deadline:
 
 ```html
-                                            @if (row.folderPath; as arc) {
-                                                <span class="board-dot">·</span>
-                                                <span class="board-arc">{{ arc }}</span>
-                                            }
+@if (row.folderPath; as arc) {
+<span class="board-dot">·</span>
+<span class="board-arc">{{ arc }}</span>
+}
 ```
 
 Finally, pass the seed to the dialog:
 
 ```html
 @if (creating()) {
-    <app-scene-dialog
-        (closed)="creating.set(false); seedFolderId.set(null)"
-        [guildChannels]="textChannels()"
-        [guildId]="guildId()"
-        [seedFolderId]="seedFolderId()"
-    />
+<app-scene-dialog
+  (closed)="creating.set(false); seedFolderId.set(null)"
+  [guildChannels]="textChannels()"
+  [guildId]="guildId()"
+  [seedFolderId]="seedFolderId()"
+/>
 }
 ```
 
 And let the archive open it:
 
 ```html
-    <app-scene-archive (createSceneIn)="createIn($event)" [canManage]="canManage()" [guildId]="guildId()" />
+<app-scene-archive (createSceneIn)="createIn($event)" [canManage]="canManage()" [guildId]="guildId()" />
 ```
 
 - [ ] **Step 7: Style the board's rail**
@@ -2738,49 +2788,49 @@ Append to `scene-board.component.css`:
 
 ```css
 .board-rail {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    flex-shrink: 0;
-    width: 11.75rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 0.5625rem 0.4375rem;
-    overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex-shrink: 0;
+  width: 11.75rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.5625rem 0.4375rem;
+  overflow-y: auto;
 }
 
 .board-rail-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.3125rem;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 0.4375rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.65625rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition:
-        background-color var(--duration-base) var(--ease-brand),
-        color var(--duration-base) var(--ease-brand);
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.4375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-base) var(--ease-brand),
+    color var(--duration-base) var(--ease-brand);
 }
 
 .board-rail-toggle:hover {
-    color: var(--color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .board-rail-toggle.is-on {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
 }
 
 /* A folder section wears its own colour, so the arcs stay apart when several are on screen. */
 .board-group[style*='--group-accent'] {
-    padding-left: 0.5rem;
-    box-shadow: inset 2px 0 0 -1px var(--group-accent);
+  padding-left: 0.5rem;
+  box-shadow: inset 2px 0 0 -1px var(--group-accent);
 }
 
 .board-arc {
-    color: var(--color-text-faint);
+  color: var(--color-text-faint);
 }
 ```
 

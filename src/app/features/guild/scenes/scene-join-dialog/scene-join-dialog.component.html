@@ -88,12 +88,7 @@
             <button (click)="closed.emit()" class="join-secondary" type="button">
                 {{ 'PERSONA.CANCEL' | translate }}
             </button>
-            <button
-                (click)="confirm()"
-                [disabled]="!chosen() || saving()"
-                class="join-primary"
-                type="button"
-            >
+            <button (click)="confirm()" [disabled]="!chosen() || saving()" class="join-primary" type="button">
                 {{ (asking() ? 'SCENE.JOIN.ASK_CONFIRM' : 'SCENE.JOIN.CONFIRM') | translate }}
             </button>
         </div>

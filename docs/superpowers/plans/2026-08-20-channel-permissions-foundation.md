@@ -31,18 +31,18 @@
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `features/guild/shared/permission-overrides/permission-scope.ts` | The `PermissionScope` value and its two constructors. Pure. |
-| `features/guild/shared/permission-overrides/permission-scope.gateway.ts` | Maps a scope plus a target to the right `GuildService` call. |
-| `features/guild/shared/permission-overrides/permission-overrides.component.ts/.html` | The merged roles/members override editor host. Replaces both duplicates. |
-| `features/guild/shared/permission-override-editor/*` | Unchanged file, gains ghosted inherit and implication warnings. |
-| `features/guild/shared/permission-overrides-panel/*` | Unchanged file, gains search and forwards the resolved trace. |
-| `features/guild/components/channel-settings-modal/pages/channel-permissions/*` | Becomes the two switches page. |
-| `features/guild/shared/permission-sync.ts` | Derives sync state and the divergence diff. Pure. |
-| `enums/permissions.enum.ts` | Gains `IMPLIED_PERMISSIONS`, `expandImpliedPermissions`, `expandDeniedPermissions`. |
-| `dtos/response/effective-permissions.dto.ts` | The trace response shape. |
-| `services/guild.service.ts` | Gains `getEffectivePermissions` and `syncChannelPermissions`. |
+| File                                                                                 | Responsibility                                                                      |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `features/guild/shared/permission-overrides/permission-scope.ts`                     | The `PermissionScope` value and its two constructors. Pure.                         |
+| `features/guild/shared/permission-overrides/permission-scope.gateway.ts`             | Maps a scope plus a target to the right `GuildService` call.                        |
+| `features/guild/shared/permission-overrides/permission-overrides.component.ts/.html` | The merged roles/members override editor host. Replaces both duplicates.            |
+| `features/guild/shared/permission-override-editor/*`                                 | Unchanged file, gains ghosted inherit and implication warnings.                     |
+| `features/guild/shared/permission-overrides-panel/*`                                 | Unchanged file, gains search and forwards the resolved trace.                       |
+| `features/guild/components/channel-settings-modal/pages/channel-permissions/*`       | Becomes the two switches page.                                                      |
+| `features/guild/shared/permission-sync.ts`                                           | Derives sync state and the divergence diff. Pure.                                   |
+| `enums/permissions.enum.ts`                                                          | Gains `IMPLIED_PERMISSIONS`, `expandImpliedPermissions`, `expandDeniedPermissions`. |
+| `dtos/response/effective-permissions.dto.ts`                                         | The trace response shape.                                                           |
+| `services/guild.service.ts`                                                          | Gains `getEffectivePermissions` and `syncChannelPermissions`.                       |
 
 Deleted: `features/guild/components/category-settings-modal/pages/category-permissions/*`.
 
@@ -53,9 +53,11 @@ Deleted: `features/guild/components/category-settings-modal/pages/category-permi
 No spec covers either permission page today, and Task 2 moves both. Pin the behaviour first.
 
 **Files:**
+
 - Test: `src/app/features/guild/components/channel-settings-modal/pages/channel-permissions/channel-permissions.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: a `setup()` helper later tasks reuse. Exported from the spec file is not possible, so Task 2 copies it into the new spec rather than importing it.
 
@@ -74,11 +76,11 @@ import {ChannelPermissionsComponent} from './channel-permissions.component';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {
-    ChannelDto,
-    ChannelType,
-    GuildDto,
-    RoleDto,
-    RoleType,
+  ChannelDto,
+  ChannelType,
+  GuildDto,
+  RoleDto,
+  RoleType,
 } from '../../../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../../../dtos/response/member.dto';
 
@@ -87,138 +89,144 @@ const EVERYONE = 'role_everyone';
 const PLAYER = 'role_player';
 
 function role(id: string, name: string, type: RoleType): RoleDto {
-    return {id, name, type, color: '#fff', permissions: 'None', position: 0} as RoleDto;
+  return {id, name, type, color: '#fff', permissions: 'None', position: 0} as RoleDto;
 }
 
 function guild(): GuildDto {
-    return {
-        id: 'guild_1',
-        roles: [role(EVERYONE, 'everyone', RoleType.Everyone), role(PLAYER, 'player', RoleType.Custom)],
-    } as GuildDto;
+  return {
+    id: 'guild_1',
+    roles: [role(EVERYONE, 'everyone', RoleType.Everyone), role(PLAYER, 'player', RoleType.Custom)],
+  } as GuildDto;
 }
 
 function channel(overrides: ChannelDto['permissions'] = []): ChannelDto {
-    return {
-        id: CHANNEL,
-        name: 'general',
-        type: ChannelType.Text,
-        categoryId: 'cat_1',
-        permissions: overrides,
-        isPrivate: false,
-    } as ChannelDto;
+  return {
+    id: CHANNEL,
+    name: 'general',
+    type: ChannelType.Text,
+    categoryId: 'cat_1',
+    permissions: overrides,
+    isPrivate: false,
+  } as ChannelDto;
 }
 
 function setup(channelDto = channel()) {
-    const guildService = {
-        upsertChannelRolePermission: vi.fn(() =>
-            of({id: 'p1', channelId: CHANNEL, roleId: PLAYER, allowPermissions: 'SendMessages', denyPermissions: 'None'}),
-        ),
-        deleteChannelRolePermission: vi.fn(() => of(void 0)),
-        upsertChannelMemberPermission: vi.fn(() => of({id: 'p2'})),
-        deleteChannelMemberPermission: vi.fn(() => of(void 0)),
-        getMembers: vi.fn(() => of([] as GuildMemberDto[])),
-    };
+  const guildService = {
+    upsertChannelRolePermission: vi.fn(() =>
+      of({
+        id: 'p1',
+        channelId: CHANNEL,
+        roleId: PLAYER,
+        allowPermissions: 'SendMessages',
+        denyPermissions: 'None',
+      }),
+    ),
+    deleteChannelRolePermission: vi.fn(() => of(void 0)),
+    upsertChannelMemberPermission: vi.fn(() => of({id: 'p2'})),
+    deleteChannelMemberPermission: vi.fn(() => of(void 0)),
+    getMembers: vi.fn(() => of([] as GuildMemberDto[])),
+  };
 
-    TestBed.configureTestingModule({
-        imports: [ChannelPermissionsComponent],
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideTranslateService(),
-            {provide: GuildService, useValue: guildService},
-            {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
-        ],
-    });
+  TestBed.configureTestingModule({
+    imports: [ChannelPermissionsComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideTranslateService(),
+      {provide: GuildService, useValue: guildService},
+      {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
+    ],
+  });
 
-    const fixture: ComponentFixture<ChannelPermissionsComponent> =
-        TestBed.createComponent(ChannelPermissionsComponent);
-    fixture.componentRef.setInput('channel', channelDto);
-    fixture.componentRef.setInput('guild', guild());
-    fixture.detectChanges();
+  const fixture: ComponentFixture<ChannelPermissionsComponent> =
+    TestBed.createComponent(ChannelPermissionsComponent);
+  fixture.componentRef.setInput('channel', channelDto);
+  fixture.componentRef.setInput('guild', guild());
+  fixture.detectChanges();
 
-    return {fixture, component: fixture.componentInstance, guildService};
+  return {fixture, component: fixture.componentInstance, guildService};
 }
 
 describe('ChannelPermissionsComponent', () => {
-    it('lists only roles that already carry an override, plus @everyone pinned last', () => {
-        const {component} = setup(
-            channel([
-                {
-                    id: 'p1',
-                    channelId: CHANNEL,
-                    roleId: PLAYER,
-                    allowPermissions: 'SendMessages',
-                    denyPermissions: 'None',
-                } as ChannelDto['permissions'][number],
-            ]),
-        );
+  it('lists only roles that already carry an override, plus @everyone pinned last', () => {
+    const {component} = setup(
+      channel([
+        {
+          id: 'p1',
+          channelId: CHANNEL,
+          roleId: PLAYER,
+          allowPermissions: 'SendMessages',
+          denyPermissions: 'None',
+        } as ChannelDto['permissions'][number],
+      ]),
+    );
 
-        const entries = component['roleEntries']();
+    const entries = component['roleEntries']();
 
-        expect(entries.map(e => e.id)).toEqual([PLAYER, EVERYONE]);
-        expect(entries[1].pinned).toBe(true);
+    expect(entries.map(e => e.id)).toEqual([PLAYER, EVERYONE]);
+    expect(entries[1].pinned).toBe(true);
+  });
+
+  it('offers every role without an override as addable, never @everyone', () => {
+    const {component} = setup();
+
+    expect(component['addableRoles']().map(e => e.id)).toEqual([PLAYER]);
+  });
+
+  it('marks a changed row dirty without saving it', () => {
+    const {component, guildService} = setup();
+
+    component.onAddRoleOverride(PLAYER);
+
+    expect(component['roleEntries']().find(e => e.id === PLAYER)?.dirty).toBe(true);
+    expect(guildService.upsertChannelRolePermission).not.toHaveBeenCalled();
+  });
+
+  it('saves the allow and deny masks as name lists', () => {
+    const {component, guildService} = setup();
+
+    component.onRoleOverrideChange(PLAYER, {
+      allow: 2n, // SendMessages
+      deny: 1n, // ViewChannel
+      allowModule: 0n,
+      denyModule: 0n,
     });
+    component.saveRoleOverride(PLAYER);
 
-    it('offers every role without an override as addable, never @everyone', () => {
-        const {component} = setup();
-
-        expect(component['addableRoles']().map(e => e.id)).toEqual([PLAYER]);
+    expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+      allowPermissions: 'SendMessages',
+      denyPermissions: 'ViewChannel',
     });
+  });
 
-    it('marks a changed row dirty without saving it', () => {
-        const {component, guildService} = setup();
+  it('clears the row back to inherit when the override is deleted', () => {
+    const {component, guildService} = setup(
+      channel([
+        {
+          id: 'p1',
+          channelId: CHANNEL,
+          roleId: PLAYER,
+          allowPermissions: 'SendMessages',
+          denyPermissions: 'None',
+        } as ChannelDto['permissions'][number],
+      ]),
+    );
 
-        component.onAddRoleOverride(PLAYER);
+    component.deleteRoleOverride(PLAYER);
 
-        expect(component['roleEntries']().find(e => e.id === PLAYER)?.dirty).toBe(true);
-        expect(guildService.upsertChannelRolePermission).not.toHaveBeenCalled();
-    });
+    expect(guildService.deleteChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER);
+    expect(component['roleEntries']().map(e => e.id)).toEqual([EVERYONE]);
+  });
 
-    it('saves the allow and deny masks as name lists', () => {
-        const {component, guildService} = setup();
+  it('loads members only when the members tab is opened', () => {
+    const {component, guildService} = setup();
 
-        component.onRoleOverrideChange(PLAYER, {
-            allow: 2n, // SendMessages
-            deny: 1n, // ViewChannel
-            allowModule: 0n,
-            denyModule: 0n,
-        });
-        component.saveRoleOverride(PLAYER);
+    expect(guildService.getMembers).not.toHaveBeenCalled();
 
-        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
-            allowPermissions: 'SendMessages',
-            denyPermissions: 'ViewChannel',
-        });
-    });
+    component.switchTab('members');
 
-    it('clears the row back to inherit when the override is deleted', () => {
-        const {component, guildService} = setup(
-            channel([
-                {
-                    id: 'p1',
-                    channelId: CHANNEL,
-                    roleId: PLAYER,
-                    allowPermissions: 'SendMessages',
-                    denyPermissions: 'None',
-                } as ChannelDto['permissions'][number],
-            ]),
-        );
-
-        component.deleteRoleOverride(PLAYER);
-
-        expect(guildService.deleteChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER);
-        expect(component['roleEntries']().map(e => e.id)).toEqual([EVERYONE]);
-    });
-
-    it('loads members only when the members tab is opened', () => {
-        const {component, guildService} = setup();
-
-        expect(guildService.getMembers).not.toHaveBeenCalled();
-
-        component.switchTab('members');
-
-        expect(guildService.getMembers).toHaveBeenCalled();
-    });
+    expect(guildService.getMembers).toHaveBeenCalled();
+  });
 });
 ```
 
@@ -239,6 +247,7 @@ git commit -m "test(permissions): characterize the channel override page before 
 ### Task 2: One override component for both scopes
 
 **Files:**
+
 - Create: `src/app/features/guild/shared/permission-overrides/permission-scope.ts`
 - Create: `src/app/features/guild/shared/permission-overrides/permission-scope.spec.ts`
 - Create: `src/app/features/guild/shared/permission-overrides/permission-scope.gateway.ts`
@@ -251,6 +260,7 @@ git commit -m "test(permissions): characterize the channel override page before 
 - Delete: `src/app/features/guild/components/channel-settings-modal/pages/channel-permissions/channel-permissions.component.spec.ts` (its cases move)
 
 **Interfaces:**
+
 - Consumes: `OverrideEntry` and `PermissionOverridesPanelComponent` from `shared/permission-overrides-panel`, `PermOverride` and `EMPTY_OVERRIDE` from `shared/permission-override-editor`.
 - Produces:
   - `type PermissionScopeKind = 'channel' | 'category'`
@@ -269,24 +279,24 @@ import {channelScope, categoryScope} from './permission-scope';
 import {CategoryDto, ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 
 describe('permission scope', () => {
-    it('carries the channel type for a channel, so household groups render', () => {
-        const scope = channelScope({
-            id: 'chan_1',
-            type: ChannelType.List,
-            permissions: [],
-        } as unknown as ChannelDto);
+  it('carries the channel type for a channel, so household groups render', () => {
+    const scope = channelScope({
+      id: 'chan_1',
+      type: ChannelType.List,
+      permissions: [],
+    } as unknown as ChannelDto);
 
-        expect(scope).toEqual({kind: 'channel', id: 'chan_1', channelType: ChannelType.List, overrides: []});
-    });
+    expect(scope).toEqual({kind: 'channel', id: 'chan_1', channelType: ChannelType.List, overrides: []});
+  });
 
-    // A category-wide household grant would mean "controls every list in here", which is not a
-    // thing the server resolves. Categories offer no module groups at all.
-    it('carries no channel type for a category', () => {
-        const scope = categoryScope({id: 'cat_1', permissions: []} as unknown as CategoryDto);
+  // A category-wide household grant would mean "controls every list in here", which is not a
+  // thing the server resolves. Categories offer no module groups at all.
+  it('carries no channel type for a category', () => {
+    const scope = categoryScope({id: 'cat_1', permissions: []} as unknown as CategoryDto);
 
-        expect(scope.channelType).toBeNull();
-        expect(scope.kind).toBe('category');
-    });
+    expect(scope.channelType).toBeNull();
+    expect(scope.kind).toBe('category');
+  });
 });
 ```
 
@@ -306,19 +316,19 @@ export type PermissionScopeKind = 'channel' | 'category';
 
 /** What a set of overwrites hangs off, and everything the editor needs to know about it. */
 export interface PermissionScope {
-    kind: PermissionScopeKind;
-    id: string;
-    /** Null for a category: household permissions resolve per channel, so a category offers none. */
-    channelType: ChannelType | null;
-    overrides: ChannelPermission[];
+  kind: PermissionScopeKind;
+  id: string;
+  /** Null for a category: household permissions resolve per channel, so a category offers none. */
+  channelType: ChannelType | null;
+  overrides: ChannelPermission[];
 }
 
 export function channelScope(channel: ChannelDto): PermissionScope {
-    return {kind: 'channel', id: channel.id, channelType: channel.type, overrides: channel.permissions};
+  return {kind: 'channel', id: channel.id, channelType: channel.type, overrides: channel.permissions};
 }
 
 export function categoryScope(category: CategoryDto): PermissionScope {
-    return {kind: 'category', id: category.id, channelType: null, overrides: category.permissions};
+  return {kind: 'category', id: category.id, channelType: null, overrides: category.permissions};
 }
 ```
 
@@ -332,42 +342,42 @@ import {GuildService, OverridePermissionsDto} from '../../../../services/guild.s
 import {PermissionScope} from './permission-scope';
 
 export interface OverrideTarget {
-    kind: 'role' | 'member';
-    id: string;
+  kind: 'role' | 'member';
+  id: string;
 }
 
 /** The four write calls, picked by scope and target instead of by having two copies of the page. */
 @Injectable({providedIn: 'root'})
 export class PermissionScopeGateway {
-    private guildService = inject(GuildService);
+  private guildService = inject(GuildService);
 
-    upsert(
-        scope: PermissionScope,
-        target: OverrideTarget,
-        dto: OverridePermissionsDto,
-    ): Observable<ChannelPermission> {
-        if (scope.kind === 'channel') {
-            return target.kind === 'role'
-                ? this.guildService.upsertChannelRolePermission(scope.id, target.id, dto)
-                : this.guildService.upsertChannelMemberPermission(scope.id, target.id, dto);
-        }
-
-        return target.kind === 'role'
-            ? this.guildService.upsertCategoryRolePermission(scope.id, target.id, dto)
-            : this.guildService.upsertCategoryMemberPermission(scope.id, target.id, dto);
+  upsert(
+    scope: PermissionScope,
+    target: OverrideTarget,
+    dto: OverridePermissionsDto,
+  ): Observable<ChannelPermission> {
+    if (scope.kind === 'channel') {
+      return target.kind === 'role'
+        ? this.guildService.upsertChannelRolePermission(scope.id, target.id, dto)
+        : this.guildService.upsertChannelMemberPermission(scope.id, target.id, dto);
     }
 
-    remove(scope: PermissionScope, target: OverrideTarget): Observable<void> {
-        if (scope.kind === 'channel') {
-            return target.kind === 'role'
-                ? this.guildService.deleteChannelRolePermission(scope.id, target.id)
-                : this.guildService.deleteChannelMemberPermission(scope.id, target.id);
-        }
+    return target.kind === 'role'
+      ? this.guildService.upsertCategoryRolePermission(scope.id, target.id, dto)
+      : this.guildService.upsertCategoryMemberPermission(scope.id, target.id, dto);
+  }
 
-        return target.kind === 'role'
-            ? this.guildService.deleteCategoryRolePermission(scope.id, target.id)
-            : this.guildService.deleteCategoryMemberPermission(scope.id, target.id);
+  remove(scope: PermissionScope, target: OverrideTarget): Observable<void> {
+    if (scope.kind === 'channel') {
+      return target.kind === 'role'
+        ? this.guildService.deleteChannelRolePermission(scope.id, target.id)
+        : this.guildService.deleteChannelMemberPermission(scope.id, target.id);
     }
+
+    return target.kind === 'role'
+      ? this.guildService.deleteCategoryRolePermission(scope.id, target.id)
+      : this.guildService.deleteCategoryMemberPermission(scope.id, target.id);
+  }
 }
 ```
 
@@ -381,7 +391,16 @@ Expected: PASS, 2 tests.
 Create `src/app/features/guild/shared/permission-overrides/permission-overrides.component.ts`. This is the body of the two deleted components, with the scope and gateway substituted for the hard-coded channel or category calls:
 
 ```ts
-import {ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelPermission, GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
@@ -391,284 +410,289 @@ import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {parsePermissions, stringifyPermissions} from '../../../../enums/permissions.enum';
 import {parseModulePermissions} from '../../../../enums/module-permissions.enum';
-import {OverrideEntry, PermissionOverridesPanelComponent} from '../permission-overrides-panel/permission-overrides-panel.component';
-import {EMPTY_OVERRIDE, PermOverride} from '../permission-override-editor/permission-override-editor.component';
+import {
+  OverrideEntry,
+  PermissionOverridesPanelComponent,
+} from '../permission-overrides-panel/permission-overrides-panel.component';
+import {
+  EMPTY_OVERRIDE,
+  PermOverride,
+} from '../permission-override-editor/permission-override-editor.component';
 import {OverrideTarget, PermissionScopeGateway} from './permission-scope.gateway';
 import {PermissionScope} from './permission-scope';
 
 interface Row<T> {
-    subject: T;
-    perm: ChannelPermission | null;
-    override: PermOverride;
-    dirty: boolean;
-    saving: boolean;
+  subject: T;
+  perm: ChannelPermission | null;
+  override: PermOverride;
+  dirty: boolean;
+  saving: boolean;
 }
 
 type RoleRow = Row<RoleDto>;
 type MemberRow = Row<GuildMemberDto> & {profile: ProfileDto | null};
 
 @Component({
-    selector: 'app-permission-overrides',
-    imports: [NgClass, PermissionOverridesPanelComponent, TranslateModule],
-    templateUrl: './permission-overrides.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-permission-overrides',
+  imports: [NgClass, PermissionOverridesPanelComponent, TranslateModule],
+  templateUrl: './permission-overrides.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PermissionOverridesComponent implements OnInit {
-    readonly scope = input.required<PermissionScope>();
-    readonly guild = input.required<GuildDto>();
+  readonly scope = input.required<PermissionScope>();
+  readonly guild = input.required<GuildDto>();
 
-    /** The scope's overwrites after a save or delete, so the host can keep its own copy honest. */
-    readonly overridesChanged = output<ChannelPermission[]>();
+  /** The scope's overwrites after a save or delete, so the host can keep its own copy honest. */
+  readonly overridesChanged = output<ChannelPermission[]>();
 
-    protected readonly activeTab = signal<'roles' | 'members'>('roles');
-    protected readonly roleRows = signal<RoleRow[]>([]);
-    protected readonly memberRows = signal<MemberRow[]>([]);
-    protected readonly membersLoading = signal(false);
+  protected readonly activeTab = signal<'roles' | 'members'>('roles');
+  protected readonly roleRows = signal<RoleRow[]>([]);
+  protected readonly memberRows = signal<MemberRow[]>([]);
+  protected readonly membersLoading = signal(false);
 
-    private gateway = inject(PermissionScopeGateway);
-    private guildService = inject(GuildService);
-    private profiles = inject(ProfileService);
+  private gateway = inject(PermissionScopeGateway);
+  private guildService = inject(GuildService);
+  private profiles = inject(ProfileService);
 
-    protected get emptyOverride(): PermOverride {
-        return EMPTY_OVERRIDE;
-    }
+  protected get emptyOverride(): PermOverride {
+    return EMPTY_OVERRIDE;
+  }
 
-    protected readonly introKey = computed(() =>
-        this.scope().kind === 'category' ? 'PERM_OVERRIDE.INTRO_CATEGORY' : 'PERM_OVERRIDE.INTRO',
+  protected readonly introKey = computed(() =>
+    this.scope().kind === 'category' ? 'PERM_OVERRIDE.INTRO_CATEGORY' : 'PERM_OVERRIDE.INTRO',
+  );
+
+  protected readonly roleEntries = computed<OverrideEntry[]>(() => {
+    const everyoneId = this.everyoneRoleId();
+    const rows = this.roleRows();
+    const overridden = rows
+      .filter(r => (r.perm !== null || r.dirty) && r.subject.id !== everyoneId)
+      .map(r => this.toRoleEntry(r, false));
+    const everyone = rows.find(r => r.subject.id === everyoneId);
+    return everyone ? [...overridden, this.toRoleEntry(everyone, true)] : overridden;
+  });
+
+  protected readonly addableRoles = computed<OverrideEntry[]>(() => {
+    const everyoneId = this.everyoneRoleId();
+    return this.roleRows()
+      .filter(r => r.perm === null && !r.dirty && r.subject.id !== everyoneId)
+      .map(r => this.toRoleEntry(r, false));
+  });
+
+  protected readonly memberEntries = computed<OverrideEntry[]>(() =>
+    this.memberRows()
+      .filter(r => r.perm !== null || r.dirty)
+      .map(r => this.toMemberEntry(r)),
+  );
+
+  protected readonly addableMembers = computed<OverrideEntry[]>(() =>
+    this.memberRows()
+      .filter(r => r.perm === null && !r.dirty)
+      .map(r => this.toMemberEntry(r)),
+  );
+
+  ngOnInit(): void {
+    this.buildRoleRows();
+  }
+
+  switchTab(tab: 'roles' | 'members'): void {
+    this.activeTab.set(tab);
+    if (tab === 'members' && this.memberRows().length === 0) this.loadMembers();
+  }
+
+  onRoleChange(roleId: string, override: PermOverride): void {
+    this.roleRows.update(list =>
+      list.map(r => (r.subject.id === roleId ? {...r, override, dirty: true} : r)),
     );
+  }
 
-    protected readonly roleEntries = computed<OverrideEntry[]>(() => {
-        const everyoneId = this.everyoneRoleId();
-        const rows = this.roleRows();
-        const overridden = rows
-            .filter(r => (r.perm !== null || r.dirty) && r.subject.id !== everyoneId)
-            .map(r => this.toRoleEntry(r, false));
-        const everyone = rows.find(r => r.subject.id === everyoneId);
-        return everyone ? [...overridden, this.toRoleEntry(everyone, true)] : overridden;
-    });
+  onAddRole(roleId: string): void {
+    this.onRoleChange(roleId, EMPTY_OVERRIDE);
+  }
 
-    protected readonly addableRoles = computed<OverrideEntry[]>(() => {
-        const everyoneId = this.everyoneRoleId();
-        return this.roleRows()
-            .filter(r => r.perm === null && !r.dirty && r.subject.id !== everyoneId)
-            .map(r => this.toRoleEntry(r, false));
-    });
+  saveRole(roleId: string): void {
+    const row = this.roleRows().find(r => r.subject.id === roleId);
+    if (!row || row.saving) return;
 
-    protected readonly memberEntries = computed<OverrideEntry[]>(() =>
-        this.memberRows().filter(r => r.perm !== null || r.dirty).map(r => this.toMemberEntry(r)),
-    );
-
-    protected readonly addableMembers = computed<OverrideEntry[]>(() =>
-        this.memberRows().filter(r => r.perm === null && !r.dirty).map(r => this.toMemberEntry(r)),
-    );
-
-    ngOnInit(): void {
-        this.buildRoleRows();
-    }
-
-    switchTab(tab: 'roles' | 'members'): void {
-        this.activeTab.set(tab);
-        if (tab === 'members' && this.memberRows().length === 0) this.loadMembers();
-    }
-
-    onRoleChange(roleId: string, override: PermOverride): void {
+    this.setRoleSaving(roleId, true);
+    this.gateway.upsert(this.scope(), {kind: 'role', id: roleId}, this.body(row.override)).subscribe({
+      next: perm => {
         this.roleRows.update(list =>
-            list.map(r => (r.subject.id === roleId ? {...r, override, dirty: true} : r)),
+          list.map(r => (r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r)),
         );
-    }
+        this.emitOverrides();
+      },
+      error: () => this.setRoleSaving(roleId, false),
+    });
+  }
 
-    onAddRole(roleId: string): void {
-        this.onRoleChange(roleId, EMPTY_OVERRIDE);
-    }
+  deleteRole(roleId: string): void {
+    const row = this.roleRows().find(r => r.subject.id === roleId);
+    if (!row?.perm) return;
 
-    saveRole(roleId: string): void {
-        const row = this.roleRows().find(r => r.subject.id === roleId);
-        if (!row || row.saving) return;
+    this.gateway.remove(this.scope(), {kind: 'role', id: roleId}).subscribe({
+      next: () => {
+        this.roleRows.update(list =>
+          list.map(r =>
+            r.subject.id === roleId ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false} : r,
+          ),
+        );
+        this.emitOverrides();
+      },
+    });
+  }
 
-        this.setRoleSaving(roleId, true);
-        this.gateway.upsert(this.scope(), {kind: 'role', id: roleId}, this.body(row.override)).subscribe({
-            next: perm => {
-                this.roleRows.update(list =>
-                    list.map(r => (r.subject.id === roleId ? {...r, perm, dirty: false, saving: false} : r)),
-                );
-                this.emitOverrides();
-            },
-            error: () => this.setRoleSaving(roleId, false),
-        });
-    }
+  onMemberChange(memberId: string, override: PermOverride): void {
+    this.memberRows.update(list =>
+      list.map(r => (r.subject.id === memberId ? {...r, override, dirty: true} : r)),
+    );
+  }
 
-    deleteRole(roleId: string): void {
-        const row = this.roleRows().find(r => r.subject.id === roleId);
-        if (!row?.perm) return;
+  onAddMember(memberId: string): void {
+    this.onMemberChange(memberId, EMPTY_OVERRIDE);
+  }
 
-        this.gateway.remove(this.scope(), {kind: 'role', id: roleId}).subscribe({
-            next: () => {
-                this.roleRows.update(list =>
-                    list.map(r =>
-                        r.subject.id === roleId
-                            ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false}
-                            : r,
-                    ),
-                );
-                this.emitOverrides();
-            },
-        });
-    }
+  saveMember(memberId: string): void {
+    const row = this.memberRows().find(r => r.subject.id === memberId);
+    if (!row || row.saving) return;
 
-    onMemberChange(memberId: string, override: PermOverride): void {
+    this.setMemberSaving(memberId, true);
+    this.gateway.upsert(this.scope(), {kind: 'member', id: memberId}, this.body(row.override)).subscribe({
+      next: perm => {
         this.memberRows.update(list =>
-            list.map(r => (r.subject.id === memberId ? {...r, override, dirty: true} : r)),
+          list.map(r => (r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r)),
         );
-    }
+        this.emitOverrides();
+      },
+      error: () => this.setMemberSaving(memberId, false),
+    });
+  }
 
-    onAddMember(memberId: string): void {
-        this.onMemberChange(memberId, EMPTY_OVERRIDE);
-    }
+  deleteMember(memberId: string): void {
+    const row = this.memberRows().find(r => r.subject.id === memberId);
+    if (!row?.perm) return;
 
-    saveMember(memberId: string): void {
-        const row = this.memberRows().find(r => r.subject.id === memberId);
-        if (!row || row.saving) return;
+    this.gateway.remove(this.scope(), {kind: 'member', id: memberId}).subscribe({
+      next: () => {
+        this.memberRows.update(list =>
+          list.map(r =>
+            r.subject.id === memberId ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false} : r,
+          ),
+        );
+        this.emitOverrides();
+      },
+    });
+  }
 
-        this.setMemberSaving(memberId, true);
-        this.gateway.upsert(this.scope(), {kind: 'member', id: memberId}, this.body(row.override)).subscribe({
-            next: perm => {
-                this.memberRows.update(list =>
-                    list.map(r => (r.subject.id === memberId ? {...r, perm, dirty: false, saving: false} : r)),
-                );
-                this.emitOverrides();
-            },
-            error: () => this.setMemberSaving(memberId, false),
-        });
-    }
+  private body(override: PermOverride) {
+    return {
+      allowPermissions: stringifyPermissions(override.allow),
+      denyPermissions: stringifyPermissions(override.deny),
+    };
+  }
 
-    deleteMember(memberId: string): void {
-        const row = this.memberRows().find(r => r.subject.id === memberId);
-        if (!row?.perm) return;
+  private emitOverrides(): void {
+    const rows = [...this.roleRows().map(r => r.perm), ...this.memberRows().map(r => r.perm)].filter(
+      (p): p is ChannelPermission => p !== null,
+    );
+    this.overridesChanged.emit(rows);
+  }
 
-        this.gateway.remove(this.scope(), {kind: 'member', id: memberId}).subscribe({
-            next: () => {
-                this.memberRows.update(list =>
-                    list.map(r =>
-                        r.subject.id === memberId
-                            ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false}
-                            : r,
-                    ),
-                );
-                this.emitOverrides();
-            },
-        });
-    }
+  private setRoleSaving(roleId: string, saving: boolean): void {
+    this.roleRows.update(list => list.map(r => (r.subject.id === roleId ? {...r, saving} : r)));
+  }
 
-    private body(override: PermOverride) {
-        return {
-            allowPermissions: stringifyPermissions(override.allow),
-            denyPermissions: stringifyPermissions(override.deny),
-        };
-    }
+  private setMemberSaving(memberId: string, saving: boolean): void {
+    this.memberRows.update(list => list.map(r => (r.subject.id === memberId ? {...r, saving} : r)));
+  }
 
-    private emitOverrides(): void {
-        const rows = [
-            ...this.roleRows().map(r => r.perm),
-            ...this.memberRows().map(r => r.perm),
-        ].filter((p): p is ChannelPermission => p !== null);
-        this.overridesChanged.emit(rows);
-    }
+  private everyoneRoleId(): string | undefined {
+    return this.guild().roles.find(r => r.type === RoleType.Everyone)?.id;
+  }
 
-    private setRoleSaving(roleId: string, saving: boolean): void {
-        this.roleRows.update(list => list.map(r => (r.subject.id === roleId ? {...r, saving} : r)));
-    }
+  private toOverride(perm: ChannelPermission | null): PermOverride {
+    return {
+      allow: perm ? parsePermissions(perm.allowPermissions) : 0n,
+      deny: perm ? parsePermissions(perm.denyPermissions) : 0n,
+      allowModule: parseModulePermissions(perm?.allowModulePermissions),
+      denyModule: parseModulePermissions(perm?.denyModulePermissions),
+    };
+  }
 
-    private setMemberSaving(memberId: string, saving: boolean): void {
-        this.memberRows.update(list => list.map(r => (r.subject.id === memberId ? {...r, saving} : r)));
-    }
+  private toRoleEntry(row: RoleRow, pinned: boolean): OverrideEntry {
+    return {
+      id: row.subject.id,
+      name: row.subject.name,
+      color: row.subject.color,
+      hasOverride: row.perm !== null,
+      dirty: row.dirty,
+      saving: row.saving,
+      pinned,
+      override: row.override,
+    };
+  }
 
-    private everyoneRoleId(): string | undefined {
-        return this.guild().roles.find(r => r.type === RoleType.Everyone)?.id;
-    }
+  private toMemberEntry(row: MemberRow): OverrideEntry {
+    return {
+      id: row.subject.id,
+      name: row.profile?.userName ?? row.subject.userId.slice(0, 8) + '…',
+      avatarUrl: row.profile?.avatarUrl ?? null,
+      hasOverride: row.perm !== null,
+      dirty: row.dirty,
+      saving: row.saving,
+      override: row.override,
+    };
+  }
 
-    private toOverride(perm: ChannelPermission | null): PermOverride {
-        return {
-            allow: perm ? parsePermissions(perm.allowPermissions) : 0n,
-            deny: perm ? parsePermissions(perm.denyPermissions) : 0n,
-            allowModule: parseModulePermissions(perm?.allowModulePermissions),
-            denyModule: parseModulePermissions(perm?.denyModulePermissions),
-        };
-    }
+  private buildRoleRows(): void {
+    const overrides = this.scope().overrides;
+    this.roleRows.set(
+      this.guild().roles.map(subject => {
+        const perm = overrides.find(p => p.roleId === subject.id) ?? null;
+        return {subject, perm, override: this.toOverride(perm), dirty: false, saving: false};
+      }),
+    );
+  }
 
-    private toRoleEntry(row: RoleRow, pinned: boolean): OverrideEntry {
-        return {
-            id: row.subject.id,
-            name: row.subject.name,
-            color: row.subject.color,
-            hasOverride: row.perm !== null,
-            dirty: row.dirty,
-            saving: row.saving,
-            pinned,
-            override: row.override,
-        };
-    }
-
-    private toMemberEntry(row: MemberRow): OverrideEntry {
-        return {
-            id: row.subject.id,
-            name: row.profile?.userName ?? row.subject.userId.slice(0, 8) + '…',
-            avatarUrl: row.profile?.avatarUrl ?? null,
-            hasOverride: row.perm !== null,
-            dirty: row.dirty,
-            saving: row.saving,
-            override: row.override,
-        };
-    }
-
-    private buildRoleRows(): void {
+  private loadMembers(): void {
+    this.membersLoading.set(true);
+    this.guildService.getMembers(this.guild().id, 0, 1000).subscribe({
+      next: members => {
         const overrides = this.scope().overrides;
-        this.roleRows.set(
-            this.guild().roles.map(subject => {
-                const perm = overrides.find(p => p.roleId === subject.id) ?? null;
-                return {subject, perm, override: this.toOverride(perm), dirty: false, saving: false};
-            }),
+        this.memberRows.set(
+          members.map(subject => {
+            const perm = overrides.find(p => p.memberId === subject.id) ?? null;
+            return {
+              subject,
+              profile: null,
+              perm,
+              override: this.toOverride(perm),
+              dirty: false,
+              saving: false,
+            };
+          }),
         );
-    }
+        this.membersLoading.set(false);
+        this.hydrateProfiles();
+      },
+      error: () => this.membersLoading.set(false),
+    });
+  }
 
-    private loadMembers(): void {
-        this.membersLoading.set(true);
-        this.guildService.getMembers(this.guild().id, 0, 1000).subscribe({
-            next: members => {
-                const overrides = this.scope().overrides;
-                this.memberRows.set(
-                    members.map(subject => {
-                        const perm = overrides.find(p => p.memberId === subject.id) ?? null;
-                        return {
-                            subject,
-                            profile: null,
-                            perm,
-                            override: this.toOverride(perm),
-                            dirty: false,
-                            saving: false,
-                        };
-                    }),
-                );
-                this.membersLoading.set(false);
-                this.hydrateProfiles();
-            },
-            error: () => this.membersLoading.set(false),
-        });
-    }
-
-    // Replaced wholesale in Task 3. Kept identical to the old pages here so this task is a pure move.
-    private hydrateProfiles(): void {
-        this.memberRows().forEach((row, i) => {
-            this.profiles.fetchByUserId(row.subject.userId).subscribe({
-                next: profile => {
-                    this.memberRows.update(list => {
-                        const next = [...list];
-                        next[i] = {...next[i], profile};
-                        return next;
-                    });
-                },
-            });
-        });
-    }
+  // Replaced wholesale in Task 3. Kept identical to the old pages here so this task is a pure move.
+  private hydrateProfiles(): void {
+    this.memberRows().forEach((row, i) => {
+      this.profiles.fetchByUserId(row.subject.userId).subscribe({
+        next: profile => {
+          this.memberRows.update(list => {
+            const next = [...list];
+            next[i] = {...next[i], profile};
+            return next;
+          });
+        },
+      });
+    });
+  }
 }
 ```
 
@@ -679,58 +703,58 @@ Create `src/app/features/guild/shared/permission-overrides/permission-overrides.
 Create `src/app/features/guild/shared/permission-overrides/permission-overrides.component.spec.ts` by copying the Task 1 spec and changing: the import and `TestBed.createComponent` target, `setInput('channel', ...)` becomes `setInput('scope', channelScope(channelDto))`, and the method names lose their `Override` suffix (`onAddRoleOverride` becomes `onAddRole`, and so on). Add one case the old spec could not express:
 
 ```ts
-    it('routes a category scope to the category endpoints', () => {
-        const {component, guildService} = setup();
-        component['scope'] = undefined as never; // not reachable; see setupCategory below
-    });
+it('routes a category scope to the category endpoints', () => {
+  const {component, guildService} = setup();
+  component['scope'] = undefined as never; // not reachable; see setupCategory below
+});
 ```
 
 Replace that placeholder with a real second setup helper:
 
 ```ts
 function setupCategory() {
-    const guildService = {
-        upsertCategoryRolePermission: vi.fn(() => of({id: 'p1'})),
-        deleteCategoryRolePermission: vi.fn(() => of(void 0)),
-        upsertCategoryMemberPermission: vi.fn(() => of({id: 'p2'})),
-        deleteCategoryMemberPermission: vi.fn(() => of(void 0)),
-        getMembers: vi.fn(() => of([])),
-    };
+  const guildService = {
+    upsertCategoryRolePermission: vi.fn(() => of({id: 'p1'})),
+    deleteCategoryRolePermission: vi.fn(() => of(void 0)),
+    upsertCategoryMemberPermission: vi.fn(() => of({id: 'p2'})),
+    deleteCategoryMemberPermission: vi.fn(() => of(void 0)),
+    getMembers: vi.fn(() => of([])),
+  };
 
-    TestBed.configureTestingModule({
-        imports: [PermissionOverridesComponent],
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideTranslateService(),
-            {provide: GuildService, useValue: guildService},
-            {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
-        ],
-    });
+  TestBed.configureTestingModule({
+    imports: [PermissionOverridesComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideTranslateService(),
+      {provide: GuildService, useValue: guildService},
+      {provide: ProfileService, useValue: {fetchByUserId: vi.fn(() => of({userName: 'ada'}))}},
+    ],
+  });
 
-    const fixture = TestBed.createComponent(PermissionOverridesComponent);
-    fixture.componentRef.setInput('scope', categoryScope({id: 'cat_1', permissions: []} as never));
-    fixture.componentRef.setInput('guild', guild());
-    fixture.detectChanges();
+  const fixture = TestBed.createComponent(PermissionOverridesComponent);
+  fixture.componentRef.setInput('scope', categoryScope({id: 'cat_1', permissions: []} as never));
+  fixture.componentRef.setInput('guild', guild());
+  fixture.detectChanges();
 
-    return {component: fixture.componentInstance, guildService};
+  return {component: fixture.componentInstance, guildService};
 }
 ```
 
 and the case:
 
 ```ts
-    it('routes a category scope to the category endpoints', () => {
-        const {component, guildService} = setupCategory();
+it('routes a category scope to the category endpoints', () => {
+  const {component, guildService} = setupCategory();
 
-        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
-        component.saveRole(PLAYER);
+  component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+  component.saveRole(PLAYER);
 
-        expect(guildService.upsertCategoryRolePermission).toHaveBeenCalledWith('cat_1', PLAYER, {
-            allowPermissions: 'SendMessages',
-            denyPermissions: 'None',
-        });
-    });
+  expect(guildService.upsertCategoryRolePermission).toHaveBeenCalledWith('cat_1', PLAYER, {
+    allowPermissions: 'SendMessages',
+    denyPermissions: 'None',
+  });
+});
 ```
 
 - [ ] **Step 7: Run the new spec**
@@ -749,16 +773,16 @@ import {PermissionOverridesComponent} from '../../../../shared/permission-overri
 import {channelScope} from '../../../../shared/permission-overrides/permission-scope';
 
 @Component({
-    selector: 'app-channel-permissions',
-    imports: [PermissionOverridesComponent],
-    templateUrl: './channel-permissions.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-channel-permissions',
+  imports: [PermissionOverridesComponent],
+  templateUrl: './channel-permissions.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelPermissionsComponent {
-    readonly channel = input.required<ChannelDto>();
-    readonly guild = input.required<GuildDto>();
+  readonly channel = input.required<ChannelDto>();
+  readonly guild = input.required<GuildDto>();
 
-    protected readonly scope = computed(() => channelScope(this.channel()));
+  protected readonly scope = computed(() => channelScope(this.channel()));
 }
 ```
 
@@ -808,11 +832,13 @@ git commit -m "refactor(permissions): one override editor for channels and categ
 ### Task 3: Members tab paging and cache-first profiles
 
 **Files:**
+
 - Modify: `src/app/features/guild/shared/permission-overrides/permission-overrides.component.ts` (`loadMembers`, `hydrateProfiles`, new paging and search state)
 - Modify: `src/app/features/guild/shared/permission-overrides-panel/permission-overrides-panel.component.ts` and `.html` (search box, load-more row)
 - Test: `src/app/features/guild/shared/permission-overrides/permission-overrides.component.spec.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `PermissionOverridesComponent` from Task 2.
 - Produces: on the panel, `readonly searchable = input(false)`, `readonly hasMore = input(false)`, `search = output<string>()`, `loadMore = output<void>()`.
 
@@ -824,83 +850,83 @@ Append to `permission-overrides.component.spec.ts`:
 
 ```ts
 describe('PermissionOverridesComponent members tab', () => {
-    it('reads one page of members, not the whole guild', () => {
-        const {component, guildService} = setup();
+  it('reads one page of members, not the whole guild', () => {
+    const {component, guildService} = setup();
 
-        component.switchTab('members');
+    component.switchTab('members');
 
-        expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
+    expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
+  });
+
+  it('never uses the cache-bypassing profile read', () => {
+    const {component, profileService} = setup({members: [memberDto('ada'), memberDto('bo')]});
+
+    component.switchTab('members');
+
+    expect(profileService.fetchByUserId).not.toHaveBeenCalled();
+    expect(profileService.getCachedByUserId).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the resolver only for the ids the cache missed', () => {
+    const {component, profileService} = setup({
+      members: [memberDto('ada'), memberDto('bo')],
+      cached: ['ada'],
     });
 
-    it('never uses the cache-bypassing profile read', () => {
-        const {component, profileService} = setup({members: [memberDto('ada'), memberDto('bo')]});
+    component.switchTab('members');
 
-        component.switchTab('members');
+    expect(profileService.resolveByUserId).toHaveBeenCalledTimes(1);
+    expect(profileService.resolveByUserId).toHaveBeenCalledWith('bo');
+  });
 
-        expect(profileService.fetchByUserId).not.toHaveBeenCalled();
-        expect(profileService.getCachedByUserId).toHaveBeenCalledTimes(2);
-    });
+  it('appends the next page rather than replacing the list', () => {
+    const {component, guildService} = setup({members: [memberDto('ada')]});
 
-    it('asks the resolver only for the ids the cache missed', () => {
-        const {component, profileService} = setup({
-            members: [memberDto('ada'), memberDto('bo')],
-            cached: ['ada'],
-        });
+    component.switchTab('members');
+    component.loadMoreMembers();
 
-        component.switchTab('members');
+    expect(guildService.getMembers).toHaveBeenLastCalledWith('guild_1', 50, 50);
+  });
 
-        expect(profileService.resolveByUserId).toHaveBeenCalledTimes(1);
-        expect(profileService.resolveByUserId).toHaveBeenCalledWith('bo');
-    });
+  it('replaces the list with search results while a term is set', () => {
+    const {component, guildService} = setup();
 
-    it('appends the next page rather than replacing the list', () => {
-        const {component, guildService} = setup({members: [memberDto('ada')]});
+    component.switchTab('members');
+    component.searchMembers('ad');
 
-        component.switchTab('members');
-        component.loadMoreMembers();
+    expect(guildService.searchMembers).toHaveBeenCalledWith('guild_1', 'ad');
+  });
 
-        expect(guildService.getMembers).toHaveBeenLastCalledWith('guild_1', 50, 50);
-    });
+  it('goes back to the paged list when the term is cleared', () => {
+    const {component, guildService} = setup();
 
-    it('replaces the list with search results while a term is set', () => {
-        const {component, guildService} = setup();
+    component.switchTab('members');
+    component.searchMembers('ad');
+    guildService.getMembers.mockClear();
+    component.searchMembers('');
 
-        component.switchTab('members');
-        component.searchMembers('ad');
-
-        expect(guildService.searchMembers).toHaveBeenCalledWith('guild_1', 'ad');
-    });
-
-    it('goes back to the paged list when the term is cleared', () => {
-        const {component, guildService} = setup();
-
-        component.switchTab('members');
-        component.searchMembers('ad');
-        guildService.getMembers.mockClear();
-        component.searchMembers('');
-
-        expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
-    });
+    expect(guildService.getMembers).toHaveBeenCalledWith('guild_1', 0, 50);
+  });
 });
 ```
 
 Extend `setup()` to accept `{members, cached}` and to provide:
 
 ```ts
-    const profileService = {
-        fetchByUserId: vi.fn(() => of({userName: 'ada'})),
-        getCachedByUserId: vi.fn((userId: string) =>
-            (options.cached ?? []).includes(userId) ? {userName: userId} : undefined,
-        ),
-        resolveByUserId: vi.fn(),
-    };
+const profileService = {
+  fetchByUserId: vi.fn(() => of({userName: 'ada'})),
+  getCachedByUserId: vi.fn((userId: string) =>
+    (options.cached ?? []).includes(userId) ? {userName: userId} : undefined,
+  ),
+  resolveByUserId: vi.fn(),
+};
 ```
 
 and add `searchMembers: vi.fn(() => of([]))` to the `guildService` stub, plus a `memberDto` helper:
 
 ```ts
 function memberDto(userId: string): GuildMemberDto {
-    return {id: `mem_${userId}`, guildId: 'guild_1', userId} as GuildMemberDto;
+  return {id: `mem_${userId}`, guildId: 'guild_1', userId} as GuildMemberDto;
 }
 ```
 
@@ -1032,13 +1058,13 @@ In `permission-overrides-panel.component.html`, above the entry list:
 
 ```html
 @if (searchable()) {
-    <input
-        (input)="onSearch($any($event.target).value)"
-        [attr.aria-label]="'PERM_OVERRIDE.SEARCH' | translate"
-        [placeholder]="'PERM_OVERRIDE.SEARCH' | translate"
-        class="w-full px-2.5 py-1.5 rounded-lg bg-card text-sm text-text-primary placeholder:text-text-faint border-0 outline-none focus-visible:ring-1 focus-visible:ring-brand"
-        type="text"
-    />
+<input
+  (input)="onSearch($any($event.target).value)"
+  [attr.aria-label]="'PERM_OVERRIDE.SEARCH' | translate"
+  [placeholder]="'PERM_OVERRIDE.SEARCH' | translate"
+  class="w-full px-2.5 py-1.5 rounded-lg bg-card text-sm text-text-primary placeholder:text-text-faint border-0 outline-none focus-visible:ring-1 focus-visible:ring-brand"
+  type="text"
+/>
 }
 ```
 
@@ -1046,12 +1072,12 @@ and below the `@for` block, still inside the scroll container:
 
 ```html
 @if (hasMore()) {
-    <button
-        (click)="loadMore.emit()"
-        class="w-full px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-hover hover:text-text-secondary transition-colors cursor-pointer border-0 text-left"
-    >
-        {{ 'PERM_OVERRIDE.LOAD_MORE' | translate }}
-    </button>
+<button
+  (click)="loadMore.emit()"
+  class="w-full px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:bg-hover hover:text-text-secondary transition-colors cursor-pointer border-0 text-left"
+>
+  {{ 'PERM_OVERRIDE.LOAD_MORE' | translate }}
+</button>
 }
 ```
 
@@ -1112,12 +1138,14 @@ git commit -m "fix(permissions): page the members tab and read profiles from the
 ### Task 4: Module permissions become writable
 
 **Files:**
+
 - Modify: `src/app/services/guild.service.ts` (`OverridePermissionsDto` and its TSDoc, around line 115)
 - Modify: `src/app/features/guild/shared/permission-override-editor/permission-override-editor.component.ts` and `.html`
 - Modify: `src/app/features/guild/shared/permission-overrides/permission-overrides.component.ts` (`body`)
 - Test: `src/app/features/guild/shared/permission-overrides/permission-overrides.component.spec.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `PermissionScopeGateway` from Task 2.
 - Produces: `OverridePermissionsDto` gains `allowModulePermissions?: string` and `denyModulePermissions?: string`. The editor gains `setModuleState(key, state)`.
 
@@ -1129,38 +1157,38 @@ Append to `permission-overrides.component.spec.ts`:
 
 ```ts
 describe('PermissionOverridesComponent module masks', () => {
-    it('sends the module masks when they carry anything', () => {
-        const {component, guildService} = setup();
+  it('sends the module masks when they carry anything', () => {
+    const {component, guildService} = setup();
 
-        component.onRoleChange(PLAYER, {
-            allow: 0n,
-            deny: 0n,
-            allowModule: 1n << 10n, // AddListItems
-            denyModule: 0n,
-        });
-        component.saveRole(PLAYER);
-
-        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
-            allowPermissions: 'None',
-            denyPermissions: 'None',
-            allowModulePermissions: 'AddListItems',
-            denyModulePermissions: 'None',
-        });
+    component.onRoleChange(PLAYER, {
+      allow: 0n,
+      deny: 0n,
+      allowModule: 1n << 10n, // AddListItems
+      denyModule: 0n,
     });
+    component.saveRole(PLAYER);
 
-    // Omitting them means "carry over" on the server, which is the right default for a subject
-    // whose module masks were never touched here.
-    it('omits the module masks when nothing set them', () => {
-        const {component, guildService} = setup();
-
-        component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
-        component.saveRole(PLAYER);
-
-        expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
-            allowPermissions: 'SendMessages',
-            denyPermissions: 'None',
-        });
+    expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+      allowPermissions: 'None',
+      denyPermissions: 'None',
+      allowModulePermissions: 'AddListItems',
+      denyModulePermissions: 'None',
     });
+  });
+
+  // Omitting them means "carry over" on the server, which is the right default for a subject
+  // whose module masks were never touched here.
+  it('omits the module masks when nothing set them', () => {
+    const {component, guildService} = setup();
+
+    component.onRoleChange(PLAYER, {allow: 2n, deny: 0n, allowModule: 0n, denyModule: 0n});
+    component.saveRole(PLAYER);
+
+    expect(guildService.upsertChannelRolePermission).toHaveBeenCalledWith(CHANNEL, PLAYER, {
+      allowPermissions: 'SendMessages',
+      denyPermissions: 'None',
+    });
+  });
 });
 ```
 
@@ -1179,10 +1207,10 @@ In `src/app/services/guild.service.ts`:
  * masks over from the row being replaced, so a core-only edit cannot silently clear them.
  */
 export interface OverridePermissionsDto {
-    allowPermissions: string;
-    denyPermissions: string;
-    allowModulePermissions?: string;
-    denyModulePermissions?: string;
+  allowPermissions: string;
+  denyPermissions: string;
+  allowModulePermissions?: string;
+  denyModulePermissions?: string;
 }
 ```
 
@@ -1228,45 +1256,49 @@ In `permission-override-editor.component.html`, replace the read-only module blo
 
 ```html
 @if (moduleGroup(); as group) {
-    <div>
-        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
-        <div class="space-y-1">
-            @for (key of group.perms; track key) {
-                <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors">
-                    <span class="text-sm text-text-secondary truncate">{{ label(key) }}</span>
-                    <div class="flex items-center gap-1 shrink-0" role="group">
-                        <button
-                            (click)="setModuleState(key, moduleState(key) === 'deny' ? 'inherit' : 'deny')"
-                            [attr.aria-label]="'PERM_OVERRIDE.DENY' | translate"
-                            [attr.aria-pressed]="moduleState(key) === 'deny'"
-                            [ngClass]="moduleState(key) === 'deny' ? 'bg-offline/20 text-offline' : 'bg-hover text-text-muted hover:bg-offline/10 hover:text-offline/70'"
-                            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                        >
-                            <i class="pi pi-times"></i>
-                        </button>
-                        <button
-                            (click)="setModuleState(key, 'inherit')"
-                            [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
-                            [attr.aria-pressed]="moduleState(key) === 'inherit'"
-                            [ngClass]="moduleState(key) === 'inherit' ? 'bg-hover text-text-secondary' : 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'"
-                            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                        >
-                            <i class="pi pi-minus"></i>
-                        </button>
-                        <button
-                            (click)="setModuleState(key, moduleState(key) === 'allow' ? 'inherit' : 'allow')"
-                            [attr.aria-label]="'PERM_OVERRIDE.ALLOW' | translate"
-                            [attr.aria-pressed]="moduleState(key) === 'allow'"
-                            [ngClass]="moduleState(key) === 'allow' ? 'bg-online/20 text-online' : 'bg-hover text-text-muted hover:bg-online/10 hover:text-online/70'"
-                            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                        >
-                            <i class="pi pi-check"></i>
-                        </button>
-                    </div>
-                </div>
-            }
-        </div>
+<div>
+  <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">
+    {{ group.labelKey | translate }}
+  </p>
+  <div class="space-y-1">
+    @for (key of group.perms; track key) {
+    <div
+      class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors"
+    >
+      <span class="text-sm text-text-secondary truncate">{{ label(key) }}</span>
+      <div class="flex items-center gap-1 shrink-0" role="group">
+        <button
+          (click)="setModuleState(key, moduleState(key) === 'deny' ? 'inherit' : 'deny')"
+          [attr.aria-label]="'PERM_OVERRIDE.DENY' | translate"
+          [attr.aria-pressed]="moduleState(key) === 'deny'"
+          [ngClass]="moduleState(key) === 'deny' ? 'bg-offline/20 text-offline' : 'bg-hover text-text-muted hover:bg-offline/10 hover:text-offline/70'"
+          class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+        <button
+          (click)="setModuleState(key, 'inherit')"
+          [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
+          [attr.aria-pressed]="moduleState(key) === 'inherit'"
+          [ngClass]="moduleState(key) === 'inherit' ? 'bg-hover text-text-secondary' : 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'"
+          class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+        >
+          <i class="pi pi-minus"></i>
+        </button>
+        <button
+          (click)="setModuleState(key, moduleState(key) === 'allow' ? 'inherit' : 'allow')"
+          [attr.aria-label]="'PERM_OVERRIDE.ALLOW' | translate"
+          [attr.aria-pressed]="moduleState(key) === 'allow'"
+          [ngClass]="moduleState(key) === 'allow' ? 'bg-online/20 text-online' : 'bg-hover text-text-muted hover:bg-online/10 hover:text-online/70'"
+          class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+        >
+          <i class="pi pi-check"></i>
+        </button>
+      </div>
     </div>
+    }
+  </div>
+</div>
 }
 ```
 
@@ -1293,10 +1325,12 @@ git commit -m "feat(permissions): let a channel overwrite set module bits"
 ### Task 5: Mirror the implication table
 
 **Files:**
+
 - Modify: `src/app/enums/permissions.enum.ts`
 - Test: `src/app/enums/permission-implications.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `Permissions`, `PermissionKey`, `PermissionValue` from the same file.
 - Produces:
   - `IMPLIED_PERMISSIONS: ReadonlyArray<readonly [PermissionKey, PermissionKey]>`
@@ -1311,68 +1345,68 @@ Create `src/app/enums/permission-implications.spec.ts`:
 
 ```ts
 import {
-    expandDeniedPermissions,
-    expandImpliedPermissions,
-    IMPLIED_PERMISSIONS,
-    Permissions,
+  expandDeniedPermissions,
+  expandImpliedPermissions,
+  IMPLIED_PERMISSIONS,
+  Permissions,
 } from './permissions.enum';
 
 // Mirrors Guild.Application/Services/GuildPermissionService.cs ImpliedPermissions.
 // See docs/specs/channel-permissions-ux.md, "Golden list".
 const GOLDEN: ReadonlyArray<readonly [keyof typeof Permissions, keyof typeof Permissions]> = [
-    ['EditAnyMessage', 'EditOwnMessages'],
-    ['DeleteAnyMessage', 'DeleteOwnMessages'],
-    ['ManageAnyThread', 'ManageOwnThreads'],
-    ['Speak', 'Connect'],
-    ['Stream', 'Connect'],
-    ['MuteMembers', 'Connect'],
-    ['DeafenMembers', 'Connect'],
-    ['MoveMembers', 'Connect'],
-    ['PinMessages', 'SendMessages'],
-    ['AttachFiles', 'SendMessages'],
-    ['EmbedLinks', 'SendMessages'],
-    ['AddReactions', 'SendMessages'],
-    ['CreateThreads', 'SendMessages'],
-    ['SendMessages', 'ViewChannel'],
-    ['SendMessagesInThreads', 'ViewChannel'],
-    ['Connect', 'ViewChannel'],
-    ['EditOwnMessages', 'ViewChannel'],
-    ['DeleteOwnMessages', 'ViewChannel'],
-    ['ManageOwnThreads', 'ViewChannel'],
-    ['ManagePermissions', 'ViewChannel'],
-    ['ManageChannel', 'ViewChannel'],
+  ['EditAnyMessage', 'EditOwnMessages'],
+  ['DeleteAnyMessage', 'DeleteOwnMessages'],
+  ['ManageAnyThread', 'ManageOwnThreads'],
+  ['Speak', 'Connect'],
+  ['Stream', 'Connect'],
+  ['MuteMembers', 'Connect'],
+  ['DeafenMembers', 'Connect'],
+  ['MoveMembers', 'Connect'],
+  ['PinMessages', 'SendMessages'],
+  ['AttachFiles', 'SendMessages'],
+  ['EmbedLinks', 'SendMessages'],
+  ['AddReactions', 'SendMessages'],
+  ['CreateThreads', 'SendMessages'],
+  ['SendMessages', 'ViewChannel'],
+  ['SendMessagesInThreads', 'ViewChannel'],
+  ['Connect', 'ViewChannel'],
+  ['EditOwnMessages', 'ViewChannel'],
+  ['DeleteOwnMessages', 'ViewChannel'],
+  ['ManageOwnThreads', 'ViewChannel'],
+  ['ManagePermissions', 'ViewChannel'],
+  ['ManageChannel', 'ViewChannel'],
 ];
 
 describe('implication table', () => {
-    it('matches the golden list exactly', () => {
-        expect([...IMPLIED_PERMISSIONS]).toEqual([...GOLDEN]);
-    });
+  it('matches the golden list exactly', () => {
+    expect([...IMPLIED_PERMISSIONS]).toEqual([...GOLDEN]);
+  });
 
-    it('closes a grant forwards', () => {
-        for (const [holder, implied] of GOLDEN) {
-            const expanded = expandImpliedPermissions(Permissions[holder]);
-            expect(expanded & Permissions[implied]).toBe(Permissions[implied]);
-        }
-    });
+  it('closes a grant forwards', () => {
+    for (const [holder, implied] of GOLDEN) {
+      const expanded = expandImpliedPermissions(Permissions[holder]);
+      expect(expanded & Permissions[implied]).toBe(Permissions[implied]);
+    }
+  });
 
-    it('closes a deny backwards', () => {
-        for (const [holder, implied] of GOLDEN) {
-            const expanded = expandDeniedPermissions(Permissions[implied]);
-            expect(expanded & Permissions[holder]).toBe(Permissions[holder]);
-        }
-    });
+  it('closes a deny backwards', () => {
+    for (const [holder, implied] of GOLDEN) {
+      const expanded = expandDeniedPermissions(Permissions[implied]);
+      expect(expanded & Permissions[holder]).toBe(Permissions[holder]);
+    }
+  });
 
-    it('carries a deny transitively', () => {
-        // AttachFiles implies SendMessages implies ViewChannel, so denying ViewChannel takes both.
-        const expanded = expandDeniedPermissions(Permissions.ViewChannel);
+  it('carries a deny transitively', () => {
+    // AttachFiles implies SendMessages implies ViewChannel, so denying ViewChannel takes both.
+    const expanded = expandDeniedPermissions(Permissions.ViewChannel);
 
-        expect(expanded & Permissions.SendMessages).toBe(Permissions.SendMessages);
-        expect(expanded & Permissions.AttachFiles).toBe(Permissions.AttachFiles);
-    });
+    expect(expanded & Permissions.SendMessages).toBe(Permissions.SendMessages);
+    expect(expanded & Permissions.AttachFiles).toBe(Permissions.AttachFiles);
+  });
 
-    it('leaves an unrelated bit alone', () => {
-        expect(expandDeniedPermissions(Permissions.ManageEvents)).toBe(Permissions.ManageEvents);
-    });
+  it('leaves an unrelated bit alone', () => {
+    expect(expandDeniedPermissions(Permissions.ManageEvents)).toBe(Permissions.ManageEvents);
+  });
 });
 ```
 
@@ -1392,61 +1426,61 @@ Append to `src/app/enums/permissions.enum.ts`:
  * A change here without the matching change there makes the UI lie about what a deny costs.
  */
 export const IMPLIED_PERMISSIONS: ReadonlyArray<readonly [PermissionKey, PermissionKey]> = [
-    ['EditAnyMessage', 'EditOwnMessages'],
-    ['DeleteAnyMessage', 'DeleteOwnMessages'],
-    ['ManageAnyThread', 'ManageOwnThreads'],
-    ['Speak', 'Connect'],
-    ['Stream', 'Connect'],
-    ['MuteMembers', 'Connect'],
-    ['DeafenMembers', 'Connect'],
-    ['MoveMembers', 'Connect'],
-    ['PinMessages', 'SendMessages'],
-    ['AttachFiles', 'SendMessages'],
-    ['EmbedLinks', 'SendMessages'],
-    ['AddReactions', 'SendMessages'],
-    ['CreateThreads', 'SendMessages'],
-    ['SendMessages', 'ViewChannel'],
-    ['SendMessagesInThreads', 'ViewChannel'],
-    ['Connect', 'ViewChannel'],
-    ['EditOwnMessages', 'ViewChannel'],
-    ['DeleteOwnMessages', 'ViewChannel'],
-    ['ManageOwnThreads', 'ViewChannel'],
-    ['ManagePermissions', 'ViewChannel'],
-    ['ManageChannel', 'ViewChannel'],
+  ['EditAnyMessage', 'EditOwnMessages'],
+  ['DeleteAnyMessage', 'DeleteOwnMessages'],
+  ['ManageAnyThread', 'ManageOwnThreads'],
+  ['Speak', 'Connect'],
+  ['Stream', 'Connect'],
+  ['MuteMembers', 'Connect'],
+  ['DeafenMembers', 'Connect'],
+  ['MoveMembers', 'Connect'],
+  ['PinMessages', 'SendMessages'],
+  ['AttachFiles', 'SendMessages'],
+  ['EmbedLinks', 'SendMessages'],
+  ['AddReactions', 'SendMessages'],
+  ['CreateThreads', 'SendMessages'],
+  ['SendMessages', 'ViewChannel'],
+  ['SendMessagesInThreads', 'ViewChannel'],
+  ['Connect', 'ViewChannel'],
+  ['EditOwnMessages', 'ViewChannel'],
+  ['DeleteOwnMessages', 'ViewChannel'],
+  ['ManageOwnThreads', 'ViewChannel'],
+  ['ManagePermissions', 'ViewChannel'],
+  ['ManageChannel', 'ViewChannel'],
 ];
 
 function closeOver(mask: PermissionValue, edges: ReadonlyArray<readonly [bigint, bigint]>): PermissionValue {
-    let result = mask;
-    let changed = true;
-    while (changed) {
-        changed = false;
-        for (const [from, to] of edges) {
-            if ((result & from) === from && (result & to) !== to) {
-                result |= to;
-                changed = true;
-            }
-        }
+  let result = mask;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [from, to] of edges) {
+      if ((result & from) === from && (result & to) !== to) {
+        result |= to;
+        changed = true;
+      }
     }
-    return result;
+  }
+  return result;
 }
 
 const FORWARD_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
-    ([holder, implied]) => [Permissions[holder], Permissions[implied]] as const,
+  ([holder, implied]) => [Permissions[holder], Permissions[implied]] as const,
 );
 
 const REVERSE_EDGES: ReadonlyArray<readonly [bigint, bigint]> = IMPLIED_PERMISSIONS.map(
-    ([holder, implied]) => [Permissions[implied], Permissions[holder]] as const,
+  ([holder, implied]) => [Permissions[implied], Permissions[holder]] as const,
 );
 
 /** Widens a grant with everything its bits imply. Superadmin short-circuits, as it does server-side. */
 export function expandImpliedPermissions(mask: PermissionValue): PermissionValue {
-    if ((mask & Permissions.Superadmin) === Permissions.Superadmin) return mask;
-    return closeOver(mask, FORWARD_EDGES);
+  if ((mask & Permissions.Superadmin) === Permissions.Superadmin) return mask;
+  return closeOver(mask, FORWARD_EDGES);
 }
 
 /** Widens a deny with everything that implies its bits, so a deny cannot leave a superset behind. */
 export function expandDeniedPermissions(mask: PermissionValue): PermissionValue {
-    return closeOver(mask, REVERSE_EDGES);
+  return closeOver(mask, REVERSE_EDGES);
 }
 ```
 
@@ -1469,11 +1503,13 @@ git commit -m "feat(permissions): mirror the server's implication table"
 **Blocked on:** Echo plan Task 3 deployed.
 
 **Files:**
+
 - Create: `src/app/dtos/response/effective-permissions.dto.ts`
 - Modify: `src/app/services/guild.service.ts`
 - Test: `src/app/services/guild.service.effective-permissions.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks.
 - Produces:
   - `type PermissionSourceKey` (the 18 `decidedBy` values)
@@ -1494,54 +1530,54 @@ import {GuildService} from './guild.service';
 import {ApiConfigService} from './api-config.service';
 
 describe('GuildService permission reads', () => {
-    let service: GuildService;
-    let http: HttpTestingController;
+  let service: GuildService;
+  let http: HttpTestingController;
 
-    beforeEach(() => {
-        TestBed.configureTestingModule({
-            providers: [
-                provideHttpClient(),
-                provideHttpClientTesting(),
-                {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
-            ],
-        });
-
-        service = TestBed.inject(GuildService);
-        http = TestBed.inject(HttpTestingController);
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
+      ],
     });
 
-    afterEach(() => http.verify());
+    service = TestBed.inject(GuildService);
+    http = TestBed.inject(HttpTestingController);
+  });
 
-    it('asks for a role subject by roleId', () => {
-        service.getEffectivePermissions('chan_1', {kind: 'role', id: 'role_1'}).subscribe();
+  afterEach(() => http.verify());
 
-        const req = http.expectOne(
-            'https://api.test/api/v1/guild/channels/chan_1/effective-permissions?roleId=role_1',
-        );
+  it('asks for a role subject by roleId', () => {
+    service.getEffectivePermissions('chan_1', {kind: 'role', id: 'role_1'}).subscribe();
 
-        expect(req.request.method).toBe('GET');
-        req.flush({channelId: 'chan_1', subjectKind: 'Role', subjectId: 'role_1', sources: []});
-    });
+    const req = http.expectOne(
+      'https://api.test/api/v1/guild/channels/chan_1/effective-permissions?roleId=role_1',
+    );
 
-    it('asks for a member subject by memberId', () => {
-        service.getEffectivePermissions('chan_1', {kind: 'member', id: 'mem_1'}).subscribe();
+    expect(req.request.method).toBe('GET');
+    req.flush({channelId: 'chan_1', subjectKind: 'Role', subjectId: 'role_1', sources: []});
+  });
 
-        const req = http.expectOne(
-            'https://api.test/api/v1/guild/channels/chan_1/effective-permissions?memberId=mem_1',
-        );
+  it('asks for a member subject by memberId', () => {
+    service.getEffectivePermissions('chan_1', {kind: 'member', id: 'mem_1'}).subscribe();
 
-        req.flush({channelId: 'chan_1', subjectKind: 'Member', subjectId: 'mem_1', sources: []});
-    });
+    const req = http.expectOne(
+      'https://api.test/api/v1/guild/channels/chan_1/effective-permissions?memberId=mem_1',
+    );
 
-    it('posts an empty body to sync', () => {
-        service.syncChannelPermissions('chan_1').subscribe();
+    req.flush({channelId: 'chan_1', subjectKind: 'Member', subjectId: 'mem_1', sources: []});
+  });
 
-        const req = http.expectOne('https://api.test/api/v1/guild/channels/chan_1/permissions/sync');
+  it('posts an empty body to sync', () => {
+    service.syncChannelPermissions('chan_1').subscribe();
 
-        expect(req.request.method).toBe('POST');
-        expect(req.request.body).toEqual({});
-        req.flush([]);
-    });
+    const req = http.expectOne('https://api.test/api/v1/guild/channels/chan_1/permissions/sync');
+
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush([]);
+  });
 });
 ```
 
@@ -1561,39 +1597,39 @@ import {PermissionKey} from '../../enums/permissions.enum';
 
 /** The layer that last wrote a bit. Server enum names, so never rename one locally. */
 export type PermissionSourceKey =
-    | 'Base'
-    | 'MemberGuildAllow'
-    | 'MemberGuildDeny'
-    | 'CategoryEveryoneAllow'
-    | 'CategoryEveryoneDeny'
-    | 'CategoryRoleAllow'
-    | 'CategoryRoleDeny'
-    | 'CategoryMemberAllow'
-    | 'CategoryMemberDeny'
-    | 'ChannelEveryoneAllow'
-    | 'ChannelEveryoneDeny'
-    | 'ChannelRoleAllow'
-    | 'ChannelRoleDeny'
-    | 'ChannelMemberAllow'
-    | 'ChannelMemberDeny'
-    | 'Implied'
-    | 'Superadmin'
-    | 'Muted';
+  | 'Base'
+  | 'MemberGuildAllow'
+  | 'MemberGuildDeny'
+  | 'CategoryEveryoneAllow'
+  | 'CategoryEveryoneDeny'
+  | 'CategoryRoleAllow'
+  | 'CategoryRoleDeny'
+  | 'CategoryMemberAllow'
+  | 'CategoryMemberDeny'
+  | 'ChannelEveryoneAllow'
+  | 'ChannelEveryoneDeny'
+  | 'ChannelRoleAllow'
+  | 'ChannelRoleDeny'
+  | 'ChannelMemberAllow'
+  | 'ChannelMemberDeny'
+  | 'Implied'
+  | 'Superadmin'
+  | 'Muted';
 
 export interface PermissionSourceEntry {
-    permission: PermissionKey;
-    granted: boolean;
-    decidedBy: PermissionSourceKey;
+  permission: PermissionKey;
+  granted: boolean;
+  decidedBy: PermissionSourceKey;
 }
 
 /** What one role or member ends up with in one channel, and why. */
 export interface EffectivePermissionsDto {
-    channelId: string;
-    subjectKind: 'Role' | 'Member';
-    subjectId: string;
-    permissions: string;
-    modulePermissions: string;
-    sources: PermissionSourceEntry[];
+  channelId: string;
+  subjectKind: 'Role' | 'Member';
+  subjectId: string;
+  permissions: string;
+  modulePermissions: string;
+  sources: PermissionSourceEntry[];
 }
 ```
 
@@ -1645,12 +1681,14 @@ git commit -m "feat(permissions): read the effective-permissions trace and the s
 **Blocked on:** Tasks 5 and 6.
 
 **Files:**
+
 - Modify: `src/app/features/guild/shared/permission-override-editor/permission-override-editor.component.ts` and `.html`
 - Modify: `src/app/features/guild/shared/permission-overrides-panel/permission-overrides-panel.component.ts` and `.html`
 - Modify: `src/app/features/guild/shared/permission-overrides/permission-overrides.component.ts`
 - Test: `src/app/features/guild/shared/permission-override-editor/permission-override-editor.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `EffectivePermissionsDto`, `PermissionSourceEntry` from Task 6; `expandDeniedPermissions` from Task 5.
 - Produces: on the editor, `readonly resolved = input<EffectivePermissionsDto | null>(null)`, `readonly savedOverride = input<PermOverride>(EMPTY_OVERRIDE)`, and `inheritedState(key): {granted: boolean; decidedBy: PermissionSourceKey} | null`, `impliedOff(key): boolean`, `denyCollateral(key): PermissionKey[]`.
 
@@ -1663,94 +1701,91 @@ Create `src/app/features/guild/shared/permission-override-editor/permission-over
 ```ts
 import {TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {
-    EMPTY_OVERRIDE,
-    PermissionOverrideEditorComponent,
-} from './permission-override-editor.component';
+import {EMPTY_OVERRIDE, PermissionOverrideEditorComponent} from './permission-override-editor.component';
 import {EffectivePermissionsDto} from '../../../../dtos/response/effective-permissions.dto';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 
-function trace(
-    sources: EffectivePermissionsDto['sources'],
-): EffectivePermissionsDto {
-    return {
-        channelId: 'chan_1',
-        subjectKind: 'Role',
-        subjectId: 'role_1',
-        permissions: 'None',
-        modulePermissions: 'None',
-        sources,
-    };
+function trace(sources: EffectivePermissionsDto['sources']): EffectivePermissionsDto {
+  return {
+    channelId: 'chan_1',
+    subjectKind: 'Role',
+    subjectId: 'role_1',
+    permissions: 'None',
+    modulePermissions: 'None',
+    sources,
+  };
 }
 
-function setup(options: {
+function setup(
+  options: {
     resolved?: EffectivePermissionsDto | null;
     override?: typeof EMPTY_OVERRIDE;
     saved?: typeof EMPTY_OVERRIDE;
-} = {}) {
-    TestBed.configureTestingModule({
-        imports: [PermissionOverrideEditorComponent],
-        providers: [provideTranslateService()],
-    });
+  } = {},
+) {
+  TestBed.configureTestingModule({
+    imports: [PermissionOverrideEditorComponent],
+    providers: [provideTranslateService()],
+  });
 
-    const fixture = TestBed.createComponent(PermissionOverrideEditorComponent);
-    fixture.componentRef.setInput('override', options.override ?? EMPTY_OVERRIDE);
-    fixture.componentRef.setInput('savedOverride', options.saved ?? EMPTY_OVERRIDE);
-    fixture.componentRef.setInput('resolved', options.resolved ?? null);
-    fixture.componentRef.setInput('channelType', ChannelType.Text);
-    fixture.detectChanges();
+  const fixture = TestBed.createComponent(PermissionOverrideEditorComponent);
+  fixture.componentRef.setInput('override', options.override ?? EMPTY_OVERRIDE);
+  fixture.componentRef.setInput('savedOverride', options.saved ?? EMPTY_OVERRIDE);
+  fixture.componentRef.setInput('resolved', options.resolved ?? null);
+  fixture.componentRef.setInput('channelType', ChannelType.Text);
+  fixture.detectChanges();
 
-    return fixture.componentInstance;
+  return fixture.componentInstance;
 }
 
 describe('PermissionOverrideEditorComponent inherited values', () => {
-    it('shows nothing until the trace arrives', () => {
-        const component = setup();
+  it('shows nothing until the trace arrives', () => {
+    const component = setup();
 
-        expect(component.inheritedState('SendMessages')).toBeNull();
+    expect(component.inheritedState('SendMessages')).toBeNull();
+  });
+
+  it('reports the resolved value and the layer that decided it', () => {
+    const component = setup({
+      resolved: trace([{permission: 'SendMessages', granted: false, decidedBy: 'ChannelEveryoneDeny'}]),
     });
 
-    it('reports the resolved value and the layer that decided it', () => {
-        const component = setup({
-            resolved: trace([{permission: 'SendMessages', granted: false, decidedBy: 'ChannelEveryoneDeny'}]),
-        });
+    expect(component.inheritedState('SendMessages')).toEqual({
+      granted: false,
+      decidedBy: 'ChannelEveryoneDeny',
+    });
+  });
 
-        expect(component.inheritedState('SendMessages')).toEqual({
-            granted: false,
-            decidedBy: 'ChannelEveryoneDeny',
-        });
+  // The trace describes the saved state. A bit this subject overrides has no inherited value to
+  // show, and a bit just cleared in the UI has one the trace cannot know yet.
+  it('shows no ghost for a bit the saved override sets', () => {
+    const component = setup({
+      saved: {allow: 0n, deny: 2n, allowModule: 0n, denyModule: 0n}, // deny SendMessages
+      override: EMPTY_OVERRIDE,
+      resolved: trace([{permission: 'SendMessages', granted: false, decidedBy: 'ChannelRoleDeny'}]),
     });
 
-    // The trace describes the saved state. A bit this subject overrides has no inherited value to
-    // show, and a bit just cleared in the UI has one the trace cannot know yet.
-    it('shows no ghost for a bit the saved override sets', () => {
-        const component = setup({
-            saved: {allow: 0n, deny: 2n, allowModule: 0n, denyModule: 0n}, // deny SendMessages
-            override: EMPTY_OVERRIDE,
-            resolved: trace([{permission: 'SendMessages', granted: false, decidedBy: 'ChannelRoleDeny'}]),
-        });
+    expect(component.inheritedState('SendMessages')).toBeNull();
+  });
 
-        expect(component.inheritedState('SendMessages')).toBeNull();
+  it('names everything a deny takes with it', () => {
+    const component = setup();
+
+    const collateral = component.denyCollateral('SendMessages');
+
+    expect(collateral).toContain('AttachFiles');
+    expect(collateral).toContain('PinMessages');
+    expect(collateral).not.toContain('SendMessages');
+  });
+
+  it('greys a row the current deny already removed', () => {
+    const component = setup({
+      override: {allow: 0n, deny: 1n, allowModule: 0n, denyModule: 0n}, // deny ViewChannel
     });
 
-    it('names everything a deny takes with it', () => {
-        const component = setup();
-
-        const collateral = component.denyCollateral('SendMessages');
-
-        expect(collateral).toContain('AttachFiles');
-        expect(collateral).toContain('PinMessages');
-        expect(collateral).not.toContain('SendMessages');
-    });
-
-    it('greys a row the current deny already removed', () => {
-        const component = setup({
-            override: {allow: 0n, deny: 1n, allowModule: 0n, denyModule: 0n}, // deny ViewChannel
-        });
-
-        expect(component.impliedOff('SendMessages')).toBe(true);
-        expect(component.impliedOff('ManageEvents')).toBe(false);
-    });
+    expect(component.impliedOff('SendMessages')).toBe(true);
+    expect(component.impliedOff('ManageEvents')).toBe(false);
+  });
 });
 ```
 
@@ -1812,12 +1847,12 @@ In `permission-override-editor.component.html`, inside the per-permission row, b
 
 ```html
 @if (inheritedState(key); as inherited) {
-    <span
-        [ngClass]="inherited.granted ? 'text-online/60' : 'text-offline/60'"
-        class="text-[0.625rem] font-mono border border-border-subtle rounded px-1.5 py-0.5 shrink-0"
-    >
-        {{ 'PERM_SOURCE.' + inherited.decidedBy | translate }}
-    </span>
+<span
+  [ngClass]="inherited.granted ? 'text-online/60' : 'text-offline/60'"
+  class="text-[0.625rem] font-mono border border-border-subtle rounded px-1.5 py-0.5 shrink-0"
+>
+  {{ 'PERM_SOURCE.' + inherited.decidedBy | translate }}
+</span>
 }
 ```
 
@@ -1825,10 +1860,10 @@ On the inherit button, add the ghost by swapping the icon when the row is on inh
 
 ```html
 <button
-    (click)="setState(key, 'inherit')"
-    [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
-    [attr.aria-pressed]="getState(key) === 'inherit'"
-    [ngClass]="
+  (click)="setState(key, 'inherit')"
+  [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
+  [attr.aria-pressed]="getState(key) === 'inherit'"
+  [ngClass]="
         getState(key) !== 'inherit'
             ? 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'
             : inheritedState(key)?.granted === true
@@ -1837,13 +1872,13 @@ On the inherit button, add the ghost by swapping the icon when the row is on inh
                 ? 'bg-hover text-offline/40'
                 : 'bg-hover text-text-secondary'
     "
-    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+  class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
 >
-    @if (getState(key) === 'inherit' && inheritedState(key); as inherited) {
-        <i [ngClass]="inherited.granted ? 'pi pi-check' : 'pi pi-times'"></i>
-    } @else {
-        <i class="pi pi-minus"></i>
-    }
+  @if (getState(key) === 'inherit' && inheritedState(key); as inherited) {
+  <i [ngClass]="inherited.granted ? 'pi pi-check' : 'pi pi-times'"></i>
+  } @else {
+  <i class="pi pi-minus"></i>
+  }
 </button>
 ```
 
@@ -1851,12 +1886,14 @@ Below a row set to deny, when it has collateral:
 
 ```html
 @if (getState(key) === 'deny' && denyCollateral(key).length > 0) {
-    <div class="flex gap-2 items-start mt-1 mb-2 px-3 py-2 rounded-xl bg-connecting/[0.07] border border-connecting/25">
-        <i class="pi pi-exclamation-triangle text-connecting text-xs mt-0.5"></i>
-        <p class="text-xs text-text-secondary m-0">
-            {{ 'PERM_OVERRIDE.DENY_ALSO_REMOVES' | translate: {names: denyCollateral(key).join(', ')} }}
-        </p>
-    </div>
+<div
+  class="flex gap-2 items-start mt-1 mb-2 px-3 py-2 rounded-xl bg-connecting/[0.07] border border-connecting/25"
+>
+  <i class="pi pi-exclamation-triangle text-connecting text-xs mt-0.5"></i>
+  <p class="text-xs text-text-secondary m-0">
+    {{ 'PERM_OVERRIDE.DENY_ALSO_REMOVES' | translate: {names: denyCollateral(key).join(', ')} }}
+  </p>
+</div>
 }
 ```
 
@@ -1968,6 +2005,7 @@ git commit -m "feat(permissions): show what inherit resolves to and what a deny 
 **Blocked on:** Tasks 2 and 6.
 
 **Files:**
+
 - Create: `src/app/features/guild/shared/permission-sync.ts`
 - Create: `src/app/features/guild/shared/permission-sync.spec.ts`
 - Modify: `src/app/features/guild/components/channel-settings-modal/pages/channel-permissions/channel-permissions.component.ts` and `.html`
@@ -1975,6 +2013,7 @@ git commit -m "feat(permissions): show what inherit resolves to and what a deny 
 - Test: `src/app/features/guild/components/channel-settings-modal/pages/channel-permissions/channel-permissions.page.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `PermissionOverridesComponent` and `channelScope` from Task 2, `syncChannelPermissions` from Task 6.
 - Produces:
   - `interface OverrideDiffRow {targetId: string; kind: 'role' | 'member'; change: 'added' | 'removed' | 'changed' | 'same'}`
@@ -1990,65 +2029,65 @@ import {diffOverrides, isSyncedWithCategory} from './permission-sync';
 import {ChannelPermission} from '../../../dtos/response/guild.dto';
 
 function perm(over: Partial<ChannelPermission>): ChannelPermission {
-    return {
-        id: 'p',
-        roleId: undefined,
-        memberId: undefined,
-        allowPermissions: 'None',
-        denyPermissions: 'None',
-        ...over,
-    } as ChannelPermission;
+  return {
+    id: 'p',
+    roleId: undefined,
+    memberId: undefined,
+    allowPermissions: 'None',
+    denyPermissions: 'None',
+    ...over,
+  } as ChannelPermission;
 }
 
 describe('permission sync', () => {
-    it('calls an empty pair synced', () => {
-        expect(isSyncedWithCategory([], [])).toBe(true);
-    });
+  it('calls an empty pair synced', () => {
+    expect(isSyncedWithCategory([], [])).toBe(true);
+  });
 
-    it('calls identical sets synced', () => {
-        const rows = [perm({roleId: 'r1', allowPermissions: 'SendMessages'})];
+  it('calls identical sets synced', () => {
+    const rows = [perm({roleId: 'r1', allowPermissions: 'SendMessages'})];
 
-        expect(isSyncedWithCategory(rows, rows)).toBe(true);
-    });
+    expect(isSyncedWithCategory(rows, rows)).toBe(true);
+  });
 
-    it('is not synced when a mask differs', () => {
-        expect(
-            isSyncedWithCategory(
-                [perm({roleId: 'r1', allowPermissions: 'SendMessages'})],
-                [perm({roleId: 'r1', allowPermissions: 'AddReactions'})],
-            ),
-        ).toBe(false);
-    });
+  it('is not synced when a mask differs', () => {
+    expect(
+      isSyncedWithCategory(
+        [perm({roleId: 'r1', allowPermissions: 'SendMessages'})],
+        [perm({roleId: 'r1', allowPermissions: 'AddReactions'})],
+      ),
+    ).toBe(false);
+  });
 
-    it('names a channel-only override as removed by a sync', () => {
-        const diff = diffOverrides([perm({roleId: 'r1'})], []);
+  it('names a channel-only override as removed by a sync', () => {
+    const diff = diffOverrides([perm({roleId: 'r1'})], []);
 
-        expect(diff).toEqual([{targetId: 'r1', kind: 'role', change: 'removed'}]);
-    });
+    expect(diff).toEqual([{targetId: 'r1', kind: 'role', change: 'removed'}]);
+  });
 
-    it('names a category-only override as added by a sync', () => {
-        const diff = diffOverrides([], [perm({memberId: 'm1'})]);
+  it('names a category-only override as added by a sync', () => {
+    const diff = diffOverrides([], [perm({memberId: 'm1'})]);
 
-        expect(diff).toEqual([{targetId: 'm1', kind: 'member', change: 'added'}]);
-    });
+    expect(diff).toEqual([{targetId: 'm1', kind: 'member', change: 'added'}]);
+  });
 
-    it('names a differing mask as changed', () => {
-        const diff = diffOverrides(
-            [perm({roleId: 'r1', denyPermissions: 'SendMessages'})],
-            [perm({roleId: 'r1', denyPermissions: 'None'})],
-        );
+  it('names a differing mask as changed', () => {
+    const diff = diffOverrides(
+      [perm({roleId: 'r1', denyPermissions: 'SendMessages'})],
+      [perm({roleId: 'r1', denyPermissions: 'None'})],
+    );
 
-        expect(diff).toEqual([{targetId: 'r1', kind: 'role', change: 'changed'}]);
-    });
+    expect(diff).toEqual([{targetId: 'r1', kind: 'role', change: 'changed'}]);
+  });
 
-    it('compares the module masks too', () => {
-        const diff = diffOverrides(
-            [perm({roleId: 'r1', allowModulePermissions: 'ViewWiki'})],
-            [perm({roleId: 'r1', allowModulePermissions: 'None'})],
-        );
+  it('compares the module masks too', () => {
+    const diff = diffOverrides(
+      [perm({roleId: 'r1', allowModulePermissions: 'ViewWiki'})],
+      [perm({roleId: 'r1', allowModulePermissions: 'None'})],
+    );
 
-        expect(diff[0].change).toBe('changed');
-    });
+    expect(diff[0].change).toBe('changed');
+  });
 });
 ```
 
@@ -2065,65 +2104,62 @@ Create `src/app/features/guild/shared/permission-sync.ts`:
 import {ChannelPermission} from '../../../dtos/response/guild.dto';
 
 export interface OverrideDiffRow {
-    targetId: string;
-    kind: 'role' | 'member';
-    change: 'added' | 'removed' | 'changed' | 'same';
+  targetId: string;
+  kind: 'role' | 'member';
+  change: 'added' | 'removed' | 'changed' | 'same';
 }
 
 function keyOf(perm: ChannelPermission): string | null {
-    return perm.roleId ?? perm.memberId ?? null;
+  return perm.roleId ?? perm.memberId ?? null;
 }
 
 function kindOf(perm: ChannelPermission): 'role' | 'member' {
-    return perm.roleId ? 'role' : 'member';
+  return perm.roleId ? 'role' : 'member';
 }
 
 /** All four masks, since a module-only difference is still a difference. */
 function sameMasks(a: ChannelPermission, b: ChannelPermission): boolean {
-    return (
-        a.allowPermissions === b.allowPermissions &&
-        a.denyPermissions === b.denyPermissions &&
-        (a.allowModulePermissions ?? 'None') === (b.allowModulePermissions ?? 'None') &&
-        (a.denyModulePermissions ?? 'None') === (b.denyModulePermissions ?? 'None')
-    );
+  return (
+    a.allowPermissions === b.allowPermissions &&
+    a.denyPermissions === b.denyPermissions &&
+    (a.allowModulePermissions ?? 'None') === (b.allowModulePermissions ?? 'None') &&
+    (a.denyModulePermissions ?? 'None') === (b.denyModulePermissions ?? 'None')
+  );
 }
 
 /** What syncing this channel with its category would change, one row per target. */
 export function diffOverrides(
-    channel: ChannelPermission[],
-    category: ChannelPermission[],
+  channel: ChannelPermission[],
+  category: ChannelPermission[],
 ): OverrideDiffRow[] {
-    const byKey = new Map<string, {channel?: ChannelPermission; category?: ChannelPermission}>();
+  const byKey = new Map<string, {channel?: ChannelPermission; category?: ChannelPermission}>();
 
-    for (const perm of channel) {
-        const key = keyOf(perm);
-        if (key) byKey.set(key, {...byKey.get(key), channel: perm});
-    }
+  for (const perm of channel) {
+    const key = keyOf(perm);
+    if (key) byKey.set(key, {...byKey.get(key), channel: perm});
+  }
 
-    for (const perm of category) {
-        const key = keyOf(perm);
-        if (key) byKey.set(key, {...byKey.get(key), category: perm});
-    }
+  for (const perm of category) {
+    const key = keyOf(perm);
+    if (key) byKey.set(key, {...byKey.get(key), category: perm});
+  }
 
-    const rows: OverrideDiffRow[] = [];
-    for (const [targetId, pair] of byKey) {
-        const source = pair.channel ?? pair.category!;
-        const kind = kindOf(source);
+  const rows: OverrideDiffRow[] = [];
+  for (const [targetId, pair] of byKey) {
+    const source = pair.channel ?? pair.category!;
+    const kind = kindOf(source);
 
-        if (!pair.category) rows.push({targetId, kind, change: 'removed'});
-        else if (!pair.channel) rows.push({targetId, kind, change: 'added'});
-        else if (!sameMasks(pair.channel, pair.category)) rows.push({targetId, kind, change: 'changed'});
-        else rows.push({targetId, kind, change: 'same'});
-    }
+    if (!pair.category) rows.push({targetId, kind, change: 'removed'});
+    else if (!pair.channel) rows.push({targetId, kind, change: 'added'});
+    else if (!sameMasks(pair.channel, pair.category)) rows.push({targetId, kind, change: 'changed'});
+    else rows.push({targetId, kind, change: 'same'});
+  }
 
-    return rows;
+  return rows;
 }
 
-export function isSyncedWithCategory(
-    channel: ChannelPermission[],
-    category: ChannelPermission[],
-): boolean {
-    return diffOverrides(channel, category).every(row => row.change === 'same');
+export function isSyncedWithCategory(channel: ChannelPermission[], category: ChannelPermission[]): boolean {
+  return diffOverrides(channel, category).every(row => row.change === 'same');
 }
 ```
 
@@ -2138,46 +2174,46 @@ Create `channel-permissions.page.spec.ts` next to the component, with a `setup()
 
 ```ts
 describe('ChannelPermissionsComponent page', () => {
-    it('reports synced when the channel matches its category', () => {
-        const {component} = setup({channelOverrides: [], categoryOverrides: []});
+  it('reports synced when the channel matches its category', () => {
+    const {component} = setup({channelOverrides: [], categoryOverrides: []});
 
-        expect(component.synced()).toBe(true);
+    expect(component.synced()).toBe(true);
+  });
+
+  it('counts the overrides that differ', () => {
+    const {component} = setup({
+      channelOverrides: [perm({roleId: 'r1', denyPermissions: 'SendMessages'})],
+      categoryOverrides: [perm({roleId: 'r2'})],
     });
 
-    it('counts the overrides that differ', () => {
-        const {component} = setup({
-            channelOverrides: [perm({roleId: 'r1', denyPermissions: 'SendMessages'})],
-            categoryOverrides: [perm({roleId: 'r2'})],
-        });
+    expect(component.synced()).toBe(false);
+    expect(component.divergingCount()).toBe(2);
+  });
 
-        expect(component.synced()).toBe(false);
-        expect(component.divergingCount()).toBe(2);
+  it('offers no sync row for a channel with no category', () => {
+    const {component} = setup({categoryId: undefined});
+
+    expect(component.category()).toBeNull();
+  });
+
+  it('calls the sync route and re-reads the channel', () => {
+    const {component, guildService} = setup({
+      channelOverrides: [perm({roleId: 'r1'})],
+      categoryOverrides: [],
     });
 
-    it('offers no sync row for a channel with no category', () => {
-        const {component} = setup({categoryId: undefined});
+    component.resync();
 
-        expect(component.category()).toBeNull();
-    });
+    expect(guildService.syncChannelPermissions).toHaveBeenCalledWith(CHANNEL);
+  });
 
-    it('calls the sync route and re-reads the channel', () => {
-        const {component, guildService} = setup({
-            channelOverrides: [perm({roleId: 'r1'})],
-            categoryOverrides: [],
-        });
+  it('writes the private flag through updateChannel', () => {
+    const {component, guildService} = setup();
 
-        component.resync();
+    component.setPrivate(true);
 
-        expect(guildService.syncChannelPermissions).toHaveBeenCalledWith(CHANNEL);
-    });
-
-    it('writes the private flag through updateChannel', () => {
-        const {component, guildService} = setup();
-
-        component.setPrivate(true);
-
-        expect(guildService.updateChannel).toHaveBeenCalledWith(CHANNEL, {isPrivate: true});
-    });
+    expect(guildService.updateChannel).toHaveBeenCalledWith(CHANNEL, {isPrivate: true});
+  });
 });
 ```
 
@@ -2191,98 +2227,100 @@ import {ToggleSwitch} from 'primeng/toggleswitch';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
-import {CategoryDto, ChannelDto, ChannelPermission, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {
+  CategoryDto,
+  ChannelDto,
+  ChannelPermission,
+  GuildDto,
+} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {PermissionOverridesComponent} from '../../../../shared/permission-overrides/permission-overrides.component';
 import {channelScope} from '../../../../shared/permission-overrides/permission-scope';
 import {diffOverrides, isSyncedWithCategory} from '../../../../shared/permission-sync';
 
 @Component({
-    selector: 'app-channel-permissions',
-    imports: [ToggleSwitch, FormsModule, Button, TranslateModule, PermissionOverridesComponent],
-    templateUrl: './channel-permissions.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-channel-permissions',
+  imports: [ToggleSwitch, FormsModule, Button, TranslateModule, PermissionOverridesComponent],
+  templateUrl: './channel-permissions.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChannelPermissionsComponent {
-    readonly channel = input.required<ChannelDto>();
-    readonly guild = input.required<GuildDto>();
-    readonly categories = input<CategoryDto[]>([]);
+  readonly channel = input.required<ChannelDto>();
+  readonly guild = input.required<GuildDto>();
+  readonly categories = input<CategoryDto[]>([]);
 
-    protected readonly advancedOpen = signal(false);
-    protected readonly syncing = signal(false);
-    protected readonly diffOpen = signal(false);
-    protected readonly overrides = signal<ChannelPermission[] | null>(null);
+  protected readonly advancedOpen = signal(false);
+  protected readonly syncing = signal(false);
+  protected readonly diffOpen = signal(false);
+  protected readonly overrides = signal<ChannelPermission[] | null>(null);
 
-    private guildService = inject(GuildService);
+  private guildService = inject(GuildService);
 
-    protected readonly scope = computed(() => channelScope(this.channel()));
+  protected readonly scope = computed(() => channelScope(this.channel()));
 
-    /** Live overwrites: the signal once anything has saved, the input until then. */
-    protected readonly channelOverrides = computed(() => this.overrides() ?? this.channel().permissions);
+  /** Live overwrites: the signal once anything has saved, the input until then. */
+  protected readonly channelOverrides = computed(() => this.overrides() ?? this.channel().permissions);
 
-    readonly category = computed<CategoryDto | null>(
-        () => this.categories().find(c => c.id === this.channel().categoryId) ?? null,
-    );
+  readonly category = computed<CategoryDto | null>(
+    () => this.categories().find(c => c.id === this.channel().categoryId) ?? null,
+  );
 
-    readonly synced = computed(() => {
-        const category = this.category();
-        if (!category) return false;
-        return isSyncedWithCategory(this.channelOverrides(), category.permissions);
+  readonly synced = computed(() => {
+    const category = this.category();
+    if (!category) return false;
+    return isSyncedWithCategory(this.channelOverrides(), category.permissions);
+  });
+
+  readonly divergingCount = computed(() => {
+    const category = this.category();
+    if (!category) return 0;
+    return diffOverrides(this.channelOverrides(), category.permissions).filter(row => row.change !== 'same')
+      .length;
+  });
+
+  readonly diffRows = computed(() => {
+    const category = this.category();
+    if (!category) return [];
+    return diffOverrides(this.channelOverrides(), category.permissions).filter(row => row.change !== 'same');
+  });
+
+  setPrivate(isPrivate: boolean): void {
+    this.guildService.updateChannel(this.channel().id, {isPrivate}).subscribe({
+      next: updated => this.overrides.set(updated.permissions),
     });
+  }
 
-    readonly divergingCount = computed(() => {
-        const category = this.category();
-        if (!category) return 0;
-        return diffOverrides(this.channelOverrides(), category.permissions).filter(
-            row => row.change !== 'same',
-        ).length;
-    });
-
-    readonly diffRows = computed(() => {
-        const category = this.category();
-        if (!category) return [];
-        return diffOverrides(this.channelOverrides(), category.permissions).filter(
-            row => row.change !== 'same',
-        );
-    });
-
-    setPrivate(isPrivate: boolean): void {
-        this.guildService.updateChannel(this.channel().id, {isPrivate}).subscribe({
-            next: updated => this.overrides.set(updated.permissions),
-        });
-    }
-
-    resync(): void {
-        if (this.syncing()) return;
-        this.syncing.set(true);
-        this.guildService.syncChannelPermissions(this.channel().id).subscribe({
-            next: rows => {
-                this.overrides.set(rows);
-                this.syncing.set(false);
-                this.diffOpen.set(false);
-            },
-            error: () => this.syncing.set(false),
-        });
-    }
-
-    onOverridesChanged(rows: ChannelPermission[]): void {
+  resync(): void {
+    if (this.syncing()) return;
+    this.syncing.set(true);
+    this.guildService.syncChannelPermissions(this.channel().id).subscribe({
+      next: rows => {
         this.overrides.set(rows);
-    }
+        this.syncing.set(false);
+        this.diffOpen.set(false);
+      },
+      error: () => this.syncing.set(false),
+    });
+  }
 
-    toggleAdvanced(): void {
-        this.advancedOpen.update(open => !open);
-    }
+  onOverridesChanged(rows: ChannelPermission[]): void {
+    this.overrides.set(rows);
+  }
 
-    toggleDiff(): void {
-        this.diffOpen.update(open => !open);
-    }
+  toggleAdvanced(): void {
+    this.advancedOpen.update(open => !open);
+  }
 
-    nameOf(row: {targetId: string; kind: 'role' | 'member'}): string {
-        if (row.kind === 'role') {
-            return this.guild().roles.find(r => r.id === row.targetId)?.name ?? row.targetId;
-        }
-        return row.targetId;
+  toggleDiff(): void {
+    this.diffOpen.update(open => !open);
+  }
+
+  nameOf(row: {targetId: string; kind: 'role' | 'member'}): string {
+    if (row.kind === 'role') {
+      return this.guild().roles.find(r => r.id === row.targetId)?.name ?? row.targetId;
     }
+    return row.targetId;
+  }
 }
 ```
 

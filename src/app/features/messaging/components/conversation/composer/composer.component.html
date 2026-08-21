@@ -118,10 +118,7 @@
                     </button>
                 } @else if (join.open; as open) {
                     <button (click)="open()" [disabled]="join.busy" class="composer-turn-pass ml-auto" type="button">
-                        {{
-                            (join.state === 'open' ? 'SCENE.COMPOSER.CHOOSE' : 'SCENE.COMPOSER.ASK')
-                                | translate
-                        }}
+                        {{ (join.state === 'open' ? 'SCENE.COMPOSER.CHOOSE' : 'SCENE.COMPOSER.ASK') | translate }}
                     </button>
                 }
             </div>

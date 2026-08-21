@@ -5,15 +5,9 @@ import {SceneJoinPolicy, SceneVisibility} from '../../../dtos/response/scene.dto
 
 describe('scene access presets', () => {
     it('maps each legal pair to the table it is', () => {
-        expect(presetOf(SceneJoinPolicy.Open, SceneVisibility.Everyone)).toBe(
-            SceneAccessPreset.OpenTable,
-        );
-        expect(presetOf(SceneJoinPolicy.Ask, SceneVisibility.Everyone)).toBe(
-            SceneAccessPreset.AskToJoin,
-        );
-        expect(presetOf(SceneJoinPolicy.Ask, SceneVisibility.Cast)).toBe(
-            SceneAccessPreset.PrivateTable,
-        );
+        expect(presetOf(SceneJoinPolicy.Open, SceneVisibility.Everyone)).toBe(SceneAccessPreset.OpenTable);
+        expect(presetOf(SceneJoinPolicy.Ask, SceneVisibility.Everyone)).toBe(SceneAccessPreset.AskToJoin);
+        expect(presetOf(SceneJoinPolicy.Ask, SceneVisibility.Cast)).toBe(SceneAccessPreset.PrivateTable);
     });
 
     it('round-trips every preset through its pair', () => {
@@ -31,9 +25,7 @@ describe('scene access presets', () => {
 
     /** The server refuses this pair, so it can only arrive from an older row or a bad write. */
     it('reads a cast-only scene as private whatever its join policy says', () => {
-        expect(presetOf(SceneJoinPolicy.Open, SceneVisibility.Cast)).toBe(
-            SceneAccessPreset.PrivateTable,
-        );
+        expect(presetOf(SceneJoinPolicy.Open, SceneVisibility.Cast)).toBe(SceneAccessPreset.PrivateTable);
     });
 
     it('answers what each half of the pair means', () => {

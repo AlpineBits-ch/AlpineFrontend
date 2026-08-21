@@ -27,6 +27,7 @@
 - Use the built-in file tools, not shell `cat`/`grep`/`ls`; shell calls need manual approval and stall the run. Do not write `cd <path> && cmd`.
 
 Backend commits push straight to `main` once compliant.
+
 - Work on `main` in both repos. Never `git stash`, `git checkout --`, `git reset --hard`, `git clean`, or any other command that discards working-tree state.
 
 **Another agent is working on `main` in this repo at the same time, on an unrelated feature.** This is not a hypothetical:
@@ -35,7 +36,7 @@ Backend commits push straight to `main` once compliant.
 - Before committing, run `git status --short` and confirm every staged path belongs to your task. If something unexpected is staged, unstage it with `git restore --staged <path>`, which touches the index only and never the working tree.
 - Expect files you did not touch to change under you mid-task, and expect `bun run test` to show failures that are not yours. Re-run a suspect spec alone before attributing any failure to your own work, and say so in the hand-back rather than fixing it.
 - If a file this plan names has been restructured by the other agent, adapt to what is on disk. Do not revert their change to make the plan's snippet apply verbatim.
-- Capture a baseline before starting: `bun run test 2>&1 | tail -20`. The bar is no *new* failures, not a green suite.
+- Capture a baseline before starting: `bun run test 2>&1 | tail -20`. The bar is no _new_ failures, not a green suite.
 - No em dashes anywhere: code, comments, UI copy, commit messages.
 - No narrative rationale in comments. A comment earns its place only by stating an invariant whose violation is silent, or naming a non-obvious symbol.
 - 4-space indent, single quotes, semicolons, LF. No bracket spacing in imports: `import {Component, inject} from '@angular/core';`
@@ -57,12 +58,14 @@ Backend commits push straight to `main` once compliant.
 **Repo:** `C:\Users\Domin\RiderProjects\Echo`
 
 **Files:**
+
 - Modify: `Guild.Domain/Aggregates/Channel.cs`
 - Modify: `Guild.Domain/Validators/ChannelValidator.cs`
 - Create: `Guild.Infrastructure/Migrations/<timestamp>_AddChannelIcon.cs` (generated)
 - Test: `Guild.Tests/Domain/ChannelValidatorTests.cs`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `Channel.Icon` (`string?`), `Channel.IconColor` (`string?`), and two new `init` properties on `Channel.UpdateChannelParams`: `Icon` (`string?`), `IconColor` (`string?`), both carrying **absolute** values, not sentinels.
 
@@ -239,11 +242,13 @@ git commit -m "feat(guild): add icon and icon colour to channel"
 **Repo:** `C:\Users\Domin\RiderProjects\Echo`
 
 **Files:**
+
 - Modify: `Guild.Application/Dtos/Request/UpdateChannelDto.cs`
 - Modify: `Guild.Application/Endpoints/Channel/ChannelEndpoint.cs:176-252`
 - Test: `Guild.Tests/Endpoints/ChannelEndpointTests.cs`
 
 **Interfaces:**
+
 - Consumes: `Channel.Icon`, `Channel.IconColor`, `UpdateChannelParams.Icon`, `UpdateChannelParams.IconColor` from Task 1.
 - Produces: `UpdateChannelDto.Icon` (`string?`), `UpdateChannelDto.IconColor` (`string?`) carrying the clear sentinel. The PATCH 200 response gains `Icon`, `IconColor`, `Description`, `CategoryId`, `Position`, `SlowModeSeconds`.
 
@@ -419,11 +424,13 @@ git commit -m "feat(guild): accept icon and colour on the channel patch"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Create: `src/app/components/lucide-icon/lucide-icon.component.ts`
 - Test: `src/app/components/lucide-icon/lucide-icon.component.spec.ts`
 - Modify: `package.json` (add `lucide`)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `LucideIconComponent`, selector `app-lucide-icon`, one required input `icon: IconNode` where `IconNode` is imported from `lucide` and equals `[tag: string, attrs: SVGProps][]`. Renders an `svg` with `stroke="currentColor"`, so CSS `color` tints it.
 
@@ -444,52 +451,52 @@ import type {IconNode} from 'lucide';
 import {LucideIconComponent} from './lucide-icon.component';
 
 const TWO_PATHS: IconNode = [
-    ['path', {d: 'M1 1h10'}],
-    ['circle', {cx: '5', cy: '5', r: '3'}],
+  ['path', {d: 'M1 1h10'}],
+  ['circle', {cx: '5', cy: '5', r: '3'}],
 ];
 
 @Component({
-    imports: [LucideIconComponent],
-    template: '<app-lucide-icon [icon]="icon()" />',
+  imports: [LucideIconComponent],
+  template: '<app-lucide-icon [icon]="icon()" />',
 })
 class HostComponent {
-    readonly icon = signal<IconNode>(TWO_PATHS);
+  readonly icon = signal<IconNode>(TWO_PATHS);
 }
 
 describe('LucideIconComponent', () => {
-    function render() {
-        const fixture = TestBed.createComponent(HostComponent);
-        fixture.detectChanges();
-        return fixture;
-    }
+  function render() {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
 
-    it('renders one element per icon node, in order', () => {
-        const svg = render().nativeElement.querySelector('svg');
-        expect([...svg.children].map((c: Element) => c.tagName)).toEqual(['path', 'circle']);
-    });
+  it('renders one element per icon node, in order', () => {
+    const svg = render().nativeElement.querySelector('svg');
+    expect([...svg.children].map((c: Element) => c.tagName)).toEqual(['path', 'circle']);
+  });
 
-    it('applies every attribute from the node', () => {
-        const path = render().nativeElement.querySelector('path');
-        expect(path.getAttribute('d')).toBe('M1 1h10');
-    });
+  it('applies every attribute from the node', () => {
+    const path = render().nativeElement.querySelector('path');
+    expect(path.getAttribute('d')).toBe('M1 1h10');
+  });
 
-    it('strokes with currentColor so css can tint it', () => {
-        const svg = render().nativeElement.querySelector('svg');
-        expect(svg.getAttribute('stroke')).toBe('currentColor');
-    });
+  it('strokes with currentColor so css can tint it', () => {
+    const svg = render().nativeElement.querySelector('svg');
+    expect(svg.getAttribute('stroke')).toBe('currentColor');
+  });
 
-    it('is hidden from assistive tech', () => {
-        const svg = render().nativeElement.querySelector('svg');
-        expect(svg.getAttribute('aria-hidden')).toBe('true');
-    });
+  it('is hidden from assistive tech', () => {
+    const svg = render().nativeElement.querySelector('svg');
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+  });
 
-    it('replaces the children when the icon changes', () => {
-        const fixture = render();
-        fixture.componentInstance.icon.set([['rect', {x: '0', y: '0'}]]);
-        fixture.detectChanges();
-        const svg = fixture.nativeElement.querySelector('svg');
-        expect([...svg.children].map((c: Element) => c.tagName)).toEqual(['rect']);
-    });
+  it('replaces the children when the icon changes', () => {
+    const fixture = render();
+    fixture.componentInstance.icon.set([['rect', {x: '0', y: '0'}]]);
+    fixture.detectChanges();
+    const svg = fixture.nativeElement.querySelector('svg');
+    expect([...svg.children].map((c: Element) => c.tagName)).toEqual(['rect']);
+  });
 });
 ```
 
@@ -503,7 +510,15 @@ Expected: FAIL, cannot resolve `./lucide-icon.component`.
 Create `src/app/components/lucide-icon/lucide-icon.component.ts`:
 
 ```typescript
-import {ChangeDetectionStrategy, Component, effect, ElementRef, inject, input, viewChild} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  viewChild,
+} from '@angular/core';
 import {DOCUMENT} from '@angular/common';
 import type {IconNode} from 'lucide';
 
@@ -511,44 +526,44 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Renders one lucide icon. The data is bundled at build time, never user input. */
 @Component({
-    selector: 'app-lucide-icon',
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    host: {class: 'contents'},
-    template: `
-        <svg
-            #svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            width="1em"
-            height="1em"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-        ></svg>
-    `,
+  selector: 'app-lucide-icon',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {class: 'contents'},
+  template: `
+    <svg
+      #svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    ></svg>
+  `,
 })
 export class LucideIconComponent {
-    readonly icon = input.required<IconNode>();
+  readonly icon = input.required<IconNode>();
 
-    private readonly svg = viewChild.required<ElementRef<SVGSVGElement>>('svg');
-    private readonly doc = inject(DOCUMENT);
+  private readonly svg = viewChild.required<ElementRef<SVGSVGElement>>('svg');
+  private readonly doc = inject(DOCUMENT);
 
-    constructor() {
-        effect(() => {
-            const host = this.svg().nativeElement;
-            host.replaceChildren();
-            for (const [tag, attrs] of this.icon()) {
-                const el = this.doc.createElementNS(SVG_NS, tag);
-                for (const [name, value] of Object.entries(attrs)) {
-                    el.setAttribute(name, String(value));
-                }
-                host.appendChild(el);
-            }
-        });
-    }
+  constructor() {
+    effect(() => {
+      const host = this.svg().nativeElement;
+      host.replaceChildren();
+      for (const [tag, attrs] of this.icon()) {
+        const el = this.doc.createElementNS(SVG_NS, tag);
+        for (const [name, value] of Object.entries(attrs)) {
+          el.setAttribute(name, String(value));
+        }
+        host.appendChild(el);
+      }
+    });
+  }
 }
 ```
 
@@ -582,10 +597,12 @@ git commit -m "feat: add a lucide icon renderer"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Create: `src/app/features/guild/channel-icon-catalog.ts`
 - Test: `src/app/features/guild/channel-icon-catalog.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `IconNode` from `lucide` (Task 3 added the dependency).
 - Produces:
   - `type ChannelIconGroup = 'general' | 'communication' | 'gaming' | 'media' | 'places' | 'objects' | 'nature' | 'symbols'`
@@ -600,61 +617,58 @@ Create `src/app/features/guild/channel-icon-catalog.spec.ts`:
 
 ```typescript
 import {describe, expect, it} from 'vitest';
-import {
-    CHANNEL_ICON_CATALOG,
-    CHANNEL_ICON_GROUPS,
-    lookupChannelIcon,
-} from './channel-icon-catalog';
+import {CHANNEL_ICON_CATALOG, CHANNEL_ICON_GROUPS, lookupChannelIcon} from './channel-icon-catalog';
 
 const NAME_PATTERN = /^[a-z0-9-]{1,48}$/;
 
 describe('CHANNEL_ICON_CATALOG', () => {
-    it('has no duplicate names', () => {
-        const names = CHANNEL_ICON_CATALOG.map(e => e.name);
-        expect(new Set(names).size).toBe(names.length);
-    });
+  it('has no duplicate names', () => {
+    const names = CHANNEL_ICON_CATALOG.map(e => e.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
 
-    it('gives every entry a name the server will accept', () => {
-        for (const entry of CHANNEL_ICON_CATALOG) {
-            expect(entry.name, entry.name).toMatch(NAME_PATTERN);
-        }
-    });
+  it('gives every entry a name the server will accept', () => {
+    for (const entry of CHANNEL_ICON_CATALOG) {
+      expect(entry.name, entry.name).toMatch(NAME_PATTERN);
+    }
+  });
 
-    it('gives every entry non-empty icon data', () => {
-        for (const entry of CHANNEL_ICON_CATALOG) {
-            expect(entry.icon.length, entry.name).toBeGreaterThan(0);
-        }
-    });
+  it('gives every entry non-empty icon data', () => {
+    for (const entry of CHANNEL_ICON_CATALOG) {
+      expect(entry.icon.length, entry.name).toBeGreaterThan(0);
+    }
+  });
 
-    it('puts every entry in a declared group', () => {
-        for (const entry of CHANNEL_ICON_CATALOG) {
-            expect(CHANNEL_ICON_GROUPS, entry.name).toContain(entry.group);
-        }
-    });
+  it('puts every entry in a declared group', () => {
+    for (const entry of CHANNEL_ICON_CATALOG) {
+      expect(CHANNEL_ICON_GROUPS, entry.name).toContain(entry.group);
+    }
+  });
 
-    it('fills every declared group', () => {
-        for (const group of CHANNEL_ICON_GROUPS) {
-            expect(CHANNEL_ICON_CATALOG.some(e => e.group === group), group).toBe(true);
-        }
-    });
+  it('fills every declared group', () => {
+    for (const group of CHANNEL_ICON_GROUPS) {
+      expect(
+        CHANNEL_ICON_CATALOG.some(e => e.group === group),
+        group,
+      ).toBe(true);
+    }
+  });
 });
 
 describe('lookupChannelIcon', () => {
-    it('resolves a catalog name to its data', () => {
-        expect(lookupChannelIcon('volume-2')).toBe(
-            CHANNEL_ICON_CATALOG.find(e => e.name === 'volume-2')!.icon,
-        );
-    });
+  it('resolves a catalog name to its data', () => {
+    expect(lookupChannelIcon('volume-2')).toBe(CHANNEL_ICON_CATALOG.find(e => e.name === 'volume-2')!.icon);
+  });
 
-    it('returns null for a name it does not ship', () => {
-        expect(lookupChannelIcon('not-a-real-icon')).toBeNull();
-    });
+  it('returns null for a name it does not ship', () => {
+    expect(lookupChannelIcon('not-a-real-icon')).toBeNull();
+  });
 
-    it('returns null for null, undefined and empty', () => {
-        expect(lookupChannelIcon(null)).toBeNull();
-        expect(lookupChannelIcon(undefined)).toBeNull();
-        expect(lookupChannelIcon('')).toBeNull();
-    });
+  it('returns null for null, undefined and empty', () => {
+    expect(lookupChannelIcon(null)).toBeNull();
+    expect(lookupChannelIcon(undefined)).toBeNull();
+    expect(lookupChannelIcon('')).toBeNull();
+  });
 });
 ```
 
@@ -672,247 +686,395 @@ Three lucide exports collide with globals this file or its consumers rely on, so
 ```typescript
 import type {IconNode} from 'lucide';
 import {
-    Anchor, Archive, Award, Bell, Bookmark, Box, Calendar, Clock, Cog, Compass,
-    Crown, Flag, Folder, Hash, Home, Inbox, Info, Layers, LifeBuoy, Link,
-    List, Lock, Mail, Map as MapIcon, Megaphone, Package, Paperclip, Pin, Search, Settings,
-    Shield, Star, Tag, Target, Trophy, Users, Wallet, Wrench,
-    AtSign, Handshake, HeartHandshake, MessageCircle, MessageSquare, MessagesSquare, Mic, Phone, Podcast, Quote,
-    Radio, Reply, Send, Speech, Video, Voicemail, Volume2, Vote,
-    Bomb, Castle, Crosshair, Dice5, Drama, Ghost, Gamepad2, Joystick, Puzzle, Rocket,
-    Scroll, Shapes, Skull, Sparkles, Swords, Tent, Wand2, Zap,
-    Aperture, Book, BookOpen, Camera, Clapperboard, Disc3, Film, Headphones, Image as ImageIcon, Images,
-    Library, Music, Newspaper, Palette, Piano, Projector, Tv, Youtube,
-    Anvil, Building2, Church, Factory, Fence, Landmark, MapPin, Mountain, Route, School,
-    Ship, Signpost, Store, Train, Warehouse, Waypoints,
-    Backpack, Banknote, Beaker, Bike, Briefcase, Brush, Car, ChefHat, Coffee, Coins,
-    Cpu, Croissant, Gem, Gift, Glasses, Hammer, Key, Lamp, Laptop, Pizza,
-    Scissors, Shirt, ShoppingCart, Sofa, Syringe, Utensils, Wine,
-    Bird, Bug, Cat, Cherry, Cloud, Clover, Dog, Droplet, Feather, Fish,
-    Flame, Flower2, Leaf, Moon, Rabbit, Snowflake, Sprout, Sun, TreePine, Waves,
-    Activity, Asterisk, Atom, Binary, BrainCircuit, CircleDot, Code, Diamond, Divide, Eye,
-    Heart, Hexagon, Infinity as InfinityIcon, Orbit, Percent, Pyramid, Sigma, Spade, Triangle,
+  Anchor,
+  Archive,
+  Award,
+  Bell,
+  Bookmark,
+  Box,
+  Calendar,
+  Clock,
+  Cog,
+  Compass,
+  Crown,
+  Flag,
+  Folder,
+  Hash,
+  Home,
+  Inbox,
+  Info,
+  Layers,
+  LifeBuoy,
+  Link,
+  List,
+  Lock,
+  Mail,
+  Map as MapIcon,
+  Megaphone,
+  Package,
+  Paperclip,
+  Pin,
+  Search,
+  Settings,
+  Shield,
+  Star,
+  Tag,
+  Target,
+  Trophy,
+  Users,
+  Wallet,
+  Wrench,
+  AtSign,
+  Handshake,
+  HeartHandshake,
+  MessageCircle,
+  MessageSquare,
+  MessagesSquare,
+  Mic,
+  Phone,
+  Podcast,
+  Quote,
+  Radio,
+  Reply,
+  Send,
+  Speech,
+  Video,
+  Voicemail,
+  Volume2,
+  Vote,
+  Bomb,
+  Castle,
+  Crosshair,
+  Dice5,
+  Drama,
+  Ghost,
+  Gamepad2,
+  Joystick,
+  Puzzle,
+  Rocket,
+  Scroll,
+  Shapes,
+  Skull,
+  Sparkles,
+  Swords,
+  Tent,
+  Wand2,
+  Zap,
+  Aperture,
+  Book,
+  BookOpen,
+  Camera,
+  Clapperboard,
+  Disc3,
+  Film,
+  Headphones,
+  Image as ImageIcon,
+  Images,
+  Library,
+  Music,
+  Newspaper,
+  Palette,
+  Piano,
+  Projector,
+  Tv,
+  Youtube,
+  Anvil,
+  Building2,
+  Church,
+  Factory,
+  Fence,
+  Landmark,
+  MapPin,
+  Mountain,
+  Route,
+  School,
+  Ship,
+  Signpost,
+  Store,
+  Train,
+  Warehouse,
+  Waypoints,
+  Backpack,
+  Banknote,
+  Beaker,
+  Bike,
+  Briefcase,
+  Brush,
+  Car,
+  ChefHat,
+  Coffee,
+  Coins,
+  Cpu,
+  Croissant,
+  Gem,
+  Gift,
+  Glasses,
+  Hammer,
+  Key,
+  Lamp,
+  Laptop,
+  Pizza,
+  Scissors,
+  Shirt,
+  ShoppingCart,
+  Sofa,
+  Syringe,
+  Utensils,
+  Wine,
+  Bird,
+  Bug,
+  Cat,
+  Cherry,
+  Cloud,
+  Clover,
+  Dog,
+  Droplet,
+  Feather,
+  Fish,
+  Flame,
+  Flower2,
+  Leaf,
+  Moon,
+  Rabbit,
+  Snowflake,
+  Sprout,
+  Sun,
+  TreePine,
+  Waves,
+  Activity,
+  Asterisk,
+  Atom,
+  Binary,
+  BrainCircuit,
+  CircleDot,
+  Code,
+  Diamond,
+  Divide,
+  Eye,
+  Heart,
+  Hexagon,
+  Infinity as InfinityIcon,
+  Orbit,
+  Percent,
+  Pyramid,
+  Sigma,
+  Spade,
+  Triangle,
 } from 'lucide';
 
 export type ChannelIconGroup =
-    | 'general'
-    | 'communication'
-    | 'gaming'
-    | 'media'
-    | 'places'
-    | 'objects'
-    | 'nature'
-    | 'symbols';
+  'general' | 'communication' | 'gaming' | 'media' | 'places' | 'objects' | 'nature' | 'symbols';
 
 export interface ChannelIconEntry {
-    /** The stored value. Must satisfy the server's `^[a-z0-9-]{1,48}$`. */
-    name: string;
-    icon: IconNode;
-    group: ChannelIconGroup;
+  /** The stored value. Must satisfy the server's `^[a-z0-9-]{1,48}$`. */
+  name: string;
+  icon: IconNode;
+  group: ChannelIconGroup;
 }
 
 /** Picker order. */
 export const CHANNEL_ICON_GROUPS: readonly ChannelIconGroup[] = [
-    'general',
-    'communication',
-    'gaming',
-    'media',
-    'places',
-    'objects',
-    'nature',
-    'symbols',
+  'general',
+  'communication',
+  'gaming',
+  'media',
+  'places',
+  'objects',
+  'nature',
+  'symbols',
 ];
 
 /** The only place a channel icon may come from. The picker and the name lookup both derive from it, so a listed icon is always resolvable and a resolvable icon is always listed. */
 export const CHANNEL_ICON_CATALOG: readonly ChannelIconEntry[] = [
-    {name: 'anchor', icon: Anchor, group: 'general'},
-    {name: 'archive', icon: Archive, group: 'general'},
-    {name: 'award', icon: Award, group: 'general'},
-    {name: 'bell', icon: Bell, group: 'general'},
-    {name: 'bookmark', icon: Bookmark, group: 'general'},
-    {name: 'box', icon: Box, group: 'general'},
-    {name: 'calendar', icon: Calendar, group: 'general'},
-    {name: 'clock', icon: Clock, group: 'general'},
-    {name: 'cog', icon: Cog, group: 'general'},
-    {name: 'compass', icon: Compass, group: 'general'},
-    {name: 'crown', icon: Crown, group: 'general'},
-    {name: 'flag', icon: Flag, group: 'general'},
-    {name: 'folder', icon: Folder, group: 'general'},
-    {name: 'hash', icon: Hash, group: 'general'},
-    {name: 'home', icon: Home, group: 'general'},
-    {name: 'inbox', icon: Inbox, group: 'general'},
-    {name: 'info', icon: Info, group: 'general'},
-    {name: 'layers', icon: Layers, group: 'general'},
-    {name: 'life-buoy', icon: LifeBuoy, group: 'general'},
-    {name: 'link', icon: Link, group: 'general'},
-    {name: 'list', icon: List, group: 'general'},
-    {name: 'lock', icon: Lock, group: 'general'},
-    {name: 'mail', icon: Mail, group: 'general'},
-    {name: 'map', icon: MapIcon, group: 'general'},
-    {name: 'megaphone', icon: Megaphone, group: 'general'},
-    {name: 'package', icon: Package, group: 'general'},
-    {name: 'paperclip', icon: Paperclip, group: 'general'},
-    {name: 'pin', icon: Pin, group: 'general'},
-    {name: 'search', icon: Search, group: 'general'},
-    {name: 'settings', icon: Settings, group: 'general'},
-    {name: 'shield', icon: Shield, group: 'general'},
-    {name: 'star', icon: Star, group: 'general'},
-    {name: 'tag', icon: Tag, group: 'general'},
-    {name: 'target', icon: Target, group: 'general'},
-    {name: 'trophy', icon: Trophy, group: 'general'},
-    {name: 'users', icon: Users, group: 'general'},
-    {name: 'wallet', icon: Wallet, group: 'general'},
-    {name: 'wrench', icon: Wrench, group: 'general'},
+  {name: 'anchor', icon: Anchor, group: 'general'},
+  {name: 'archive', icon: Archive, group: 'general'},
+  {name: 'award', icon: Award, group: 'general'},
+  {name: 'bell', icon: Bell, group: 'general'},
+  {name: 'bookmark', icon: Bookmark, group: 'general'},
+  {name: 'box', icon: Box, group: 'general'},
+  {name: 'calendar', icon: Calendar, group: 'general'},
+  {name: 'clock', icon: Clock, group: 'general'},
+  {name: 'cog', icon: Cog, group: 'general'},
+  {name: 'compass', icon: Compass, group: 'general'},
+  {name: 'crown', icon: Crown, group: 'general'},
+  {name: 'flag', icon: Flag, group: 'general'},
+  {name: 'folder', icon: Folder, group: 'general'},
+  {name: 'hash', icon: Hash, group: 'general'},
+  {name: 'home', icon: Home, group: 'general'},
+  {name: 'inbox', icon: Inbox, group: 'general'},
+  {name: 'info', icon: Info, group: 'general'},
+  {name: 'layers', icon: Layers, group: 'general'},
+  {name: 'life-buoy', icon: LifeBuoy, group: 'general'},
+  {name: 'link', icon: Link, group: 'general'},
+  {name: 'list', icon: List, group: 'general'},
+  {name: 'lock', icon: Lock, group: 'general'},
+  {name: 'mail', icon: Mail, group: 'general'},
+  {name: 'map', icon: MapIcon, group: 'general'},
+  {name: 'megaphone', icon: Megaphone, group: 'general'},
+  {name: 'package', icon: Package, group: 'general'},
+  {name: 'paperclip', icon: Paperclip, group: 'general'},
+  {name: 'pin', icon: Pin, group: 'general'},
+  {name: 'search', icon: Search, group: 'general'},
+  {name: 'settings', icon: Settings, group: 'general'},
+  {name: 'shield', icon: Shield, group: 'general'},
+  {name: 'star', icon: Star, group: 'general'},
+  {name: 'tag', icon: Tag, group: 'general'},
+  {name: 'target', icon: Target, group: 'general'},
+  {name: 'trophy', icon: Trophy, group: 'general'},
+  {name: 'users', icon: Users, group: 'general'},
+  {name: 'wallet', icon: Wallet, group: 'general'},
+  {name: 'wrench', icon: Wrench, group: 'general'},
 
-    {name: 'at-sign', icon: AtSign, group: 'communication'},
-    {name: 'handshake', icon: Handshake, group: 'communication'},
-    {name: 'heart-handshake', icon: HeartHandshake, group: 'communication'},
-    {name: 'message-circle', icon: MessageCircle, group: 'communication'},
-    {name: 'message-square', icon: MessageSquare, group: 'communication'},
-    {name: 'messages-square', icon: MessagesSquare, group: 'communication'},
-    {name: 'mic', icon: Mic, group: 'communication'},
-    {name: 'phone', icon: Phone, group: 'communication'},
-    {name: 'podcast', icon: Podcast, group: 'communication'},
-    {name: 'quote', icon: Quote, group: 'communication'},
-    {name: 'radio', icon: Radio, group: 'communication'},
-    {name: 'reply', icon: Reply, group: 'communication'},
-    {name: 'send', icon: Send, group: 'communication'},
-    {name: 'speech', icon: Speech, group: 'communication'},
-    {name: 'video', icon: Video, group: 'communication'},
-    {name: 'voicemail', icon: Voicemail, group: 'communication'},
-    {name: 'volume-2', icon: Volume2, group: 'communication'},
-    {name: 'vote', icon: Vote, group: 'communication'},
+  {name: 'at-sign', icon: AtSign, group: 'communication'},
+  {name: 'handshake', icon: Handshake, group: 'communication'},
+  {name: 'heart-handshake', icon: HeartHandshake, group: 'communication'},
+  {name: 'message-circle', icon: MessageCircle, group: 'communication'},
+  {name: 'message-square', icon: MessageSquare, group: 'communication'},
+  {name: 'messages-square', icon: MessagesSquare, group: 'communication'},
+  {name: 'mic', icon: Mic, group: 'communication'},
+  {name: 'phone', icon: Phone, group: 'communication'},
+  {name: 'podcast', icon: Podcast, group: 'communication'},
+  {name: 'quote', icon: Quote, group: 'communication'},
+  {name: 'radio', icon: Radio, group: 'communication'},
+  {name: 'reply', icon: Reply, group: 'communication'},
+  {name: 'send', icon: Send, group: 'communication'},
+  {name: 'speech', icon: Speech, group: 'communication'},
+  {name: 'video', icon: Video, group: 'communication'},
+  {name: 'voicemail', icon: Voicemail, group: 'communication'},
+  {name: 'volume-2', icon: Volume2, group: 'communication'},
+  {name: 'vote', icon: Vote, group: 'communication'},
 
-    {name: 'bomb', icon: Bomb, group: 'gaming'},
-    {name: 'castle', icon: Castle, group: 'gaming'},
-    {name: 'crosshair', icon: Crosshair, group: 'gaming'},
-    {name: 'dice-5', icon: Dice5, group: 'gaming'},
-    {name: 'drama', icon: Drama, group: 'gaming'},
-    {name: 'gamepad-2', icon: Gamepad2, group: 'gaming'},
-    {name: 'ghost', icon: Ghost, group: 'gaming'},
-    {name: 'joystick', icon: Joystick, group: 'gaming'},
-    {name: 'puzzle', icon: Puzzle, group: 'gaming'},
-    {name: 'rocket', icon: Rocket, group: 'gaming'},
-    {name: 'scroll', icon: Scroll, group: 'gaming'},
-    {name: 'shapes', icon: Shapes, group: 'gaming'},
-    {name: 'skull', icon: Skull, group: 'gaming'},
-    {name: 'sparkles', icon: Sparkles, group: 'gaming'},
-    {name: 'swords', icon: Swords, group: 'gaming'},
-    {name: 'tent', icon: Tent, group: 'gaming'},
-    {name: 'wand-2', icon: Wand2, group: 'gaming'},
-    {name: 'zap', icon: Zap, group: 'gaming'},
+  {name: 'bomb', icon: Bomb, group: 'gaming'},
+  {name: 'castle', icon: Castle, group: 'gaming'},
+  {name: 'crosshair', icon: Crosshair, group: 'gaming'},
+  {name: 'dice-5', icon: Dice5, group: 'gaming'},
+  {name: 'drama', icon: Drama, group: 'gaming'},
+  {name: 'gamepad-2', icon: Gamepad2, group: 'gaming'},
+  {name: 'ghost', icon: Ghost, group: 'gaming'},
+  {name: 'joystick', icon: Joystick, group: 'gaming'},
+  {name: 'puzzle', icon: Puzzle, group: 'gaming'},
+  {name: 'rocket', icon: Rocket, group: 'gaming'},
+  {name: 'scroll', icon: Scroll, group: 'gaming'},
+  {name: 'shapes', icon: Shapes, group: 'gaming'},
+  {name: 'skull', icon: Skull, group: 'gaming'},
+  {name: 'sparkles', icon: Sparkles, group: 'gaming'},
+  {name: 'swords', icon: Swords, group: 'gaming'},
+  {name: 'tent', icon: Tent, group: 'gaming'},
+  {name: 'wand-2', icon: Wand2, group: 'gaming'},
+  {name: 'zap', icon: Zap, group: 'gaming'},
 
-    {name: 'aperture', icon: Aperture, group: 'media'},
-    {name: 'book', icon: Book, group: 'media'},
-    {name: 'book-open', icon: BookOpen, group: 'media'},
-    {name: 'camera', icon: Camera, group: 'media'},
-    {name: 'clapperboard', icon: Clapperboard, group: 'media'},
-    {name: 'disc-3', icon: Disc3, group: 'media'},
-    {name: 'film', icon: Film, group: 'media'},
-    {name: 'headphones', icon: Headphones, group: 'media'},
-    {name: 'image', icon: ImageIcon, group: 'media'},
-    {name: 'images', icon: Images, group: 'media'},
-    {name: 'library', icon: Library, group: 'media'},
-    {name: 'music', icon: Music, group: 'media'},
-    {name: 'newspaper', icon: Newspaper, group: 'media'},
-    {name: 'palette', icon: Palette, group: 'media'},
-    {name: 'piano', icon: Piano, group: 'media'},
-    {name: 'projector', icon: Projector, group: 'media'},
-    {name: 'tv', icon: Tv, group: 'media'},
-    {name: 'youtube', icon: Youtube, group: 'media'},
+  {name: 'aperture', icon: Aperture, group: 'media'},
+  {name: 'book', icon: Book, group: 'media'},
+  {name: 'book-open', icon: BookOpen, group: 'media'},
+  {name: 'camera', icon: Camera, group: 'media'},
+  {name: 'clapperboard', icon: Clapperboard, group: 'media'},
+  {name: 'disc-3', icon: Disc3, group: 'media'},
+  {name: 'film', icon: Film, group: 'media'},
+  {name: 'headphones', icon: Headphones, group: 'media'},
+  {name: 'image', icon: ImageIcon, group: 'media'},
+  {name: 'images', icon: Images, group: 'media'},
+  {name: 'library', icon: Library, group: 'media'},
+  {name: 'music', icon: Music, group: 'media'},
+  {name: 'newspaper', icon: Newspaper, group: 'media'},
+  {name: 'palette', icon: Palette, group: 'media'},
+  {name: 'piano', icon: Piano, group: 'media'},
+  {name: 'projector', icon: Projector, group: 'media'},
+  {name: 'tv', icon: Tv, group: 'media'},
+  {name: 'youtube', icon: Youtube, group: 'media'},
 
-    {name: 'anvil', icon: Anvil, group: 'places'},
-    {name: 'building-2', icon: Building2, group: 'places'},
-    {name: 'church', icon: Church, group: 'places'},
-    {name: 'factory', icon: Factory, group: 'places'},
-    {name: 'fence', icon: Fence, group: 'places'},
-    {name: 'landmark', icon: Landmark, group: 'places'},
-    {name: 'map-pin', icon: MapPin, group: 'places'},
-    {name: 'mountain', icon: Mountain, group: 'places'},
-    {name: 'route', icon: Route, group: 'places'},
-    {name: 'school', icon: School, group: 'places'},
-    {name: 'ship', icon: Ship, group: 'places'},
-    {name: 'signpost', icon: Signpost, group: 'places'},
-    {name: 'store', icon: Store, group: 'places'},
-    {name: 'train', icon: Train, group: 'places'},
-    {name: 'warehouse', icon: Warehouse, group: 'places'},
-    {name: 'waypoints', icon: Waypoints, group: 'places'},
+  {name: 'anvil', icon: Anvil, group: 'places'},
+  {name: 'building-2', icon: Building2, group: 'places'},
+  {name: 'church', icon: Church, group: 'places'},
+  {name: 'factory', icon: Factory, group: 'places'},
+  {name: 'fence', icon: Fence, group: 'places'},
+  {name: 'landmark', icon: Landmark, group: 'places'},
+  {name: 'map-pin', icon: MapPin, group: 'places'},
+  {name: 'mountain', icon: Mountain, group: 'places'},
+  {name: 'route', icon: Route, group: 'places'},
+  {name: 'school', icon: School, group: 'places'},
+  {name: 'ship', icon: Ship, group: 'places'},
+  {name: 'signpost', icon: Signpost, group: 'places'},
+  {name: 'store', icon: Store, group: 'places'},
+  {name: 'train', icon: Train, group: 'places'},
+  {name: 'warehouse', icon: Warehouse, group: 'places'},
+  {name: 'waypoints', icon: Waypoints, group: 'places'},
 
-    {name: 'backpack', icon: Backpack, group: 'objects'},
-    {name: 'banknote', icon: Banknote, group: 'objects'},
-    {name: 'beaker', icon: Beaker, group: 'objects'},
-    {name: 'bike', icon: Bike, group: 'objects'},
-    {name: 'briefcase', icon: Briefcase, group: 'objects'},
-    {name: 'brush', icon: Brush, group: 'objects'},
-    {name: 'car', icon: Car, group: 'objects'},
-    {name: 'chef-hat', icon: ChefHat, group: 'objects'},
-    {name: 'coffee', icon: Coffee, group: 'objects'},
-    {name: 'coins', icon: Coins, group: 'objects'},
-    {name: 'cpu', icon: Cpu, group: 'objects'},
-    {name: 'croissant', icon: Croissant, group: 'objects'},
-    {name: 'gem', icon: Gem, group: 'objects'},
-    {name: 'gift', icon: Gift, group: 'objects'},
-    {name: 'glasses', icon: Glasses, group: 'objects'},
-    {name: 'hammer', icon: Hammer, group: 'objects'},
-    {name: 'key', icon: Key, group: 'objects'},
-    {name: 'lamp', icon: Lamp, group: 'objects'},
-    {name: 'laptop', icon: Laptop, group: 'objects'},
-    {name: 'pizza', icon: Pizza, group: 'objects'},
-    {name: 'scissors', icon: Scissors, group: 'objects'},
-    {name: 'shirt', icon: Shirt, group: 'objects'},
-    {name: 'shopping-cart', icon: ShoppingCart, group: 'objects'},
-    {name: 'sofa', icon: Sofa, group: 'objects'},
-    {name: 'syringe', icon: Syringe, group: 'objects'},
-    {name: 'utensils', icon: Utensils, group: 'objects'},
-    {name: 'wine', icon: Wine, group: 'objects'},
+  {name: 'backpack', icon: Backpack, group: 'objects'},
+  {name: 'banknote', icon: Banknote, group: 'objects'},
+  {name: 'beaker', icon: Beaker, group: 'objects'},
+  {name: 'bike', icon: Bike, group: 'objects'},
+  {name: 'briefcase', icon: Briefcase, group: 'objects'},
+  {name: 'brush', icon: Brush, group: 'objects'},
+  {name: 'car', icon: Car, group: 'objects'},
+  {name: 'chef-hat', icon: ChefHat, group: 'objects'},
+  {name: 'coffee', icon: Coffee, group: 'objects'},
+  {name: 'coins', icon: Coins, group: 'objects'},
+  {name: 'cpu', icon: Cpu, group: 'objects'},
+  {name: 'croissant', icon: Croissant, group: 'objects'},
+  {name: 'gem', icon: Gem, group: 'objects'},
+  {name: 'gift', icon: Gift, group: 'objects'},
+  {name: 'glasses', icon: Glasses, group: 'objects'},
+  {name: 'hammer', icon: Hammer, group: 'objects'},
+  {name: 'key', icon: Key, group: 'objects'},
+  {name: 'lamp', icon: Lamp, group: 'objects'},
+  {name: 'laptop', icon: Laptop, group: 'objects'},
+  {name: 'pizza', icon: Pizza, group: 'objects'},
+  {name: 'scissors', icon: Scissors, group: 'objects'},
+  {name: 'shirt', icon: Shirt, group: 'objects'},
+  {name: 'shopping-cart', icon: ShoppingCart, group: 'objects'},
+  {name: 'sofa', icon: Sofa, group: 'objects'},
+  {name: 'syringe', icon: Syringe, group: 'objects'},
+  {name: 'utensils', icon: Utensils, group: 'objects'},
+  {name: 'wine', icon: Wine, group: 'objects'},
 
-    {name: 'bird', icon: Bird, group: 'nature'},
-    {name: 'bug', icon: Bug, group: 'nature'},
-    {name: 'cat', icon: Cat, group: 'nature'},
-    {name: 'cherry', icon: Cherry, group: 'nature'},
-    {name: 'cloud', icon: Cloud, group: 'nature'},
-    {name: 'clover', icon: Clover, group: 'nature'},
-    {name: 'dog', icon: Dog, group: 'nature'},
-    {name: 'droplet', icon: Droplet, group: 'nature'},
-    {name: 'feather', icon: Feather, group: 'nature'},
-    {name: 'fish', icon: Fish, group: 'nature'},
-    {name: 'flame', icon: Flame, group: 'nature'},
-    {name: 'flower-2', icon: Flower2, group: 'nature'},
-    {name: 'leaf', icon: Leaf, group: 'nature'},
-    {name: 'moon', icon: Moon, group: 'nature'},
-    {name: 'rabbit', icon: Rabbit, group: 'nature'},
-    {name: 'snowflake', icon: Snowflake, group: 'nature'},
-    {name: 'sprout', icon: Sprout, group: 'nature'},
-    {name: 'sun', icon: Sun, group: 'nature'},
-    {name: 'tree-pine', icon: TreePine, group: 'nature'},
-    {name: 'waves', icon: Waves, group: 'nature'},
+  {name: 'bird', icon: Bird, group: 'nature'},
+  {name: 'bug', icon: Bug, group: 'nature'},
+  {name: 'cat', icon: Cat, group: 'nature'},
+  {name: 'cherry', icon: Cherry, group: 'nature'},
+  {name: 'cloud', icon: Cloud, group: 'nature'},
+  {name: 'clover', icon: Clover, group: 'nature'},
+  {name: 'dog', icon: Dog, group: 'nature'},
+  {name: 'droplet', icon: Droplet, group: 'nature'},
+  {name: 'feather', icon: Feather, group: 'nature'},
+  {name: 'fish', icon: Fish, group: 'nature'},
+  {name: 'flame', icon: Flame, group: 'nature'},
+  {name: 'flower-2', icon: Flower2, group: 'nature'},
+  {name: 'leaf', icon: Leaf, group: 'nature'},
+  {name: 'moon', icon: Moon, group: 'nature'},
+  {name: 'rabbit', icon: Rabbit, group: 'nature'},
+  {name: 'snowflake', icon: Snowflake, group: 'nature'},
+  {name: 'sprout', icon: Sprout, group: 'nature'},
+  {name: 'sun', icon: Sun, group: 'nature'},
+  {name: 'tree-pine', icon: TreePine, group: 'nature'},
+  {name: 'waves', icon: Waves, group: 'nature'},
 
-    {name: 'activity', icon: Activity, group: 'symbols'},
-    {name: 'asterisk', icon: Asterisk, group: 'symbols'},
-    {name: 'atom', icon: Atom, group: 'symbols'},
-    {name: 'binary', icon: Binary, group: 'symbols'},
-    {name: 'brain-circuit', icon: BrainCircuit, group: 'symbols'},
-    {name: 'circle-dot', icon: CircleDot, group: 'symbols'},
-    {name: 'code', icon: Code, group: 'symbols'},
-    {name: 'diamond', icon: Diamond, group: 'symbols'},
-    {name: 'divide', icon: Divide, group: 'symbols'},
-    {name: 'eye', icon: Eye, group: 'symbols'},
-    {name: 'heart', icon: Heart, group: 'symbols'},
-    {name: 'hexagon', icon: Hexagon, group: 'symbols'},
-    {name: 'infinity', icon: InfinityIcon, group: 'symbols'},
-    {name: 'orbit', icon: Orbit, group: 'symbols'},
-    {name: 'percent', icon: Percent, group: 'symbols'},
-    {name: 'pyramid', icon: Pyramid, group: 'symbols'},
-    {name: 'sigma', icon: Sigma, group: 'symbols'},
-    {name: 'spade', icon: Spade, group: 'symbols'},
-    {name: 'triangle', icon: Triangle, group: 'symbols'},
+  {name: 'activity', icon: Activity, group: 'symbols'},
+  {name: 'asterisk', icon: Asterisk, group: 'symbols'},
+  {name: 'atom', icon: Atom, group: 'symbols'},
+  {name: 'binary', icon: Binary, group: 'symbols'},
+  {name: 'brain-circuit', icon: BrainCircuit, group: 'symbols'},
+  {name: 'circle-dot', icon: CircleDot, group: 'symbols'},
+  {name: 'code', icon: Code, group: 'symbols'},
+  {name: 'diamond', icon: Diamond, group: 'symbols'},
+  {name: 'divide', icon: Divide, group: 'symbols'},
+  {name: 'eye', icon: Eye, group: 'symbols'},
+  {name: 'heart', icon: Heart, group: 'symbols'},
+  {name: 'hexagon', icon: Hexagon, group: 'symbols'},
+  {name: 'infinity', icon: InfinityIcon, group: 'symbols'},
+  {name: 'orbit', icon: Orbit, group: 'symbols'},
+  {name: 'percent', icon: Percent, group: 'symbols'},
+  {name: 'pyramid', icon: Pyramid, group: 'symbols'},
+  {name: 'sigma', icon: Sigma, group: 'symbols'},
+  {name: 'spade', icon: Spade, group: 'symbols'},
+  {name: 'triangle', icon: Triangle, group: 'symbols'},
 ];
 
 const ICON_BY_NAME = new Map<string, IconNode>(CHANNEL_ICON_CATALOG.map(e => [e.name, e.icon]));
 
 /** Null for anything this build does not ship, which is what keeps an icon name from a newer server off the render path. */
 export function lookupChannelIcon(name: string | null | undefined): IconNode | null {
-    if (!name) return null;
-    return ICON_BY_NAME.get(name) ?? null;
+  if (!name) return null;
+  return ICON_BY_NAME.get(name) ?? null;
 }
 ```
 
@@ -951,12 +1113,14 @@ git commit -m "feat(guild): add the channel icon catalog"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Modify: `src/app/features/guild/channel-types.ts:18-181`
 - Modify: `src/app/features/guild/channel-types.spec.ts:37-68`
 - Modify: `src/app/dtos/response/guild.dto.ts:33-63`
 - Modify: `src/app/services/guild.service.ts:95-101`
 
 **Interfaces:**
+
 - Consumes: `lookupChannelIcon` and `CHANNEL_ICON_CATALOG` from Task 4.
 - Produces:
   - `ChannelDto.icon?: string`, `ChannelDto.iconColor?: string`
@@ -970,36 +1134,36 @@ git commit -m "feat(guild): add the channel icon catalog"
 In `src/app/features/guild/channel-types.spec.ts`, replace the icon assertion inside the `'gives every entry translation keys, and an icon for all but Text'` test:
 
 ```typescript
-            if (meta.type === ChannelType.Text) {
-                expect(meta.icon).toBeNull(); // renders a literal '#'
-            } else {
-                expect(meta.icon, meta.type).toMatch(/^[a-z0-9-]{1,48}$/);
-            }
+if (meta.type === ChannelType.Text) {
+  expect(meta.icon).toBeNull(); // renders a literal '#'
+} else {
+  expect(meta.icon, meta.type).toMatch(/^[a-z0-9-]{1,48}$/);
+}
 ```
 
 replace the whole `describe('channelIcon', ...)` body's per-type expectations:
 
 ```typescript
 describe('channelIcon', () => {
-    it('is null for Text, which renders a literal #', () => {
-        expect(channelIcon(ChannelType.Text)).toBeNull();
-    });
+  it('is null for Text, which renders a literal #', () => {
+    expect(channelIcon(ChannelType.Text)).toBeNull();
+  });
 
-    it('names a lucide icon for the other types', () => {
-        expect(channelIcon(ChannelType.Voice)).toBe('volume-2');
-        expect(channelIcon(ChannelType.Forum)).toBe('messages-square');
-        expect(channelIcon(ChannelType.Media)).toBe('images');
-        expect(channelIcon(ChannelType.Announcement)).toBe('megaphone');
-        expect(channelIcon(ChannelType.List)).toBe('square-check');
-        expect(channelIcon(ChannelType.Chores)).toBe('refresh-cw');
-        expect(channelIcon(ChannelType.Ledger)).toBe('wallet');
-        expect(channelIcon(ChannelType.Pantry)).toBe('package');
-        expect(channelIcon(ChannelType.Decisions)).toBe('flag');
-    });
+  it('names a lucide icon for the other types', () => {
+    expect(channelIcon(ChannelType.Voice)).toBe('volume-2');
+    expect(channelIcon(ChannelType.Forum)).toBe('messages-square');
+    expect(channelIcon(ChannelType.Media)).toBe('images');
+    expect(channelIcon(ChannelType.Announcement)).toBe('megaphone');
+    expect(channelIcon(ChannelType.List)).toBe('square-check');
+    expect(channelIcon(ChannelType.Chores)).toBe('refresh-cw');
+    expect(channelIcon(ChannelType.Ledger)).toBe('wallet');
+    expect(channelIcon(ChannelType.Pantry)).toBe('package');
+    expect(channelIcon(ChannelType.Decisions)).toBe('flag');
+  });
 
-    it('is null for a type this build does not know', () => {
-        expect(channelIcon('Sauna' as ChannelType)).toBeNull();
-    });
+  it('is null for a type this build does not know', () => {
+    expect(channelIcon('Sauna' as ChannelType)).toBeNull();
+  });
 });
 ```
 
@@ -1007,54 +1171,54 @@ and append:
 
 ```typescript
 describe('channelIconDataFor', () => {
-    it('prefers the channel own icon over the type default', () => {
-        const data = channelIconDataFor({type: ChannelType.Text, icon: 'swords'});
-        expect(data).toBe(lookupChannelIcon('swords'));
-    });
+  it('prefers the channel own icon over the type default', () => {
+    const data = channelIconDataFor({type: ChannelType.Text, icon: 'swords'});
+    expect(data).toBe(lookupChannelIcon('swords'));
+  });
 
-    it('falls back to the type default when the channel sets none', () => {
-        expect(channelIconDataFor({type: ChannelType.Voice})).toBe(lookupChannelIcon('volume-2'));
-    });
+  it('falls back to the type default when the channel sets none', () => {
+    expect(channelIconDataFor({type: ChannelType.Voice})).toBe(lookupChannelIcon('volume-2'));
+  });
 
-    it('falls back to the type default when the stored name is not shipped', () => {
-        expect(channelIconDataFor({type: ChannelType.Voice, icon: 'not-a-real-icon'})).toBe(
-            lookupChannelIcon('volume-2'),
-        );
-    });
+  it('falls back to the type default when the stored name is not shipped', () => {
+    expect(channelIconDataFor({type: ChannelType.Voice, icon: 'not-a-real-icon'})).toBe(
+      lookupChannelIcon('volume-2'),
+    );
+  });
 
-    it('is null for a Text channel with no icon, so the row renders its #', () => {
-        expect(channelIconDataFor({type: ChannelType.Text})).toBeNull();
-    });
+  it('is null for a Text channel with no icon, so the row renders its #', () => {
+    expect(channelIconDataFor({type: ChannelType.Text})).toBeNull();
+  });
 
-    it('is null when neither the channel nor the type resolves', () => {
-        expect(channelIconDataFor({type: 'Sauna' as ChannelType, icon: 'nope'})).toBeNull();
-    });
+  it('is null when neither the channel nor the type resolves', () => {
+    expect(channelIconDataFor({type: 'Sauna' as ChannelType, icon: 'nope'})).toBeNull();
+  });
 });
 
 describe('channelIconTint', () => {
-    it('passes a well-formed hex through', () => {
-        expect(channelIconTint({iconColor: '#F87171'})).toBe('#F87171');
-    });
+  it('passes a well-formed hex through', () => {
+    expect(channelIconTint({iconColor: '#F87171'})).toBe('#F87171');
+  });
 
-    it('is null when unset', () => {
-        expect(channelIconTint({})).toBeNull();
-        expect(channelIconTint({iconColor: ''})).toBeNull();
-    });
+  it('is null when unset', () => {
+    expect(channelIconTint({})).toBeNull();
+    expect(channelIconTint({iconColor: ''})).toBeNull();
+  });
 
-    it('is null for anything that is not #rrggbb, so a bad value cannot reach a style binding', () => {
-        expect(channelIconTint({iconColor: 'red'})).toBeNull();
-        expect(channelIconTint({iconColor: '#fff'})).toBeNull();
-        expect(channelIconTint({iconColor: 'url(javascript:alert(1))'})).toBeNull();
-    });
+  it('is null for anything that is not #rrggbb, so a bad value cannot reach a style binding', () => {
+    expect(channelIconTint({iconColor: 'red'})).toBeNull();
+    expect(channelIconTint({iconColor: '#fff'})).toBeNull();
+    expect(channelIconTint({iconColor: 'url(javascript:alert(1))'})).toBeNull();
+  });
 });
 
 describe('CHANNEL_META icons are all catalog members', () => {
-    it('resolves every non-null default', () => {
-        for (const meta of CHANNEL_META) {
-            if (meta.icon === null) continue;
-            expect(lookupChannelIcon(meta.icon), meta.type).not.toBeNull();
-        }
-    });
+  it('resolves every non-null default', () => {
+    for (const meta of CHANNEL_META) {
+      if (meta.icon === null) continue;
+      expect(lookupChannelIcon(meta.icon), meta.type).not.toBeNull();
+    }
+  });
 });
 ```
 
@@ -1070,28 +1234,28 @@ Expected: FAIL, `channelIconDataFor is not exported`.
 In `src/app/features/guild/channel-types.ts`, change the `icon` field's doc comment to:
 
 ```typescript
-    /** Lucide icon name, or `null` for Text - which renders a literal `#` instead. */
-    icon: string | null;
+/** Lucide icon name, or `null` for Text - which renders a literal `#` instead. */
+icon: string | null;
 ```
 
 and replace each entry's icon value:
 
-| Type | New value |
-|---|---|
-| `Text` | `null` |
-| `Voice` | `'volume-2'` |
-| `Thread` | `'messages-square'` |
-| `Forum` | `'messages-square'` |
-| `Media` | `'images'` |
-| `Scene` | `'bookmark'` |
-| `Announcement` | `'megaphone'` |
-| `List` | `'square-check'` |
-| `Chores` | `'refresh-cw'` |
-| `Ledger` | `'wallet'` |
-| `Pantry` | `'package'` |
-| `Decisions` | `'flag'` |
-| `Meals` | `'book-open'` |
-| `Maintenance` | `'wrench'` |
+| Type           | New value           |
+| -------------- | ------------------- |
+| `Text`         | `null`              |
+| `Voice`        | `'volume-2'`        |
+| `Thread`       | `'messages-square'` |
+| `Forum`        | `'messages-square'` |
+| `Media`        | `'images'`          |
+| `Scene`        | `'bookmark'`        |
+| `Announcement` | `'megaphone'`       |
+| `List`         | `'square-check'`    |
+| `Chores`       | `'refresh-cw'`      |
+| `Ledger`       | `'wallet'`          |
+| `Pantry`       | `'package'`         |
+| `Decisions`    | `'flag'`            |
+| `Meals`        | `'book-open'`       |
+| `Maintenance`  | `'wrench'`          |
 
 `square-check` and `refresh-cw` are not in the Task 4 catalog groups above. Add them to the `general` group of `CHANNEL_ICON_CATALOG` in `channel-icon-catalog.ts`, importing `SquareCheck` and `RefreshCw` from `lucide`:
 
@@ -1109,14 +1273,14 @@ At the end of `channel-types.ts`:
 ```typescript
 /** The tint a channel asks for, or null. Anything that is not #rrggbb is dropped here rather than reaching a style binding. */
 export function channelIconTint(channel: {iconColor?: string}): string | null {
-    const colour = channel.iconColor;
-    if (!colour || !HEX_COLOUR.test(colour)) return null;
-    return colour;
+  const colour = channel.iconColor;
+  if (!colour || !HEX_COLOUR.test(colour)) return null;
+  return colour;
 }
 
 /** The icon a channel actually renders: its own if this build ships it, otherwise its type's. */
 export function channelIconDataFor(channel: {type: ChannelType; icon?: string}): IconNode | null {
-    return lookupChannelIcon(channel.icon) ?? lookupChannelIcon(channelIcon(channel.type));
+  return lookupChannelIcon(channel.icon) ?? lookupChannelIcon(channelIcon(channel.type));
 }
 ```
 
@@ -1172,6 +1336,7 @@ git commit -m "feat(guild): move channel type icons to lucide"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Create: `src/app/features/guild/components/channel-icon/channel-icon.component.ts`
 - Test: `src/app/features/guild/components/channel-icon/channel-icon.component.spec.ts`
 - Modify: `.../channel-list/components/text-channel-item/text-channel-item.component.html` and `.ts`
@@ -1184,6 +1349,7 @@ git commit -m "feat(guild): move channel type icons to lucide"
 - Modify: `src/app/features/guild/components/wiki/wiki-share/wiki-share-dialog.component.ts`
 
 **Interfaces:**
+
 - Consumes: `LucideIconComponent` (Task 3), `channelIconDataFor`, `channelIconTint`, `channelIcon` (Task 5).
 - Produces: `ChannelIconComponent`, selector `app-channel-icon`, inputs `channel: {type: ChannelType; icon?: string; iconColor?: string}` (required) and `fallbackHash: boolean` (default `true`). Emits nothing.
 
@@ -1201,60 +1367,60 @@ import {ChannelIconComponent} from './channel-icon.component';
 type Channel = {type: ChannelType; icon?: string; iconColor?: string};
 
 @Component({
-    imports: [ChannelIconComponent],
-    template: '<app-channel-icon [channel]="channel()" />',
+  imports: [ChannelIconComponent],
+  template: '<app-channel-icon [channel]="channel()" />',
 })
 class HostComponent {
-    readonly channel = signal<Channel>({type: ChannelType.Text});
+  readonly channel = signal<Channel>({type: ChannelType.Text});
 }
 
 function render(channel: Channel) {
-    const fixture = TestBed.createComponent(HostComponent);
-    fixture.componentInstance.channel.set(channel);
-    fixture.detectChanges();
-    return fixture.nativeElement as HTMLElement;
+  const fixture = TestBed.createComponent(HostComponent);
+  fixture.componentInstance.channel.set(channel);
+  fixture.detectChanges();
+  return fixture.nativeElement as HTMLElement;
 }
 
 describe('ChannelIconComponent', () => {
-    it('renders a hash for a plain text channel', () => {
-        const el = render({type: ChannelType.Text});
-        expect(el.textContent?.trim()).toBe('#');
-        expect(el.querySelector('svg')).toBeNull();
-    });
+  it('renders a hash for a plain text channel', () => {
+    const el = render({type: ChannelType.Text});
+    expect(el.textContent?.trim()).toBe('#');
+    expect(el.querySelector('svg')).toBeNull();
+  });
 
-    it('renders the type icon for a voice channel', () => {
-        const el = render({type: ChannelType.Voice});
-        expect(el.querySelector('svg')).not.toBeNull();
-        expect(el.textContent?.trim()).toBe('');
-    });
+  it('renders the type icon for a voice channel', () => {
+    const el = render({type: ChannelType.Voice});
+    expect(el.querySelector('svg')).not.toBeNull();
+    expect(el.textContent?.trim()).toBe('');
+  });
 
-    it('renders a custom icon in place of the hash', () => {
-        const el = render({type: ChannelType.Text, icon: 'swords'});
-        expect(el.querySelector('svg')).not.toBeNull();
-        expect(el.textContent?.trim()).toBe('');
-    });
+  it('renders a custom icon in place of the hash', () => {
+    const el = render({type: ChannelType.Text, icon: 'swords'});
+    expect(el.querySelector('svg')).not.toBeNull();
+    expect(el.textContent?.trim()).toBe('');
+  });
 
-    it('falls back to the hash when the stored icon is not shipped', () => {
-        const el = render({type: ChannelType.Text, icon: 'not-a-real-icon'});
-        expect(el.textContent?.trim()).toBe('#');
-    });
+  it('falls back to the hash when the stored icon is not shipped', () => {
+    const el = render({type: ChannelType.Text, icon: 'not-a-real-icon'});
+    expect(el.textContent?.trim()).toBe('#');
+  });
 
-    it('leaves an untinted icon without the tint class or property', () => {
-        const slot = render({type: ChannelType.Voice}).querySelector('.chan-icon')!;
-        expect(slot.classList.contains('chan-icon-tinted')).toBe(false);
-        expect((slot as HTMLElement).style.getPropertyValue('--chan-icon-tint')).toBe('');
-    });
+  it('leaves an untinted icon without the tint class or property', () => {
+    const slot = render({type: ChannelType.Voice}).querySelector('.chan-icon')!;
+    expect(slot.classList.contains('chan-icon-tinted')).toBe(false);
+    expect((slot as HTMLElement).style.getPropertyValue('--chan-icon-tint')).toBe('');
+  });
 
-    it('tints a channel that sets a colour', () => {
-        const slot = render({type: ChannelType.Voice, iconColor: '#F87171'}).querySelector('.chan-icon')!;
-        expect(slot.classList.contains('chan-icon-tinted')).toBe(true);
-        expect((slot as HTMLElement).style.getPropertyValue('--chan-icon-tint')).toBe('#F87171');
-    });
+  it('tints a channel that sets a colour', () => {
+    const slot = render({type: ChannelType.Voice, iconColor: '#F87171'}).querySelector('.chan-icon')!;
+    expect(slot.classList.contains('chan-icon-tinted')).toBe(true);
+    expect((slot as HTMLElement).style.getPropertyValue('--chan-icon-tint')).toBe('#F87171');
+  });
 
-    it('ignores a colour that is not #rrggbb', () => {
-        const slot = render({type: ChannelType.Voice, iconColor: 'red'}).querySelector('.chan-icon')!;
-        expect(slot.classList.contains('chan-icon-tinted')).toBe(false);
-    });
+  it('ignores a colour that is not #rrggbb', () => {
+    const slot = render({type: ChannelType.Voice, iconColor: 'red'}).querySelector('.chan-icon')!;
+    expect(slot.classList.contains('chan-icon-tinted')).toBe(false);
+  });
 });
 ```
 
@@ -1275,32 +1441,32 @@ import {LucideIconComponent} from '../../../../components/lucide-icon/lucide-ico
 
 /** The channel icon slot: a channel's own icon, else its type's, else the literal `#`. */
 @Component({
-    selector: 'app-channel-icon',
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    host: {class: 'contents'},
-    imports: [LucideIconComponent],
-    template: `
-        <span
-            class="chan-icon pointer-events-none"
-            [class.chan-icon-hash]="!icon()"
-            [class.chan-icon-tinted]="!!tint()"
-            [style.--chan-icon-tint]="tint()"
-        >
-            @if (icon(); as data) {
-                <app-lucide-icon [icon]="data" />
-            } @else if (fallbackHash()) {
-                #
-            }
-        </span>
-    `,
+  selector: 'app-channel-icon',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {class: 'contents'},
+  imports: [LucideIconComponent],
+  template: `
+    <span
+      class="chan-icon pointer-events-none"
+      [class.chan-icon-hash]="!icon()"
+      [class.chan-icon-tinted]="!!tint()"
+      [style.--chan-icon-tint]="tint()"
+    >
+      @if (icon(); as data) {
+        <app-lucide-icon [icon]="data" />
+      } @else if (fallbackHash()) {
+        #
+      }
+    </span>
+  `,
 })
 export class ChannelIconComponent {
-    readonly channel = input.required<{type: ChannelType; icon?: string; iconColor?: string}>();
-    /** Off for surfaces that would rather show nothing than a `#`, such as the type picker. */
-    readonly fallbackHash = input(true);
+  readonly channel = input.required<{type: ChannelType; icon?: string; iconColor?: string}>();
+  /** Off for surfaces that would rather show nothing than a `#`, such as the type picker. */
+  readonly fallbackHash = input(true);
 
-    protected readonly icon = computed(() => channelIconDataFor(this.channel()));
-    protected readonly tint = computed(() => channelIconTint(this.channel()));
+  protected readonly icon = computed(() => channelIconDataFor(this.channel()));
+  protected readonly tint = computed(() => channelIconTint(this.channel()));
 }
 ```
 
@@ -1314,7 +1480,7 @@ Expected: PASS, 7 tests.
 In `text-channel-item.component.html`, replace the whole `<span class="chan-icon ...">...</span>` block with:
 
 ```html
-        <app-channel-icon [channel]="channel()" />
+<app-channel-icon [channel]="channel()" />
 ```
 
 In `text-channel-item.component.ts`: delete the `icon` computed and the `channelIcon` import, add `ChannelIconComponent` to `imports`.
@@ -1322,19 +1488,19 @@ In `text-channel-item.component.ts`: delete the `icon` computed and the `channel
 In `voice-channel-item.component.html`, replace:
 
 ```html
-        <span class="chan-icon">
-            <i [class]="isJoining() ? 'pi pi-spinner pi-spin' : 'pi pi-volume-up'"></i>
-        </span>
+<span class="chan-icon">
+  <i [class]="isJoining() ? 'pi pi-spinner pi-spin' : 'pi pi-volume-up'"></i>
+</span>
 ```
 
 with:
 
 ```html
-        @if (isJoining()) {
-            <span class="chan-icon"><i class="pi pi-spinner pi-spin"></i></span>
-        } @else {
-            <app-channel-icon [channel]="channel()" />
-        }
+@if (isJoining()) {
+<span class="chan-icon"><i class="pi pi-spinner pi-spin"></i></span>
+} @else {
+<app-channel-icon [channel]="channel()" />
+}
 ```
 
 and add `ChannelIconComponent` to that component's `imports`. The spinner stays a PrimeIcon: it is chrome, not the channel's identity, and Phase B sweeps it.
@@ -1411,11 +1577,13 @@ git commit -m "feat(guild): render every channel icon through one component"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Modify: `src/styles.css` (after the `.chan-icon-hash` rule at :227)
 - Create: `src/app/features/guild/channel-icon-palette.ts`
 - Test: `src/app/features/guild/channel-icon-palette.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `interface ChannelIconSwatch {name: string; value: string}` and `const CHANNEL_ICON_PALETTE: readonly ChannelIconSwatch[]`. `name` is an i18n key suffix, `value` is `#RRGGBB`.
 
@@ -1429,42 +1597,42 @@ import {CHANNEL_ICON_PALETTE} from './channel-icon-palette';
 
 /** Relative luminance per WCAG 2.1. */
 function luminance(hex: string): number {
-    const channel = (i: number) => {
-        const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
-        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    };
-    return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+  const channel = (i: number) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
 }
 
 function contrast(a: string, b: string): number {
-    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
 }
 
 /** The sidebar surface these swatches are read against. */
 const SIDEBAR_BG = '#1a1b1e';
 
 describe('CHANNEL_ICON_PALETTE', () => {
-    it('is not empty', () => {
-        expect(CHANNEL_ICON_PALETTE.length).toBeGreaterThan(0);
-    });
+  it('is not empty', () => {
+    expect(CHANNEL_ICON_PALETTE.length).toBeGreaterThan(0);
+  });
 
-    it('gives every swatch a well-formed hex the server will accept', () => {
-        for (const swatch of CHANNEL_ICON_PALETTE) {
-            expect(swatch.value, swatch.name).toMatch(/^#[0-9a-fA-F]{6}$/);
-        }
-    });
+  it('gives every swatch a well-formed hex the server will accept', () => {
+    for (const swatch of CHANNEL_ICON_PALETTE) {
+      expect(swatch.value, swatch.name).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
+  });
 
-    it('has no duplicate values or names', () => {
-        expect(new Set(CHANNEL_ICON_PALETTE.map(s => s.value)).size).toBe(CHANNEL_ICON_PALETTE.length);
-        expect(new Set(CHANNEL_ICON_PALETTE.map(s => s.name)).size).toBe(CHANNEL_ICON_PALETTE.length);
-    });
+  it('has no duplicate values or names', () => {
+    expect(new Set(CHANNEL_ICON_PALETTE.map(s => s.value)).size).toBe(CHANNEL_ICON_PALETTE.length);
+    expect(new Set(CHANNEL_ICON_PALETTE.map(s => s.name)).size).toBe(CHANNEL_ICON_PALETTE.length);
+  });
 
-    it('clears 3:1 against the sidebar surface, so no swatch reads as an empty slot', () => {
-        for (const swatch of CHANNEL_ICON_PALETTE) {
-            expect(contrast(swatch.value, SIDEBAR_BG), swatch.name).toBeGreaterThanOrEqual(3);
-        }
-    });
+  it('clears 3:1 against the sidebar surface, so no swatch reads as an empty slot', () => {
+    for (const swatch of CHANNEL_ICON_PALETTE) {
+      expect(contrast(swatch.value, SIDEBAR_BG), swatch.name).toBeGreaterThanOrEqual(3);
+    }
+  });
 });
 ```
 
@@ -1479,25 +1647,25 @@ Create `src/app/features/guild/channel-icon-palette.ts`:
 
 ```typescript
 export interface ChannelIconSwatch {
-    /** Suffix of `CHANNEL_SETTINGS.ICON_COLOR.<name>`. */
-    name: string;
-    value: string;
+  /** Suffix of `CHANNEL_SETTINGS.ICON_COLOR.<name>`. */
+  name: string;
+  value: string;
 }
 
 /** Every value clears 3:1 against the sidebar surface; `channel-icon-palette.spec.ts` holds that line. */
 export const CHANNEL_ICON_PALETTE: readonly ChannelIconSwatch[] = [
-    {name: 'red', value: '#F87171'},
-    {name: 'orange', value: '#FB923C'},
-    {name: 'amber', value: '#FBBF24'},
-    {name: 'lime', value: '#A3E635'},
-    {name: 'green', value: '#4ADE80'},
-    {name: 'teal', value: '#2DD4BF'},
-    {name: 'cyan', value: '#22D3EE'},
-    {name: 'blue', value: '#60A5FA'},
-    {name: 'indigo', value: '#818CF8'},
-    {name: 'violet', value: '#A78BFA'},
-    {name: 'pink', value: '#F472B6'},
-    {name: 'rose', value: '#FB7185'},
+  {name: 'red', value: '#F87171'},
+  {name: 'orange', value: '#FB923C'},
+  {name: 'amber', value: '#FBBF24'},
+  {name: 'lime', value: '#A3E635'},
+  {name: 'green', value: '#4ADE80'},
+  {name: 'teal', value: '#2DD4BF'},
+  {name: 'cyan', value: '#22D3EE'},
+  {name: 'blue', value: '#60A5FA'},
+  {name: 'indigo', value: '#818CF8'},
+  {name: 'violet', value: '#A78BFA'},
+  {name: 'pink', value: '#F472B6'},
+  {name: 'rose', value: '#FB7185'},
 ];
 ```
 
@@ -1514,13 +1682,13 @@ In `src/styles.css`, directly after the `.chan-icon-hash` rule:
 /* A chosen colour is a signal, not chrome, so it sits at 78% where the default sits at 32%:
    a saturated hue at the default's alpha is close to invisible on this surface. */
 .chan-icon-tinted {
-    color: color-mix(in srgb, var(--chan-icon-tint) 78%, transparent);
+  color: color-mix(in srgb, var(--chan-icon-tint) 78%, transparent);
 }
 
 .chan-row:hover .chan-icon-tinted,
 .chan-row.is-active .chan-icon-tinted,
 .chan-row.is-unread .chan-icon-tinted {
-    color: var(--chan-icon-tint);
+  color: var(--chan-icon-tint);
 }
 ```
 
@@ -1547,12 +1715,14 @@ git commit -m "feat(guild): tint a channel icon without disturbing its row state
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`
 
 **Files:**
+
 - Create: `src/app/features/guild/components/channel-settings-modal/pages/channel-overview/channel-icon-picker.component.ts`
 - Test: `src/app/features/guild/components/channel-settings-modal/pages/channel-overview/channel-icon-picker.component.spec.ts`
 - Modify: `.../channel-overview/channel-overview.component.ts`
 - Modify: `.../channel-overview/channel-overview.component.html`
 
 **Interfaces:**
+
 - Consumes: `CHANNEL_ICON_CATALOG`, `CHANNEL_ICON_GROUPS` (Task 4), `CHANNEL_ICON_PALETTE` (Task 7), `ChannelIconComponent` and `LucideIconComponent` (Tasks 3 and 6), `UpdateChannelDto.icon`/`.iconColor` (Task 5).
 - Produces: `ChannelIconPickerComponent`, selector `app-channel-icon-picker`, `model()` signals `icon: string` and `iconColor: string` (both `''` for default), plus a required `channelType: ChannelType` input for the preview row.
 
@@ -1568,83 +1738,77 @@ import {ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {ChannelIconPickerComponent} from './channel-icon-picker.component';
 
 @Component({
-    imports: [ChannelIconPickerComponent],
-    template: `
-        <app-channel-icon-picker
-            [(icon)]="icon"
-            [(iconColor)]="iconColor"
-            [channelType]="type()"
-        />
-    `,
+  imports: [ChannelIconPickerComponent],
+  template: ` <app-channel-icon-picker [(icon)]="icon" [(iconColor)]="iconColor" [channelType]="type()" /> `,
 })
 class HostComponent {
-    readonly icon = signal('');
-    readonly iconColor = signal('');
-    readonly type = signal(ChannelType.Text);
+  readonly icon = signal('');
+  readonly iconColor = signal('');
+  readonly type = signal(ChannelType.Text);
 }
 
 function setup() {
-    const fixture = TestBed.createComponent(HostComponent);
-    fixture.detectChanges();
-    return fixture;
+  const fixture = TestBed.createComponent(HostComponent);
+  fixture.detectChanges();
+  return fixture;
 }
 
 describe('ChannelIconPickerComponent', () => {
-    it('offers every palette swatch plus a default chip', () => {
-        const fixture = setup();
-        const swatches = fixture.nativeElement.querySelectorAll('[data-testid="icon-colour-swatch"]');
-        expect(swatches.length).toBe(12);
-        expect(fixture.nativeElement.querySelector('[data-testid="icon-colour-default"]')).not.toBeNull();
-    });
+  it('offers every palette swatch plus a default chip', () => {
+    const fixture = setup();
+    const swatches = fixture.nativeElement.querySelectorAll('[data-testid="icon-colour-swatch"]');
+    expect(swatches.length).toBe(12);
+    expect(fixture.nativeElement.querySelector('[data-testid="icon-colour-default"]')).not.toBeNull();
+  });
 
-    it('writes the chosen colour back through the model', () => {
-        const fixture = setup();
-        const swatch = fixture.nativeElement.querySelectorAll('[data-testid="icon-colour-swatch"]')[0];
-        swatch.click();
-        fixture.detectChanges();
-        expect(fixture.componentInstance.iconColor()).toMatch(/^#[0-9a-fA-F]{6}$/);
-    });
+  it('writes the chosen colour back through the model', () => {
+    const fixture = setup();
+    const swatch = fixture.nativeElement.querySelectorAll('[data-testid="icon-colour-swatch"]')[0];
+    swatch.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.iconColor()).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
 
-    it('clears the colour through the default chip', () => {
-        const fixture = setup();
-        fixture.componentInstance.iconColor.set('#F87171');
-        fixture.detectChanges();
-        fixture.nativeElement.querySelector('[data-testid="icon-colour-default"]').click();
-        fixture.detectChanges();
-        expect(fixture.componentInstance.iconColor()).toBe('');
-    });
+  it('clears the colour through the default chip', () => {
+    const fixture = setup();
+    fixture.componentInstance.iconColor.set('#F87171');
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="icon-colour-default"]').click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.iconColor()).toBe('');
+  });
 
-    it('writes the chosen icon back through the model', () => {
-        const fixture = setup();
-        fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
-        fixture.detectChanges();
-        fixture.nativeElement.querySelectorAll('[data-testid="icon-option"]')[0].click();
-        fixture.detectChanges();
-        expect(fixture.componentInstance.icon()).toMatch(/^[a-z0-9-]{1,48}$/);
-    });
+  it('writes the chosen icon back through the model', () => {
+    const fixture = setup();
+    fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('[data-testid="icon-option"]')[0].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.icon()).toMatch(/^[a-z0-9-]{1,48}$/);
+  });
 
-    it('filters the grid by the search term', () => {
-        const fixture = setup();
-        fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
-        fixture.detectChanges();
-        const search = fixture.nativeElement.querySelector('[data-testid="icon-search"]');
-        search.value = 'swords';
-        search.dispatchEvent(new Event('input'));
-        fixture.detectChanges();
-        const options = fixture.nativeElement.querySelectorAll('[data-testid="icon-option"]');
-        expect(options.length).toBe(1);
-    });
+  it('filters the grid by the search term', () => {
+    const fixture = setup();
+    fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
+    fixture.detectChanges();
+    const search = fixture.nativeElement.querySelector('[data-testid="icon-search"]');
+    search.value = 'swords';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const options = fixture.nativeElement.querySelectorAll('[data-testid="icon-option"]');
+    expect(options.length).toBe(1);
+  });
 
-    it('clears the icon through the default option', () => {
-        const fixture = setup();
-        fixture.componentInstance.icon.set('swords');
-        fixture.detectChanges();
-        fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
-        fixture.detectChanges();
-        fixture.nativeElement.querySelector('[data-testid="icon-default"]').click();
-        fixture.detectChanges();
-        expect(fixture.componentInstance.icon()).toBe('');
-    });
+  it('clears the icon through the default option', () => {
+    const fixture = setup();
+    fixture.componentInstance.icon.set('swords');
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="icon-open"]').click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="icon-default"]').click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.icon()).toBe('');
+  });
 });
 ```
 
@@ -1667,59 +1831,57 @@ import {ChannelIconComponent} from '../../../channel-icon/channel-icon.component
 import {LucideIconComponent} from '../../../../../../components/lucide-icon/lucide-icon.component';
 
 @Component({
-    selector: 'app-channel-icon-picker',
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [TranslateModule, ChannelIconComponent, LucideIconComponent],
-    templateUrl: './channel-icon-picker.component.html',
+  selector: 'app-channel-icon-picker',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslateModule, ChannelIconComponent, LucideIconComponent],
+  templateUrl: './channel-icon-picker.component.html',
 })
 export class ChannelIconPickerComponent {
-    /** `''` means the channel type's own icon. */
-    readonly icon = model('');
-    /** `''` means the uniform default colour. */
-    readonly iconColor = model('');
-    readonly channelType = input.required<ChannelType>();
+  /** `''` means the channel type's own icon. */
+  readonly icon = model('');
+  /** `''` means the uniform default colour. */
+  readonly iconColor = model('');
+  readonly channelType = input.required<ChannelType>();
 
-    protected readonly open = signal(false);
-    protected readonly search = signal('');
+  protected readonly open = signal(false);
+  protected readonly search = signal('');
 
-    protected get palette() {
-        return CHANNEL_ICON_PALETTE;
-    }
+  protected get palette() {
+    return CHANNEL_ICON_PALETTE;
+  }
 
-    protected readonly preview = computed(() => ({
-        type: this.channelType(),
-        icon: this.icon() || undefined,
-        iconColor: this.iconColor() || undefined,
-    }));
+  protected readonly preview = computed(() => ({
+    type: this.channelType(),
+    icon: this.icon() || undefined,
+    iconColor: this.iconColor() || undefined,
+  }));
 
-    protected readonly groups = computed(() => {
-        const term = this.search().trim().toLowerCase();
-        const matching = term
-            ? CHANNEL_ICON_CATALOG.filter(e => e.name.includes(term))
-            : CHANNEL_ICON_CATALOG;
-        return CHANNEL_ICON_GROUPS.map(group => ({
-            group,
-            entries: matching.filter(e => e.group === group),
-        })).filter(g => g.entries.length > 0);
-    });
+  protected readonly groups = computed(() => {
+    const term = this.search().trim().toLowerCase();
+    const matching = term ? CHANNEL_ICON_CATALOG.filter(e => e.name.includes(term)) : CHANNEL_ICON_CATALOG;
+    return CHANNEL_ICON_GROUPS.map(group => ({
+      group,
+      entries: matching.filter(e => e.group === group),
+    })).filter(g => g.entries.length > 0);
+  });
 
-    protected toggle(): void {
-        this.open.update(v => !v);
-    }
+  protected toggle(): void {
+    this.open.update(v => !v);
+  }
 
-    protected choose(name: string): void {
-        this.icon.set(name);
-        this.open.set(false);
-    }
+  protected choose(name: string): void {
+    this.icon.set(name);
+    this.open.set(false);
+  }
 
-    protected clearIcon(): void {
-        this.icon.set('');
-        this.open.set(false);
-    }
+  protected clearIcon(): void {
+    this.icon.set('');
+    this.open.set(false);
+  }
 
-    protected onSearch(event: Event): void {
-        this.search.set((event.target as HTMLInputElement).value);
-    }
+  protected onSearch(event: Event): void {
+    this.search.set((event.target as HTMLInputElement).value);
+  }
 }
 ```
 
@@ -1729,59 +1891,84 @@ Create `channel-icon-picker.component.html` beside it, following the Tailwind to
 
 ```html
 <div class="space-y-4">
-    <div class="flex items-center gap-3">
-        <button (click)="toggle()" data-testid="icon-open" type="button"
-            class="flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-colors cursor-pointer">
-            <app-channel-icon [channel]="preview()" [fallbackHash]="true" />
-        </button>
-        <div class="chan-row is-preview flex items-center gap-2 flex-1 px-2 py-1.5 rounded-lg bg-white/[0.03]">
-            <app-channel-icon [channel]="preview()" />
-            <span class="chan-label">{{ 'CHANNEL_SETTINGS.APPEARANCE.PREVIEW' | translate }}</span>
-        </div>
+  <div class="flex items-center gap-3">
+    <button
+      (click)="toggle()"
+      data-testid="icon-open"
+      type="button"
+      class="flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-colors cursor-pointer"
+    >
+      <app-channel-icon [channel]="preview()" [fallbackHash]="true" />
+    </button>
+    <div class="chan-row is-preview flex items-center gap-2 flex-1 px-2 py-1.5 rounded-lg bg-white/[0.03]">
+      <app-channel-icon [channel]="preview()" />
+      <span class="chan-label">{{ 'CHANNEL_SETTINGS.APPEARANCE.PREVIEW' | translate }}</span>
     </div>
+  </div>
 
-    @if (open()) {
-        <div class="rounded-xl bg-surface-raised p-3 space-y-3">
-            <input (input)="onSearch($event)" data-testid="icon-search"
-                [placeholder]="'CHANNEL_SETTINGS.APPEARANCE.SEARCH' | translate"
-                class="w-full px-3 py-2 rounded-lg bg-white/[0.06] text-sm outline-none" />
-            <button (click)="clearIcon()" data-testid="icon-default" type="button"
-                class="w-full text-left px-3 py-2 rounded-lg text-xs text-text-muted hover:bg-white/[0.06] cursor-pointer">
-                {{ 'CHANNEL_SETTINGS.APPEARANCE.ICON_DEFAULT' | translate }}
-            </button>
-            <div class="max-h-64 overflow-y-auto thin-scrollbar space-y-3">
-                @for (g of groups(); track g.group) {
-                    <div>
-                        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1.5">
-                            {{ 'CHANNEL_SETTINGS.APPEARANCE.GROUP.' + g.group | translate }}
-                        </p>
-                        <div class="grid grid-cols-8 gap-1">
-                            @for (entry of g.entries; track entry.name) {
-                                <button (click)="choose(entry.name)" data-testid="icon-option" type="button"
-                                    [title]="entry.name" [class.is-chosen]="entry.name === icon()"
-                                    class="flex items-center justify-center h-8 rounded-lg text-text-secondary hover:bg-white/[0.08] hover:text-text-primary transition-colors cursor-pointer">
-                                    <app-lucide-icon [icon]="entry.icon" />
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-            </div>
+  @if (open()) {
+  <div class="rounded-xl bg-surface-raised p-3 space-y-3">
+    <input
+      (input)="onSearch($event)"
+      data-testid="icon-search"
+      [placeholder]="'CHANNEL_SETTINGS.APPEARANCE.SEARCH' | translate"
+      class="w-full px-3 py-2 rounded-lg bg-white/[0.06] text-sm outline-none"
+    />
+    <button
+      (click)="clearIcon()"
+      data-testid="icon-default"
+      type="button"
+      class="w-full text-left px-3 py-2 rounded-lg text-xs text-text-muted hover:bg-white/[0.06] cursor-pointer"
+    >
+      {{ 'CHANNEL_SETTINGS.APPEARANCE.ICON_DEFAULT' | translate }}
+    </button>
+    <div class="max-h-64 overflow-y-auto thin-scrollbar space-y-3">
+      @for (g of groups(); track g.group) {
+      <div>
+        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1.5">
+          {{ 'CHANNEL_SETTINGS.APPEARANCE.GROUP.' + g.group | translate }}
+        </p>
+        <div class="grid grid-cols-8 gap-1">
+          @for (entry of g.entries; track entry.name) {
+          <button
+            (click)="choose(entry.name)"
+            data-testid="icon-option"
+            type="button"
+            [title]="entry.name"
+            [class.is-chosen]="entry.name === icon()"
+            class="flex items-center justify-center h-8 rounded-lg text-text-secondary hover:bg-white/[0.08] hover:text-text-primary transition-colors cursor-pointer"
+          >
+            <app-lucide-icon [icon]="entry.icon" />
+          </button>
+          }
         </div>
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+  <div class="flex items-center gap-1.5 flex-wrap">
+    <button
+      (click)="iconColor.set('')"
+      data-testid="icon-colour-default"
+      type="button"
+      [class.ring-2]="iconColor() === ''"
+      class="w-6 h-6 rounded-full bg-white/20 ring-white/60 cursor-pointer"
+      [title]="'CHANNEL_SETTINGS.APPEARANCE.COLOR_DEFAULT' | translate"
+    ></button>
+    @for (swatch of palette; track swatch.value) {
+    <button
+      (click)="iconColor.set(swatch.value)"
+      data-testid="icon-colour-swatch"
+      type="button"
+      [style.background]="swatch.value"
+      [class.ring-2]="iconColor() === swatch.value"
+      class="w-6 h-6 rounded-full ring-white/60 cursor-pointer"
+      [title]="'CHANNEL_SETTINGS.ICON_COLOR.' + swatch.name | translate"
+    ></button>
     }
-
-    <div class="flex items-center gap-1.5 flex-wrap">
-        <button (click)="iconColor.set('')" data-testid="icon-colour-default" type="button"
-            [class.ring-2]="iconColor() === ''"
-            class="w-6 h-6 rounded-full bg-white/20 ring-white/60 cursor-pointer"
-            [title]="'CHANNEL_SETTINGS.APPEARANCE.COLOR_DEFAULT' | translate"></button>
-        @for (swatch of palette; track swatch.value) {
-            <button (click)="iconColor.set(swatch.value)" data-testid="icon-colour-swatch" type="button"
-                [style.background]="swatch.value" [class.ring-2]="iconColor() === swatch.value"
-                class="w-6 h-6 rounded-full ring-white/60 cursor-pointer"
-                [title]="'CHANNEL_SETTINGS.ICON_COLOR.' + swatch.name | translate"></button>
-        }
-    </div>
+  </div>
 </div>
 ```
 
@@ -1802,8 +1989,8 @@ In `channel-overview.component.ts`: add two signals, include them in `onChange()
 In `ngOnInit`:
 
 ```typescript
-        this.icon.set(c.icon ?? '');
-        this.iconColor.set(c.iconColor ?? '');
+this.icon.set(c.icon ?? '');
+this.iconColor.set(c.iconColor ?? '');
 ```
 
 In `onChange()`, extend the `dirty.set(...)` expression with:
@@ -1825,16 +2012,12 @@ Empty string is the clear sentinel, so sending absolute values here is correct a
 Add `ChannelIconPickerComponent` to `imports`, and in the template add above the Name field:
 
 ```html
-    <div>
-        <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
-            {{ 'CHANNEL_SETTINGS.APPEARANCE.LABEL' | translate }}
-        </label>
-        <app-channel-icon-picker
-            [(icon)]="icon"
-            [(iconColor)]="iconColor"
-            [channelType]="channel().type"
-        />
-    </div>
+<div>
+  <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+    {{ 'CHANNEL_SETTINGS.APPEARANCE.LABEL' | translate }}
+  </label>
+  <app-channel-icon-picker [(icon)]="icon" [(iconColor)]="iconColor" [channelType]="channel().type" />
+</div>
 ```
 
 - [ ] **Step 6: Check who can reach this page**
@@ -1880,9 +2063,11 @@ git commit -m "feat(guild): let a channel choose its icon and colour"
 **Repo:** `C:\Users\Domin\WebstormProjects\Alpine`, submodule `src/assets/i18n/locales`
 
 **Files:**
+
 - Modify: `src/assets/i18n/locales/en.json` and every sibling locale file that the repo keeps in step
 
 **Interfaces:**
+
 - Consumes: the key names used in Task 8's template.
 - Produces: nothing code-facing.
 

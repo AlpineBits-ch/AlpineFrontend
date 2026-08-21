@@ -41,11 +41,11 @@ type comes with it:
 
 ```ts
 export class ChannelStore {
-    private realtime = inject(RealtimeConnectionService);
+  private realtime = inject(RealtimeConnectionService);
 
-    constructor() {
-        this.realtime.stream('guild.ChannelCreated').subscribe(c => this.upsert(c.guildId, c));
-    }
+  constructor() {
+    this.realtime.stream('guild.ChannelCreated').subscribe(c => this.upsert(c.guildId, c));
+  }
 }
 ```
 

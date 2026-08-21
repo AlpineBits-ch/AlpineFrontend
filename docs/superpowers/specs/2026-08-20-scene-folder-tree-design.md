@@ -12,16 +12,16 @@ on both the playing screen and the archive. Extends `2026-08-20-scene-archive-de
 
 ## Decisions
 
-| Question | Answer |
-|---|---|
-| Scenes in the tree | Leaf rows under their folder |
-| Which scenes | All of them, running and finished |
-| Depth | Two levels, as the server already caps it |
-| Rail treatment | Shelves: root folders are coloured uppercase headers |
-| Shelf default | Closed on first visit, then remembered per guild |
-| Playing screen | Rail shown by default, toggleable, remembered, drag to resize |
-| Board grouping with the rail on | Your move pinned, folder sections below |
-| Recent block | Waiting on you first, then most recently active |
+| Question                        | Answer                                                        |
+| ------------------------------- | ------------------------------------------------------------- |
+| Scenes in the tree              | Leaf rows under their folder                                  |
+| Which scenes                    | All of them, running and finished                             |
+| Depth                           | Two levels, as the server already caps it                     |
+| Rail treatment                  | Shelves: root folders are coloured uppercase headers          |
+| Shelf default                   | Closed on first visit, then remembered per guild              |
+| Playing screen                  | Rail shown by default, toggleable, remembered, drag to resize |
+| Board grouping with the rail on | Your move pinned, folder sections below                       |
+| Recent block                    | Waiting on you first, then most recently active               |
 
 ## Architecture
 
@@ -50,10 +50,10 @@ Sits beside `scene-status.ts`, which already owns `isWaitingOnMe` and `compareSc
 
 ```ts
 export interface SceneLeaf {
-    channelId: string;
-    name: string;
-    status: SceneStatus;
-    mine: boolean;
+  channelId: string;
+  name: string;
+  status: SceneStatus;
+  mine: boolean;
 }
 
 export function sceneLeaf(scene: SceneListItemDto, speakable: ReadonlySet<string>): SceneLeaf;
@@ -69,11 +69,11 @@ export function recentScenes(scenes, speakable, limit?): SceneLeaf[];
 `status: ArchiveStatus`, a new `'all' | 'running' | 'finished'` union exported beside it. It is part
 of `archiveKey` and defaults to `all`:
 
-| status | params |
-|---|---|
-| `all` | `includeConcluded: true, includeArchived: true` |
-| `running` | neither flag |
-| `finished` | `archivedOnly: true` |
+| status     | params                                          |
+| ---------- | ----------------------------------------------- |
+| `all`      | `includeConcluded: true, includeArchived: true` |
+| `running`  | neither flag                                    |
+| `finished` | `archivedOnly: true`                            |
 
 The filter bar gains a three-way control for it. `SCENE.ARCHIVE.EMPTY_BODY` ("Scenes land here when
 they end") is now wrong and gets rewritten.
@@ -188,13 +188,13 @@ from them. Gated on `ManageScenes` like every other item on it.
 characterization tests come first and go green against the current component before the template
 is touched.
 
-| File | Covers |
-|---|---|
+| File                                        | Covers                                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `scene-folder-rail.component.spec.ts` (new) | first: `flatten`, `nudge`, `siblingsOf` as they behave today. then: expansion, leaf clicks, `createScene` |
-| `scene-leaf.spec.ts` (new) | recency ordering, the waiting-first rule, the cap, folder grouping |
-| `scene-archive.service.spec.ts` | the status to params mapping, `peek` sharing a cache entry with `apply` |
-| `folder-tree.spec.ts` | already covers count rollup; extend only if the recursive render needs it |
-| `scene-dialog.component.spec.ts` (new) | create then file, and that a failed file still reports a created scene |
+| `scene-leaf.spec.ts` (new)                  | recency ordering, the waiting-first rule, the cap, folder grouping                                        |
+| `scene-archive.service.spec.ts`             | the status to params mapping, `peek` sharing a cache entry with `apply`                                   |
+| `folder-tree.spec.ts`                       | already covers count rollup; extend only if the recursive render needs it                                 |
+| `scene-dialog.component.spec.ts` (new)      | create then file, and that a failed file still reports a created scene                                    |
 
 ## Not doing
 

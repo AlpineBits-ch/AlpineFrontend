@@ -35,8 +35,7 @@ export const SceneJoinRequestStatus = {
     Withdrawn: 'Withdrawn',
 } as const;
 
-export type SceneJoinRequestStatus =
-    (typeof SceneJoinRequestStatus)[keyof typeof SceneJoinRequestStatus];
+export type SceneJoinRequestStatus = (typeof SceneJoinRequestStatus)[keyof typeof SceneJoinRequestStatus];
 
 export interface SceneParticipantDto {
     personaId: string;

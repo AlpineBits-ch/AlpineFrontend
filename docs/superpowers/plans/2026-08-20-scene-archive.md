@@ -32,12 +32,14 @@
 ### Task 1: Concluded scenes stop vanishing
 
 **Files:**
+
 - Modify: `src/app/dtos/request/scene.dto.ts`
 - Modify: `src/app/services/roleplay-api.service.ts:62`
 - Modify: `src/app/services/scene.service.ts:172-190`
 - Test: `src/app/services/scene.service.spec.ts` (create if absent)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `SceneListParams`, and `RoleplayApi.listScenes(guildId: string, params?: SceneListParams): Observable<SceneListDto>`. Every later client task calls this overload.
 
@@ -45,9 +47,9 @@
 
 ```ts
 it('asks the server for concluded and archived scenes', () => {
-    const api = TestBed.inject(RoleplayApi) as unknown as {listScenes: ReturnType<typeof vi.fn>};
-    service.ensureGuild('gld_1');
-    expect(api.listScenes).toHaveBeenCalledWith('gld_1', {includeConcluded: true, includeArchived: true});
+  const api = TestBed.inject(RoleplayApi) as unknown as {listScenes: ReturnType<typeof vi.fn>};
+  service.ensureGuild('gld_1');
+  expect(api.listScenes).toHaveBeenCalledWith('gld_1', {includeConcluded: true, includeArchived: true});
 });
 ```
 
@@ -62,18 +64,18 @@ Expected: FAIL, `listScenes` called with one argument.
 /** Query for `GET /guilds/{id}/scenes`. Omitted flags take the server's defaults, which exclude
  *  concluded and archived scenes. */
 export interface SceneListParams {
-    waitingOnMe?: boolean;
-    includeConcluded?: boolean;
-    includeArchived?: boolean;
-    /** A folder id, or the reserved `unfiled`. */
-    folderId?: string | null;
-    /** ANDed: a scene must carry all of them. */
-    tagIds?: string[];
-    /** Scene name only. Never message content. */
-    q?: string;
-    sort?: 'board' | 'name' | 'ended';
-    offset?: number;
-    limit?: number;
+  waitingOnMe?: boolean;
+  includeConcluded?: boolean;
+  includeArchived?: boolean;
+  /** A folder id, or the reserved `unfiled`. */
+  folderId?: string | null;
+  /** ANDed: a scene must carry all of them. */
+  tagIds?: string[];
+  /** Scene name only. Never message content. */
+  q?: string;
+  sort?: 'board' | 'name' | 'ended';
+  offset?: number;
+  limit?: number;
 }
 ```
 
@@ -101,6 +103,7 @@ Repo: `C:\Users\Domin\RiderProjects\Echo`. Use the built-in file tools there, no
 ### Task 2: The two entities and the join row
 
 **Files:**
+
 - Create: `Guild.Domain/Entity/SceneFolder.cs`
 - Create: `Guild.Domain/Entity/SceneTag.cs`
 - Create: `Guild.Domain/Entity/SceneTagAssignment.cs`
@@ -110,6 +113,7 @@ Repo: `C:\Users\Domin\RiderProjects\Echo`. Use the built-in file tools there, no
 - Test: `Guild.Tests/Domain/SceneTaxonomyTests.cs`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `SceneFolder` (prefix `scfd`), `SceneTag` (prefix `sctg`), `SceneTagAssignment`, and two new `SceneState` properties `FolderId` and `ConcludedAt`. Every Phase 1 task uses these names.
 
@@ -181,10 +185,12 @@ git commit -m "feat(scenes): add folder and tag entities for the archive"
 ### Task 3: Model configuration and migration
 
 **Files:**
+
 - Modify: `Guild.Infrastructure/Persistence/MicroserviceContext.cs`
 - Create: `Guild.Infrastructure/Migrations/<generated>_AddSceneArchive.cs`
 
 **Interfaces:**
+
 - Consumes: Task 2's entities.
 - Produces: `DbSet<SceneFolder> SceneFolders`, `DbSet<SceneTag> SceneTags`, `DbSet<SceneTagAssignment> SceneTagAssignments`.
 
@@ -281,11 +287,13 @@ git commit -m "feat(scenes): persist archive folders, tags and assignments"
 ### Task 4: Set ConcludedAt on the transition
 
 **Files:**
+
 - Modify: `Guild.Application/Endpoints/SceneEndpoint.cs`
 - Modify: `Guild.Application/Dtos/Response/SceneDtos.cs`
 - Test: `Guild.Tests/Services/SceneTurnTests.cs`
 
 **Interfaces:**
+
 - Consumes: `SceneState.ConcludedAt`.
 - Produces: `SceneConcludedDto.ConcludedAt` populated by the server rather than by the client.
 
@@ -357,12 +365,14 @@ git commit -m "feat(scenes): stamp when a scene ended"
 ### Task 5: Folder and tag routes
 
 **Files:**
+
 - Create: `Guild.Application/Endpoints/SceneTaxonomyEndpoint.cs`
 - Create: `Guild.Application/Dtos/Request/SceneTaxonomyDtos.cs`
 - Create: `Guild.Application/Dtos/Response/SceneTaxonomyDtos.cs`
 - Test: `Guild.Tests/Endpoints/SceneTaxonomyEndpointTests.cs`
 
 **Interfaces:**
+
 - Consumes: Task 2's entities, `PersonaGate.CheckAsync` / `CheckMembershipAsync` (`Guild.Application/Services/PersonaGate.cs`).
 - Produces: the ten routes in the spec's A3 table, and these response records:
 
@@ -466,12 +476,14 @@ git commit -m "feat(scenes): add archive folder and tag routes"
 ### Task 6: The list query and the taxonomy event
 
 **Files:**
+
 - Modify: `Guild.Application/Endpoints/SceneEndpoint.cs:155-300`
 - Modify: `Guild.Application/Dtos/Response/SceneDtos.cs`
 - Create: `Guild.Contracts/Bus/Events/SceneTaxonomyChanged.cs`
 - Test: `Guild.Tests/Endpoints/SceneListQueryTests.cs`
 
 **Interfaces:**
+
 - Consumes: Tasks 2 to 5.
 - Produces: `folderId`, `tagIds`, `q`, `sort`, `offset` on `GET /guilds/{guildId}/scenes`; `FolderId`, `TagIds`, `ConcludedAt`, `CreatedAt` on `SceneListItemDto`; the `guild.SceneTaxonomyChanged` hub event.
 
@@ -549,6 +561,7 @@ git commit -m "feat(scenes): filter the scene list by folder, tag and name"
 ### Task 7: An anchorless oldest page
 
 **Files:**
+
 - Modify: `Messaging.Application/Controllers/MessagingController.cs:32-46,100`
 - Modify: `Messaging.Infrastructure/Persistence/Repositories/EfCoreMessageRepository.cs:104-159`
 - Modify: `Messaging.Infrastructure/Persistence/Repositories/ScyllaMessageRepository.cs:96`
@@ -556,6 +569,7 @@ git commit -m "feat(scenes): filter the scene list by folder, tag and name"
 - Test: `Messaging.Tests/Repositories/OldestPageTests.cs`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `?oldest=true` on `GET /api/v1/messaging/channels/{channelId}/messages`, returning the channel's first page in ascending order. The response shape is unchanged, so the client parses it exactly as it parses an offset page.
 
@@ -629,6 +643,7 @@ git commit -m "feat(messaging): serve a channel's oldest page without an anchor"
 ### Task 8: DTOs and the taxonomy service
 
 **Files:**
+
 - Modify: `src/app/dtos/response/scene.dto.ts`
 - Modify: `src/app/dtos/request/scene.dto.ts`
 - Modify: `src/app/services/roleplay-api.service.ts`
@@ -637,36 +652,37 @@ git commit -m "feat(messaging): serve a channel's oldest page without an anchor"
 - Test: `src/app/services/scene-taxonomy.service.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1's `SceneListParams`, Task 5's response records.
 - Produces:
 
 ```ts
 export interface SceneFolderDto {
-    id: string;
-    guildId: string;
-    name: string;
-    position: number;
-    parentFolderId?: string | null;
-    /** A single emoji. */
-    icon?: string | null;
-    color?: string | null;
+  id: string;
+  guildId: string;
+  name: string;
+  position: number;
+  parentFolderId?: string | null;
+  /** A single emoji. */
+  icon?: string | null;
+  color?: string | null;
 }
 
 export interface SceneTagDto {
-    id: string;
-    guildId: string;
-    name: string;
-    /** `#000000` is the server's "no colour chosen" default, not real black. */
-    color: string;
-    emojiId?: string | null;
-    emojiName?: string | null;
-    position: number;
-    moderated: boolean;
+  id: string;
+  guildId: string;
+  name: string;
+  /** `#000000` is the server's "no colour chosen" default, not real black. */
+  color: string;
+  emojiId?: string | null;
+  emojiName?: string | null;
+  position: number;
+  moderated: boolean;
 }
 
 export interface SceneTaxonomyDto {
-    folders: SceneFolderDto[];
-    tags: SceneTagDto[];
+  folders: SceneFolderDto[];
+  tags: SceneTagDto[];
 }
 ```
 
@@ -678,10 +694,10 @@ export interface SceneTaxonomyDto {
 
 ```ts
 it('replaces the whole set when the taxonomy changes', () => {
-    service.ensureGuild('gld_1');
-    taxonomyChanged.next({guildId: 'gld_1', folders: [], tags: [tagFixture('sctg_2', 'ashfall')]});
+  service.ensureGuild('gld_1');
+  taxonomyChanged.next({guildId: 'gld_1', folders: [], tags: [tagFixture('sctg_2', 'ashfall')]});
 
-    expect(service.tags('gld_1').map(t => t.id)).toEqual(['sctg_2']);
+  expect(service.tags('gld_1').map(t => t.id)).toEqual(['sctg_2']);
 });
 ```
 
@@ -708,21 +724,23 @@ git commit -m "feat(scenes): read archive folders and tags"
 ### Task 9: Lift the tag chip out of forums
 
 **Files:**
+
 - Create: `src/app/components/tag-chip/tag-chip.component.ts`
 - Modify: `src/app/features/guild/components/forum-channel/forum-tag-chip.component.ts` (delete after callers move)
 - Modify: `forum-post-card.component.ts`, `forum-post-list.component.ts`, `forum-tag-picker.component.ts`, `channel.component.html`
 - Test: `src/app/components/tag-chip/tag-chip.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `<app-tag-chip [tag]="..." [selected] [interactive] [removable] [size] [emojiUrl] [count]>` where `tag` is structural:
 
 ```ts
 export interface ChipTag {
-    name: string;
-    color: string;
-    emojiId?: string | null;
-    emojiName?: string | null;
+  name: string;
+  color: string;
+  emojiId?: string | null;
+  emojiName?: string | null;
 }
 ```
 
@@ -734,9 +752,9 @@ This is a move, so characterization first: the existing chip has no spec.
 
 ```ts
 it('renders a #000000 tag in the neutral style, not black', () => {
-    fixture.componentRef.setInput('tag', {name: 'plain', color: '#000000'});
-    fixture.detectChanges();
-    expect(chip().style.background).toBe('transparent');
+  fixture.componentRef.setInput('tag', {name: 'plain', color: '#000000'});
+  fixture.detectChanges();
+  expect(chip().style.background).toBe('transparent');
 });
 ```
 
@@ -767,11 +785,13 @@ git commit -m "refactor: share the tag chip between forums and scenes"
 ### Task 10: The mode switch
 
 **Files:**
+
 - Modify: `src/app/features/guild/scenes/scene-board/scene-board.component.{ts,html,css}`
 - Create: `src/app/features/guild/scenes/scene-archive/scene-archive.component.{ts,html,css}`
 - Test: `src/app/features/guild/scenes/scene-board/scene-board.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1, Task 8.
 - Produces: `SceneBoardComponent.mode` as a `signal<'playing' | 'archive'>`, and `<app-scene-archive [guildId]>`.
 
@@ -781,8 +801,8 @@ The board keeps its groups untouched. `mode() === 'archive'` renders the archive
 
 ```ts
 it('drops the concluded group from the playing board', () => {
-    // Concluded scenes belong to the archive now, so the board stops carrying an Ended group.
-    expect(component.groups().map(g => g.key)).not.toContain('ended');
+  // Concluded scenes belong to the archive now, so the board stops carrying an Ended group.
+  expect(component.groups().map(g => g.key)).not.toContain('ended');
 });
 ```
 
@@ -808,20 +828,22 @@ git commit -m "feat(scenes): switch the board between playing and archive"
 ### Task 11: The folder rail
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-archive/scene-folder-rail.component.{ts,html,css}`
 - Create: `src/app/features/guild/scenes/scene-archive/folder-tree.ts`
 - Test: `src/app/features/guild/scenes/scene-archive/folder-tree.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `SceneFolderDto` from Task 8.
 - Produces:
 
 ```ts
 export interface FolderNode {
-    folder: SceneFolderDto;
-    children: FolderNode[];
-    /** Scenes filed directly here plus those in children. */
-    count: number;
+  folder: SceneFolderDto;
+  children: FolderNode[];
+  /** Scenes filed directly here plus those in children. */
+  count: number;
 }
 
 /** Builds the two-level rail. A folder whose parent is missing is treated as a root, so a
@@ -835,16 +857,16 @@ The rail always shows ALL and Unfiled with counts, folders in `position` order, 
 
 ```ts
 it('rolls a child folder count up into its parent', () => {
-    const tree = folderTree(
-        [folder('scfd_1', 'Arc I', null, 0), folder('scfd_2', 'Sidequests', 'scfd_1', 0)],
-        {scfd_1: 2, scfd_2: 3},
-    );
-    expect(tree[0].count).toBe(5);
+  const tree = folderTree([folder('scfd_1', 'Arc I', null, 0), folder('scfd_2', 'Sidequests', 'scfd_1', 0)], {
+    scfd_1: 2,
+    scfd_2: 3,
+  });
+  expect(tree[0].count).toBe(5);
 });
 
 it('treats an orphan as a root rather than dropping it', () => {
-    const tree = folderTree([folder('scfd_9', 'Orphan', 'scfd_gone', 0)], {});
-    expect(tree.map(n => n.folder.id)).toEqual(['scfd_9']);
+  const tree = folderTree([folder('scfd_9', 'Orphan', 'scfd_gone', 0)], {});
+  expect(tree.map(n => n.folder.id)).toEqual(['scfd_9']);
 });
 ```
 
@@ -870,12 +892,14 @@ git commit -m "feat(scenes): add the archive folder rail"
 ### Task 12: Cards, the tag filter row and paging
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-archive/scene-archive-card.component.ts`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-archive.component.{ts,html,css}`
 - Modify: `src/app/services/scene.service.ts`
 - Test: `src/app/features/guild/scenes/scene-archive/scene-archive.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 8, 9, 11.
 - Produces: `SceneService.archive(guildId, filters)` holding a cache keyed by filter, separate from `byGuild` so archive paging never disturbs the live board.
 
@@ -885,10 +909,12 @@ The card is quieter than a live board row: no `turn-clock-ring`, the existing `b
 
 ```ts
 it('ANDs the selected tags into one request', () => {
-    component.toggleTag('sctg_1');
-    component.toggleTag('sctg_2');
-    expect(api.listScenes).toHaveBeenLastCalledWith('gld_1',
-        expect.objectContaining({tagIds: ['sctg_1', 'sctg_2'], sort: 'ended'}));
+  component.toggleTag('sctg_1');
+  component.toggleTag('sctg_2');
+  expect(api.listScenes).toHaveBeenLastCalledWith(
+    'gld_1',
+    expect.objectContaining({tagIds: ['sctg_1', 'sctg_2'], sort: 'ended'}),
+  );
 });
 ```
 
@@ -914,11 +940,13 @@ git commit -m "feat(scenes): list archived scenes by folder and tag"
 ### Task 13: The detail sheet and filing
 
 **Files:**
+
 - Create: `src/app/features/guild/scenes/scene-archive/scene-detail-sheet.component.{ts,html,css}`
 - Create: `src/app/features/guild/scenes/scene-archive/scene-taxonomy-editor.component.ts`
 - Test: `src/app/features/guild/scenes/scene-archive/scene-detail-sheet.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 8 to 12.
 - Produces: `<app-scene-detail-sheet [guildId] [scene] (closed) (filed)>`.
 
@@ -928,10 +956,10 @@ Filing is drag a card onto a folder plus a right-click menu doing the same thing
 
 ```ts
 it('hides filing from a member without ManageScenes', () => {
-    fixture.componentRef.setInput('canManage', false);
-    fixture.detectChanges();
-    expect(query('[data-testid="file-into-folder"]')).toBeNull();
-    expect(query('[data-testid="apply-tag"]')).not.toBeNull();
+  fixture.componentRef.setInput('canManage', false);
+  fixture.detectChanges();
+  expect(query('[data-testid="file-into-folder"]')).toBeNull();
+  expect(query('[data-testid="apply-tag"]')).not.toBeNull();
 });
 ```
 
@@ -963,10 +991,12 @@ The app's hottest path. Characterization first, per CLAUDE.md.
 ### Task 14: Pin the current single-edge paging
 
 **Files:**
+
 - Modify: `src/app/stores/message-store-update.spec.ts`
 - Modify: `src/app/features/guild/components/channel/channel-conversation/channel-conversation.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: tests that fail if Task 15 changes existing behaviour.
 
@@ -989,24 +1019,26 @@ git commit -m "test: pin the current message paging behaviour"
 ### Task 15: A two-edged window
 
 **Files:**
+
 - Modify: `src/app/stores/message.store.ts:574-700`
 - Modify: `src/app/services/messaging.service.ts:48`
 - Test: `src/app/stores/message-store-anchored.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 7's `oldest=true`, Task 14's characterization tests.
 - Produces:
 
 ```ts
 export interface ConversationMeta {
-    offset: number;
-    hasMore: boolean;
-    loadingMore: boolean;
-    /** Newer messages exist beyond the window. Only meaningful while anchored. */
-    hasNewer?: boolean;
-    loadingNewer?: boolean;
-    /** Seeded by a cursor rather than by the newest page. */
-    anchored?: boolean;
+  offset: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+  /** Newer messages exist beyond the window. Only meaningful while anchored. */
+  hasNewer?: boolean;
+  loadingNewer?: boolean;
+  /** Seeded by a cursor rather than by the newest page. */
+  anchored?: boolean;
 }
 ```
 
@@ -1016,24 +1048,24 @@ and `loadChannelOldest(channelId)`, `loadNewerForChannel(channelId)`, `clearAnch
 
 ```ts
 it('seeds an anchored window from the oldest page', async () => {
-    store.loadChannelOldest('chn_1');
-    await flush();
-    expect(store.channelMeta()['chn_1']).toMatchObject({anchored: true, hasMore: false, hasNewer: true});
+  store.loadChannelOldest('chn_1');
+  await flush();
+  expect(store.channelMeta()['chn_1']).toMatchObject({anchored: true, hasMore: false, hasNewer: true});
 });
 
 it('does not splice a live message into an anchored window', async () => {
-    store.loadChannelOldest('chn_1');
-    await flush();
-    store.upsertFromRealtime(messageFixture('msg_new', 'chn_1'));
-    // Stored, but not shown: putting turn 47 after turn 3 is the failure this guards.
-    expect(store.messagesForChannel('chn_1').map(m => m.id)).not.toContain('msg_new');
+  store.loadChannelOldest('chn_1');
+  await flush();
+  store.upsertFromRealtime(messageFixture('msg_new', 'chn_1'));
+  // Stored, but not shown: putting turn 47 after turn 3 is the failure this guards.
+  expect(store.messagesForChannel('chn_1').map(m => m.id)).not.toContain('msg_new');
 });
 
 it('drops the anchor on jump to present', async () => {
-    store.loadChannelOldest('chn_1');
-    await flush();
-    store.clearAnchor('chn_1');
-    expect(store.channelMeta()['chn_1'].anchored).toBe(false);
+  store.loadChannelOldest('chn_1');
+  await flush();
+  store.clearAnchor('chn_1');
+  expect(store.channelMeta()['chn_1'].anchored).toBe(false);
 });
 ```
 
@@ -1062,12 +1094,14 @@ git commit -m "feat(messages): page a channel forward from its oldest message"
 ### Task 16: Read from the start
 
 **Files:**
+
 - Modify: `src/app/features/guild/components/channel/channel-conversation/channel-conversation.component.ts:640-730`
 - Modify: `src/app/features/main-page/navigation.service.ts`
 - Modify: `src/app/features/guild/scenes/scene-archive/scene-detail-sheet.component.ts`
 - Test: `channel-conversation.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 15.
 - Produces: `NavigationService.openChannelFromStart(channel)`, and the sheet's primary action.
 
@@ -1077,9 +1111,9 @@ Scroll-down mirrors the existing scroll-up `LOAD_MORE_THRESHOLD` block at `:645`
 
 ```ts
 it('loads newer messages when scrolled to the bottom of an anchored window', () => {
-    setMeta({anchored: true, hasNewer: true, hasMore: false});
-    scrollTo(el.scrollHeight - el.clientHeight);
-    expect(store.loadNewerForChannel).toHaveBeenCalledWith('chn_1');
+  setMeta({anchored: true, hasNewer: true, hasMore: false});
+  scrollTo(el.scrollHeight - el.clientHeight);
+  expect(store.loadNewerForChannel).toHaveBeenCalledWith('chn_1');
 });
 ```
 
@@ -1110,10 +1144,12 @@ git commit -m "feat(scenes): read a concluded scene from its first post"
 ### Task 17: i18n keys
 
 **Files:**
+
 - Modify: `src/assets/i18n/locales/en.json` (submodule, own commit)
 - Modify: every component touched in Phases 4 and 5
 
 **Interfaces:**
+
 - Consumes: all prior tasks.
 - Produces: the `SCENE.ARCHIVE.*` key set.
 

@@ -230,10 +230,7 @@ export class HttpRoleplayApi extends RoleplayApi {
         sceneChannelId: string,
         dto: CreateSceneJoinRequestDto,
     ): Observable<SceneJoinRequestDto> {
-        return this.http.post<SceneJoinRequestDto>(
-            `${this.requests(guildId, sceneChannelId)}`,
-            dto,
-        );
+        return this.http.post<SceneJoinRequestDto>(`${this.requests(guildId, sceneChannelId)}`, dto);
     }
 
     listJoinRequests(
@@ -250,10 +247,9 @@ export class HttpRoleplayApi extends RoleplayApi {
         guildId: string,
         status?: SceneJoinRequestStatus,
     ): Observable<SceneJoinRequestListDto> {
-        return this.http.get<SceneJoinRequestListDto>(
-            `${this.base}/guilds/${guildId}/scene-join-requests`,
-            {params: statusParams(status)},
-        );
+        return this.http.get<SceneJoinRequestListDto>(`${this.base}/guilds/${guildId}/scene-join-requests`, {
+            params: statusParams(status),
+        });
     }
 
     approveJoinRequest(

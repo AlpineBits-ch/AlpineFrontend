@@ -20,16 +20,16 @@ Email sign-in works server-side today. Only the client's parsing breaks it. No b
 
 ## Decisions
 
-| Question | Answer |
-|---|---|
-| Where the control lives | A row above the tab strip, outside the tab body |
-| Scope | One `serverDomain` for the whole card: sign-in, register, QR |
-| A typed `user@host` | Sent whole as the identity; the host is only ever a post-failure hint |
-| Recents | Distinct hosts of the account slots on this machine, home pinned |
-| When the choice applies | Immediately on pick, not at submit |
-| Word for the host | Instance |
-| Which hosts offer it | Desktop only, as a `PlatformCapabilities` flag |
-| Controls | `p-select`, `p-button`, `pInputText`, all already in the preset |
+| Question                | Answer                                                                |
+| ----------------------- | --------------------------------------------------------------------- |
+| Where the control lives | A row above the tab strip, outside the tab body                       |
+| Scope                   | One `serverDomain` for the whole card: sign-in, register, QR          |
+| A typed `user@host`     | Sent whole as the identity; the host is only ever a post-failure hint |
+| Recents                 | Distinct hosts of the account slots on this machine, home pinned      |
+| When the choice applies | Immediately on pick, not at submit                                    |
+| Word for the host       | Instance                                                              |
+| Which hosts offer it    | Desktop only, as a `PlatformCapabilities` flag                        |
+| Controls                | `p-select`, `p-button`, `pInputText`, all already in the preset       |
 
 ## Architecture
 

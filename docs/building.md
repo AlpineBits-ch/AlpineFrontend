@@ -4,15 +4,15 @@ The quick start is in the README. This page is the things that go wrong.
 
 ## Prerequisites
 
-| Tool | Why | Install |
-|---|---|---|
-| [Rust](https://rustup.rs) (stable, MSVC toolchain) | The whole `src-tauri` crate | `rustup default stable-x86_64-pc-windows-msvc` |
-| [Bun](https://bun.sh) | Package manager and script runner | `powershell -c "irm bun.sh/install.ps1 \| iex"` |
-| Visual Studio Build Tools, "Desktop development with C++" | MSVC (`cl`, `link`), which Rust and the vendored C++ both need | [Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/) |
-| WebView2 runtime | The webview Tauri renders into | Preinstalled on Windows 11 |
-| Python 3 | Runs meson | [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12` |
-| meson and ninja | Build echo cancellation from source, see below | `pip install meson ninja` |
-| CMake | libopus, vendored by `audiopus_sys` | `winget install Kitware.CMake` |
+| Tool                                                      | Why                                                            | Install                                                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Rust](https://rustup.rs) (stable, MSVC toolchain)        | The whole `src-tauri` crate                                    | `rustup default stable-x86_64-pc-windows-msvc`                                         |
+| [Bun](https://bun.sh)                                     | Package manager and script runner                              | `powershell -c "irm bun.sh/install.ps1 \| iex"`                                        |
+| Visual Studio Build Tools, "Desktop development with C++" | MSVC (`cl`, `link`), which Rust and the vendored C++ both need | [Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/)    |
+| WebView2 runtime                                          | The webview Tauri renders into                                 | Preinstalled on Windows 11                                                             |
+| Python 3                                                  | Runs meson                                                     | [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12` |
+| meson and ninja                                           | Build echo cancellation from source, see below                 | `pip install meson ninja`                                                              |
+| CMake                                                     | libopus, vendored by `audiopus_sys`                            | `winget install Kitware.CMake`                                                         |
 
 CI installs exactly this set. The Windows job in `.github/workflows/build.yml` is the reference.
 

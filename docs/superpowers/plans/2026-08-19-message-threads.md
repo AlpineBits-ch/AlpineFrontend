@@ -31,6 +31,7 @@
 ### Task 1: Wire additions and the thread registry
 
 **Files:**
+
 - Modify: `src/app/dtos/response/message.dto.ts`
 - Modify: `src/app/dtos/response/guild.dto.ts:33-61`
 - Modify: `src/app/services/guild.service.ts:767-779`
@@ -39,6 +40,7 @@
 - Test: `src/app/services/thread-registry.service.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces:
   - `MessageDto.threadId?: string | null`
@@ -64,10 +66,10 @@ In `src/app/dtos/response/message.dto.ts`, extend the flags const and the messag
 ```ts
 /** Discord-compatible message bitfield. */
 export const MessageFlags = {
-    /** Bit 2: a person removed this message's previews, for everyone who can see it. */
-    SuppressEmbeds: 1 << 2,
-    /** Bit 5: derived server-side from threadId, so the two can never disagree. */
-    HasThread: 1 << 5,
+  /** Bit 2: a person removed this message's previews, for everyone who can see it. */
+  SuppressEmbeds: 1 << 2,
+  /** Bit 5: derived server-side from threadId, so the two can never disagree. */
+  HasThread: 1 << 5,
 } as const;
 ```
 
@@ -107,11 +109,11 @@ In `src/app/services/guild-websocket.service.ts`, after `WsThreadUpdated`:
 ```ts
 /** Redraw the one message named here. Separate from ThreadCreated, which only says a thread exists. */
 export interface WsMessageThreadAttached {
-    channelId: string;
-    guildId: string;
-    messageId: string;
-    threadId: string;
-    name: string;
+  channelId: string;
+  guildId: string;
+  messageId: string;
+  threadId: string;
+  name: string;
 }
 ```
 
@@ -124,9 +126,9 @@ Beside `threadUpdatedObservable` (line 959):
 Beside the `guild.ThreadUpdated` registration (line 1230):
 
 ```ts
-        this.realtime.on('guild.MessageThreadAttached', (d: WsMessageThreadAttached) =>
-            this.messageThreadAttachedObservable.next(d),
-        );
+this.realtime.on('guild.MessageThreadAttached', (d: WsMessageThreadAttached) =>
+  this.messageThreadAttachedObservable.next(d),
+);
 ```
 
 - [ ] **Step 4: Write the failing registry spec**
@@ -149,108 +151,112 @@ const BASE = 'https://api.test.example';
 const GUILD_BASE = `${BASE}/api/v1/guild`;
 
 function channelFixture(overrides: Partial<ChannelDto> = {}): ChannelDto {
-    return {
-        id: 'chan_thread',
-        createdAt: new Date('2026-08-19T00:00:00Z'),
-        updatedAt: new Date('2026-08-19T00:00:00Z'),
-        name: 'about that message',
-        description: '',
-        type: ChannelType.Thread,
-        guildId: 'g1',
-        isAgeRestricted: false,
-        isPrivate: false,
-        categoryId: undefined,
-        permissions: [],
-        position: 0,
-        slowModeSeconds: 0,
-        parentChannelId: 'chan_parent',
-        ...overrides,
-    };
+  return {
+    id: 'chan_thread',
+    createdAt: new Date('2026-08-19T00:00:00Z'),
+    updatedAt: new Date('2026-08-19T00:00:00Z'),
+    name: 'about that message',
+    description: '',
+    type: ChannelType.Thread,
+    guildId: 'g1',
+    isAgeRestricted: false,
+    isPrivate: false,
+    categoryId: undefined,
+    permissions: [],
+    position: 0,
+    slowModeSeconds: 0,
+    parentChannelId: 'chan_parent',
+    ...overrides,
+  };
 }
 
 function setup(guildChannels: ChannelDto[] = []) {
-    TestBed.resetTestingModule();
-    const nav = {
-        workspace: () => ({type: 'server' as const, guild: {id: 'g1', channels: guildChannels}}),
-    };
-    TestBed.configureTestingModule({
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {
-                provide: GuildWebsocketService,
-                useValue: {
-                    threadCreatedObservable: new Subject<any>(),
-                    threadUpdatedObservable: new Subject<any>(),
-                    messageThreadAttachedObservable: new Subject<any>(),
-                },
-            },
-            {provide: NavigationService, useValue: nav},
-        ],
-    });
-    return {
-        service: TestBed.inject(ThreadRegistryService),
-        http: TestBed.inject(HttpTestingController),
-        ws: TestBed.inject(GuildWebsocketService) as any,
-    };
+  TestBed.resetTestingModule();
+  const nav = {
+    workspace: () => ({type: 'server' as const, guild: {id: 'g1', channels: guildChannels}}),
+  };
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
+      {
+        provide: GuildWebsocketService,
+        useValue: {
+          threadCreatedObservable: new Subject<any>(),
+          threadUpdatedObservable: new Subject<any>(),
+          messageThreadAttachedObservable: new Subject<any>(),
+        },
+      },
+      {provide: NavigationService, useValue: nav},
+    ],
+  });
+  return {
+    service: TestBed.inject(ThreadRegistryService),
+    http: TestBed.inject(HttpTestingController),
+    ws: TestBed.inject(GuildWebsocketService) as any,
+  };
 }
 
 describe('ThreadRegistryService', () => {
-    it('resolves a thread already in the guild payload without a request', () => {
-        const {service, http} = setup([channelFixture()]);
+  it('resolves a thread already in the guild payload without a request', () => {
+    const {service, http} = setup([channelFixture()]);
 
-        expect(service.thread('chan_thread')?.name).toBe('about that message');
-        service.ensureThread('chan_thread');
-        http.verify();
-    });
+    expect(service.thread('chan_thread')?.name).toBe('about that message');
+    service.ensureThread('chan_thread');
+    http.verify();
+  });
 
-    it('fetches a thread the payload does not carry, once', () => {
-        const {service, http} = setup();
+  it('fetches a thread the payload does not carry, once', () => {
+    const {service, http} = setup();
 
-        service.ensureThread('chan_thread');
-        service.ensureThread('chan_thread');
+    service.ensureThread('chan_thread');
+    service.ensureThread('chan_thread');
 
-        http.expectOne(`${GUILD_BASE}/channels/chan_thread`).flush(channelFixture());
-        expect(service.thread('chan_thread')?.name).toBe('about that message');
-        http.verify();
-    });
+    http.expectOne(`${GUILD_BASE}/channels/chan_thread`).flush(channelFixture());
+    expect(service.thread('chan_thread')?.name).toBe('about that message');
+    http.verify();
+  });
 
-    it('leaves a thread unresolved when the fetch 404s, and does not retry', () => {
-        const {service, http} = setup();
+  it('leaves a thread unresolved when the fetch 404s, and does not retry', () => {
+    const {service, http} = setup();
 
-        service.ensureThread('gone');
-        http.expectOne(`${GUILD_BASE}/channels/gone`).flush(null, {status: 404, statusText: 'Not Found'});
+    service.ensureThread('gone');
+    http.expectOne(`${GUILD_BASE}/channels/gone`).flush(null, {status: 404, statusText: 'Not Found'});
 
-        expect(service.thread('gone')).toBeNull();
-        service.ensureThread('gone');
-        http.verify();
-    });
+    expect(service.thread('gone')).toBeNull();
+    service.ensureThread('gone');
+    http.verify();
+  });
 
-    it('folds a 409 on create into the thread id the server names', () => {
-        const {service, http} = setup();
-        let threadId: string | null = null;
+  it('folds a 409 on create into the thread id the server names', () => {
+    const {service, http} = setup();
+    let threadId: string | null = null;
 
-        service.createFromMessage('chan_parent', 'mesg_1', {name: 'about'}).subscribe(id => (threadId = id));
+    service.createFromMessage('chan_parent', 'mesg_1', {name: 'about'}).subscribe(id => (threadId = id));
 
-        http.expectOne(`${GUILD_BASE}/channels/chan_parent/messages/mesg_1/threads`).flush(
-            {threadId: 'chan_existing'},
-            {status: 409, statusText: 'Conflict'},
-        );
+    http
+      .expectOne(`${GUILD_BASE}/channels/chan_parent/messages/mesg_1/threads`)
+      .flush({threadId: 'chan_existing'}, {status: 409, statusText: 'Conflict'});
 
-        expect(threadId).toBe('chan_existing');
-    });
+    expect(threadId).toBe('chan_existing');
+  });
 
-    it('merges payload threads with fetched ones when listing a parent', () => {
-        const {service, http} = setup([channelFixture({id: 'chan_a', name: 'a'})]);
+  it('merges payload threads with fetched ones when listing a parent', () => {
+    const {service, http} = setup([channelFixture({id: 'chan_a', name: 'a'})]);
 
-        service.ensureParent('chan_parent');
-        http.expectOne(`${GUILD_BASE}/channels/chan_parent/threads`).flush([
-            channelFixture({id: 'chan_b', name: 'b'}),
-        ]);
+    service.ensureParent('chan_parent');
+    http
+      .expectOne(`${GUILD_BASE}/channels/chan_parent/threads`)
+      .flush([channelFixture({id: 'chan_b', name: 'b'})]);
 
-        expect(service.threadsFor('chan_parent').map(t => t.id).sort()).toEqual(['chan_a', 'chan_b']);
-    });
+    expect(
+      service
+        .threadsFor('chan_parent')
+        .map(t => t.id)
+        .sort(),
+    ).toEqual(['chan_a', 'chan_b']);
+  });
 });
 ```
 
@@ -279,93 +285,93 @@ import {NavigationService} from '../features/main-page/navigation.service';
  */
 @Injectable({providedIn: 'root'})
 export class ThreadRegistryService {
-    private readonly guildService = inject(GuildService);
-    private readonly ws = inject(GuildWebsocketService);
-    private readonly navService = inject(NavigationService);
+  private readonly guildService = inject(GuildService);
+  private readonly ws = inject(GuildWebsocketService);
+  private readonly navService = inject(NavigationService);
 
-    /** Fetched threads, by id. The guild payload is read live and never copied in here. */
-    private readonly fetched = signal<Record<string, ChannelDto>>({});
-    /** Ids already asked for, including ones that 404ed, so a dead pointer is not retried on every redraw. */
-    private readonly asked = new Set<string>();
-    private readonly askedParents = new Set<string>();
+  /** Fetched threads, by id. The guild payload is read live and never copied in here. */
+  private readonly fetched = signal<Record<string, ChannelDto>>({});
+  /** Ids already asked for, including ones that 404ed, so a dead pointer is not retried on every redraw. */
+  private readonly asked = new Set<string>();
+  private readonly askedParents = new Set<string>();
 
-    private readonly payloadThreads = computed(() => {
-        const ws = this.navService.workspace();
-        if (ws.type !== 'server') return [] as ChannelDto[];
-        return ws.guild.channels.filter(c => !!c.parentChannelId);
+  private readonly payloadThreads = computed(() => {
+    const ws = this.navService.workspace();
+    if (ws.type !== 'server') return [] as ChannelDto[];
+    return ws.guild.channels.filter(c => !!c.parentChannelId);
+  });
+
+  constructor() {
+    this.ws.threadCreatedObservable.subscribe(e => this.ensureThread(e.channelId));
+    this.ws.messageThreadAttachedObservable.subscribe(e => this.ensureThread(e.threadId));
+    this.ws.threadUpdatedObservable.subscribe(e => {
+      const held = this.fetched()[e.channelId];
+      if (!held) return;
+      // Full current state, not a patch: each present field replaces.
+      this.upsert({
+        ...held,
+        name: e.name ?? held.name,
+        isPinned: e.isPinned ?? held.isPinned,
+        isLocked: e.isLocked ?? held.isLocked,
+        isArchived: e.isArchived ?? held.isArchived,
+        tagIds: e.tagIds ?? held.tagIds,
+      });
     });
+  }
 
-    constructor() {
-        this.ws.threadCreatedObservable.subscribe(e => this.ensureThread(e.channelId));
-        this.ws.messageThreadAttachedObservable.subscribe(e => this.ensureThread(e.threadId));
-        this.ws.threadUpdatedObservable.subscribe(e => {
-            const held = this.fetched()[e.channelId];
-            if (!held) return;
-            // Full current state, not a patch: each present field replaces.
-            this.upsert({
-                ...held,
-                name: e.name ?? held.name,
-                isPinned: e.isPinned ?? held.isPinned,
-                isLocked: e.isLocked ?? held.isLocked,
-                isArchived: e.isArchived ?? held.isArchived,
-                tagIds: e.tagIds ?? held.tagIds,
-            });
-        });
-    }
+  thread(threadId: string): ChannelDto | null {
+    return this.payloadThreads().find(c => c.id === threadId) ?? this.fetched()[threadId] ?? null;
+  }
 
-    thread(threadId: string): ChannelDto | null {
-        return this.payloadThreads().find(c => c.id === threadId) ?? this.fetched()[threadId] ?? null;
-    }
+  threadsFor(parentId: string): ChannelDto[] {
+    const byId = new Map<string, ChannelDto>();
+    for (const c of this.payloadThreads()) if (c.parentChannelId === parentId) byId.set(c.id, c);
+    for (const c of Object.values(this.fetched())) if (c.parentChannelId === parentId) byId.set(c.id, c);
+    return [...byId.values()];
+  }
 
-    threadsFor(parentId: string): ChannelDto[] {
-        const byId = new Map<string, ChannelDto>();
-        for (const c of this.payloadThreads()) if (c.parentChannelId === parentId) byId.set(c.id, c);
-        for (const c of Object.values(this.fetched())) if (c.parentChannelId === parentId) byId.set(c.id, c);
-        return [...byId.values()];
-    }
+  ensureThread(threadId: string): void {
+    if (!threadId || this.asked.has(threadId) || this.thread(threadId)) return;
+    this.asked.add(threadId);
+    this.guildService.getChannel(threadId).subscribe({
+      next: channel => this.upsert(channel),
+      // A threadId resolving to nothing is expected, not a fault: the thread was deleted, or
+      // a create failed after the message had already been stamped.
+      error: () => {},
+    });
+  }
 
-    ensureThread(threadId: string): void {
-        if (!threadId || this.asked.has(threadId) || this.thread(threadId)) return;
-        this.asked.add(threadId);
-        this.guildService.getChannel(threadId).subscribe({
-            next: channel => this.upsert(channel),
-            // A threadId resolving to nothing is expected, not a fault: the thread was deleted, or
-            // a create failed after the message had already been stamped.
-            error: () => {},
-        });
-    }
+  ensureParent(parentId: string): void {
+    if (!parentId || this.askedParents.has(parentId)) return;
+    this.askedParents.add(parentId);
+    this.guildService.getThreads(parentId).subscribe({
+      next: threads => threads.forEach(t => this.upsert(t)),
+      error: () => {},
+    });
+  }
 
-    ensureParent(parentId: string): void {
-        if (!parentId || this.askedParents.has(parentId)) return;
-        this.askedParents.add(parentId);
-        this.guildService.getThreads(parentId).subscribe({
-            next: threads => threads.forEach(t => this.upsert(t)),
-            error: () => {},
-        });
-    }
+  upsert(channel: ChannelDto): void {
+    this.asked.add(channel.id);
+    this.fetched.update(map => ({...map, [channel.id]: channel}));
+  }
 
-    upsert(channel: ChannelDto): void {
-        this.asked.add(channel.id);
-        this.fetched.update(map => ({...map, [channel.id]: channel}));
-    }
-
-    /** Answers the thread id either way: a 409 means someone else pressed the button first. */
-    createFromMessage(channelId: string, messageId: string, dto: CreateThreadDto): Observable<string> {
-        return this.guildService.createThreadFromMessage(channelId, messageId, dto).pipe(
-            map(thread => {
-                this.upsert(thread);
-                return thread.id;
-            }),
-            catchError((err: HttpErrorResponse) => {
-                const existing = (err.error as {threadId?: string} | null)?.threadId;
-                if (err.status === 409 && existing) {
-                    this.ensureThread(existing);
-                    return of(existing);
-                }
-                return throwError(() => err);
-            }),
-        );
-    }
+  /** Answers the thread id either way: a 409 means someone else pressed the button first. */
+  createFromMessage(channelId: string, messageId: string, dto: CreateThreadDto): Observable<string> {
+    return this.guildService.createThreadFromMessage(channelId, messageId, dto).pipe(
+      map(thread => {
+        this.upsert(thread);
+        return thread.id;
+      }),
+      catchError((err: HttpErrorResponse) => {
+        const existing = (err.error as {threadId?: string} | null)?.threadId;
+        if (err.status === 409 && existing) {
+          this.ensureThread(existing);
+          return of(existing);
+        }
+        return throwError(() => err);
+      }),
+    );
+  }
 }
 ```
 
@@ -390,9 +396,11 @@ git commit -m "feat(threads): add message-thread wire shapes and a thread regist
 Nothing in `src/app` changes in this task. Its whole purpose is a net that catches the extraction in Task 3.
 
 **Files:**
+
 - Test: `src/app/features/guild/components/channel/channel.component.spec.ts` (create)
 
 **Interfaces:**
+
 - Consumes: nothing from Task 1.
 - Produces: a spec file whose `describe` blocks Task 3 re-points at the extracted component.
 
@@ -422,37 +430,37 @@ import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 const BASE = 'https://api.test.example';
 
 function channelFixture(overrides: Partial<ChannelDto> = {}): ChannelDto {
-    return {
-        id: 'chan1',
-        createdAt: new Date('2026-08-19T00:00:00Z'),
-        updatedAt: new Date('2026-08-19T00:00:00Z'),
-        name: 'general',
-        description: '',
-        type: ChannelType.Text,
-        guildId: 'g1',
-        isAgeRestricted: false,
-        isPrivate: false,
-        categoryId: undefined,
-        permissions: [],
-        position: 0,
-        slowModeSeconds: 0,
-        parentChannelId: undefined,
-        ...overrides,
-    };
+  return {
+    id: 'chan1',
+    createdAt: new Date('2026-08-19T00:00:00Z'),
+    updatedAt: new Date('2026-08-19T00:00:00Z'),
+    name: 'general',
+    description: '',
+    type: ChannelType.Text,
+    guildId: 'g1',
+    isAgeRestricted: false,
+    isPrivate: false,
+    categoryId: undefined,
+    permissions: [],
+    position: 0,
+    slowModeSeconds: 0,
+    parentChannelId: undefined,
+    ...overrides,
+  };
 }
 
 function sendPayload(overrides: Record<string, unknown> = {}) {
-    return {
-        content: 'hello',
-        attachments: [] as string[],
-        inReplyTo: undefined,
-        mentions: [] as string[],
-        roleMentions: [] as string[],
-        personaMentions: [] as string[],
-        mentionsEveryone: false,
-        mentionsHere: false,
-        ...overrides,
-    };
+  return {
+    content: 'hello',
+    attachments: [] as string[],
+    inReplyTo: undefined,
+    mentions: [] as string[],
+    roleMentions: [] as string[],
+    personaMentions: [] as string[],
+    mentionsEveryone: false,
+    mentionsHere: false,
+    ...overrides,
+  };
 }
 ```
 
@@ -460,66 +468,74 @@ The setup helper stubs the services the component injects. Only the ones this sp
 
 ```ts
 function storeStub() {
-    return {
-        entities: () => [],
-        channelMeta: () => ({}),
-        channelSearchEntries: () => ({}),
-        loadForChannel: vi.fn(),
-        addMessage: vi.fn(),
-        confirmMessage: vi.fn(),
-        failMessage: vi.fn(),
-        removeMessage: vi.fn(),
-        searchInChannel: vi.fn(),
-        clearChannelSearch: vi.fn(),
-    };
+  return {
+    entities: () => [],
+    channelMeta: () => ({}),
+    channelSearchEntries: () => ({}),
+    loadForChannel: vi.fn(),
+    addMessage: vi.fn(),
+    confirmMessage: vi.fn(),
+    failMessage: vi.fn(),
+    removeMessage: vi.fn(),
+    searchInChannel: vi.fn(),
+    clearChannelSearch: vi.fn(),
+  };
 }
 
 async function setup(sendResult: 'ok' | 'fail' | 'automod' = 'ok') {
-    TestBed.resetTestingModule();
-    const store = storeStub();
-    const messaging = {
-        messageSentObservable: new Subject<any>(),
-        createMessageForChannel: vi.fn(() => {
-            if (sendResult === 'ok') return of({id: 'mesg_real', encryptionState: 0});
-            if (sendResult === 'automod') {
-                return throwError(() => ({
-                    status: 403,
-                    error: {error: 'automod_blocked', reason: 'blocked_word'},
-                }));
-            }
-            return throwError(() => ({status: 500, error: null}));
-        }),
-    };
-    const guildWs = {
-        threadCreatedObservable: new Subject<any>(),
-        threadUpdatedObservable: new Subject<any>(),
-        messageThreadAttachedObservable: new Subject<any>(),
-        updateLastReadMessageByChannel: vi.fn(async () => {}),
-    };
+  TestBed.resetTestingModule();
+  const store = storeStub();
+  const messaging = {
+    messageSentObservable: new Subject<any>(),
+    createMessageForChannel: vi.fn(() => {
+      if (sendResult === 'ok') return of({id: 'mesg_real', encryptionState: 0});
+      if (sendResult === 'automod') {
+        return throwError(() => ({
+          status: 403,
+          error: {error: 'automod_blocked', reason: 'blocked_word'},
+        }));
+      }
+      return throwError(() => ({status: 500, error: null}));
+    }),
+  };
+  const guildWs = {
+    threadCreatedObservable: new Subject<any>(),
+    threadUpdatedObservable: new Subject<any>(),
+    messageThreadAttachedObservable: new Subject<any>(),
+    updateLastReadMessageByChannel: vi.fn(async () => {}),
+  };
 
-    await TestBed.configureTestingModule({
-        imports: [ChannelComponent],
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideTranslateService({defaultLanguage: 'en'}),
-            provideFakePlatform(),
-            MessageService,
-            {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {provide: MessageStore, useValue: store},
-            {provide: MessagingService, useValue: messaging},
-            {provide: GuildWebsocketService, useValue: guildWs},
-            {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
-            {provide: MlsService, useValue: {getEncryptionFloor: async () => null, getActiveGroupId: async () => null, getKnownGeneration: async () => null, cacheMessage: async () => {}}},
-            {provide: MlsSyncService, useValue: {refreshState: async () => ({encrypted: false})}},
-        ],
-    }).compileComponents();
+  await TestBed.configureTestingModule({
+    imports: [ChannelComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideTranslateService({defaultLanguage: 'en'}),
+      provideFakePlatform(),
+      MessageService,
+      {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
+      {provide: MessageStore, useValue: store},
+      {provide: MessagingService, useValue: messaging},
+      {provide: GuildWebsocketService, useValue: guildWs},
+      {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
+      {
+        provide: MlsService,
+        useValue: {
+          getEncryptionFloor: async () => null,
+          getActiveGroupId: async () => null,
+          getKnownGeneration: async () => null,
+          cacheMessage: async () => {},
+        },
+      },
+      {provide: MlsSyncService, useValue: {refreshState: async () => ({encrypted: false})}},
+    ],
+  }).compileComponents();
 
-    const fixture: ComponentFixture<ChannelComponent> = TestBed.createComponent(ChannelComponent);
-    fixture.componentRef.setInput('channel', channelFixture());
-    fixture.detectChanges();
-    await fixture.whenStable();
-    return {fixture, component: fixture.componentInstance, store, messaging, guildWs};
+  const fixture: ComponentFixture<ChannelComponent> = TestBed.createComponent(ChannelComponent);
+  fixture.componentRef.setInput('channel', channelFixture());
+  fixture.detectChanges();
+  await fixture.whenStable();
+  return {fixture, component: fixture.componentInstance, store, messaging, guildWs};
 }
 ```
 
@@ -527,51 +543,51 @@ The behaviours themselves. Adjust the `MessagingService` method name in `storeSt
 
 ```ts
 describe('ChannelComponent send path', () => {
-    it('adds an optimistic message before the request settles', async () => {
-        const {component, store} = await setup();
+  it('adds an optimistic message before the request settles', async () => {
+    const {component, store} = await setup();
 
-        component.createMessage(sendPayload());
+    component.createMessage(sendPayload());
 
-        expect(store.addMessage).toHaveBeenCalledOnce();
-        const optimistic = store.addMessage.mock.calls[0][0];
-        expect(optimistic.isPending).toBe(true);
-        expect(optimistic.channelId).toBe('chan1');
-        expect(atob(optimistic.content)).toBe('hello');
-    });
+    expect(store.addMessage).toHaveBeenCalledOnce();
+    const optimistic = store.addMessage.mock.calls[0][0];
+    expect(optimistic.isPending).toBe(true);
+    expect(optimistic.channelId).toBe('chan1');
+    expect(atob(optimistic.content)).toBe('hello');
+  });
 
-    it('confirms the optimistic message with the server copy', async () => {
-        const {component, store} = await setup('ok');
+  it('confirms the optimistic message with the server copy', async () => {
+    const {component, store} = await setup('ok');
 
-        component.createMessage(sendPayload());
-        await Promise.resolve();
-        await Promise.resolve();
+    component.createMessage(sendPayload());
+    await Promise.resolve();
+    await Promise.resolve();
 
-        expect(store.confirmMessage).toHaveBeenCalled();
-        expect(store.failMessage).not.toHaveBeenCalled();
-    });
+    expect(store.confirmMessage).toHaveBeenCalled();
+    expect(store.failMessage).not.toHaveBeenCalled();
+  });
 
-    it('marks the message failed when the send errors', async () => {
-        const {component, store} = await setup('fail');
+  it('marks the message failed when the send errors', async () => {
+    const {component, store} = await setup('fail');
 
-        component.createMessage(sendPayload());
-        await Promise.resolve();
-        await Promise.resolve();
+    component.createMessage(sendPayload());
+    await Promise.resolve();
+    await Promise.resolve();
 
-        expect(store.failMessage).toHaveBeenCalled();
-        expect(store.removeMessage).not.toHaveBeenCalled();
-    });
+    expect(store.failMessage).toHaveBeenCalled();
+    expect(store.removeMessage).not.toHaveBeenCalled();
+  });
 
-    it('removes the message and raises the banner on an auto-mod refusal', async () => {
-        const {fixture, component, store} = await setup('automod');
+  it('removes the message and raises the banner on an auto-mod refusal', async () => {
+    const {fixture, component, store} = await setup('automod');
 
-        component.createMessage(sendPayload());
-        await Promise.resolve();
-        await Promise.resolve();
-        fixture.detectChanges();
+    component.createMessage(sendPayload());
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
 
-        expect(store.removeMessage).toHaveBeenCalled();
-        expect(fixture.nativeElement.textContent).toContain('COMPOSER.AUTOMOD_BLOCKED_WORD');
-    });
+    expect(store.removeMessage).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('COMPOSER.AUTOMOD_BLOCKED_WORD');
+  });
 });
 ```
 
@@ -601,6 +617,7 @@ git commit -m "test(channel): characterize the send path before extracting it"
 No behaviour change. The spec from Task 2 is the gate.
 
 **Files:**
+
 - Create: `src/app/features/guild/components/channel/channel-conversation/channel-conversation.component.ts`
 - Create: `src/app/features/guild/components/channel/channel-conversation/channel-conversation.component.html`
 - Create: `src/app/features/guild/components/channel/channel-conversation/channel-conversation.component.css`
@@ -610,6 +627,7 @@ No behaviour change. The spec from Task 2 is the gate.
 - Move: `src/app/features/guild/components/channel/channel.component.spec.ts` to `channel-conversation/channel-conversation.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from Tasks 1 and 2 beyond the spec being green.
 - Produces:
   - `ChannelConversationComponent`, selector `app-channel-conversation`
@@ -635,9 +653,8 @@ kept inside the same `@if`/`@else` that used to guard the message list, so the s
 
 ```html
 @if (variant() === 'main') {
-    <!-- Channel start; only show when all history is loaded -->
-    ...
-}
+<!-- Channel start; only show when all history is loaded -->
+... }
 ```
 
 - [ ] **Step 2: Move the members**
@@ -652,9 +669,12 @@ Both need the scene channel. Add to `channel-utils.ts`:
 
 ```ts
 /** The scene this channel is, or the scene whose companion thread it is. */
-export function sceneChannelIdFor(channelId: string, rows: readonly {channelId: string; oocThreadId?: string | null}[]): string | null {
-    if (rows.some(row => row.channelId === channelId)) return channelId;
-    return rows.find(row => row.oocThreadId === channelId)?.channelId ?? null;
+export function sceneChannelIdFor(
+  channelId: string,
+  rows: readonly {channelId: string; oocThreadId?: string | null}[],
+): string | null {
+  if (rows.some(row => row.channelId === channelId)) return channelId;
+  return rows.find(row => row.oocThreadId === channelId)?.channelId ?? null;
 }
 ```
 
@@ -695,6 +715,7 @@ Expected: PASS, same tests as Task 2.
 bun run ng build --configuration development
 bun run test
 ```
+
 Expected: build clean, passing count at or above the Task 2 baseline.
 
 - [ ] **Step 7: Commit**
@@ -711,6 +732,7 @@ git commit -m "refactor(channel): extract the message list and composer into app
 ### Task 4: i18n keys
 
 **Files:**
+
 - Modify: `src/assets/i18n/locales/en.json`
 - Modify: `src/assets/i18n/locales/de.json`
 - Modify: `src/assets/i18n/locales/fr.json`
@@ -718,6 +740,7 @@ git commit -m "refactor(channel): extract the message list and composer into app
 `src/assets/i18n/locales` is a git submodule. This is a commit inside that repo, then a pointer bump in the outer one.
 
 **Interfaces:**
+
 - Produces: the `THREAD.*` keys every later task translates against.
 
 - [ ] **Step 1: Add the keys to en.json**
@@ -801,6 +824,7 @@ Expected: PASS. That spec checks the three files agree.
 ### Task 5: The thread side panel
 
 **Files:**
+
 - Create: `src/app/features/guild/components/channel/thread-side-panel/thread-side-panel.component.ts`
 - Create: `src/app/features/guild/components/channel/thread-side-panel/thread-side-panel.component.html`
 - Modify: `src/app/features/main-page/navigation.service.ts`
@@ -809,6 +833,7 @@ Expected: PASS. That spec checks the three files agree.
 - Test: `src/app/features/guild/components/channel/thread-side-panel/thread-side-panel.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `ChannelConversationComponent` (Task 3), `ThreadRegistryService` (Task 1), `THREAD.*` keys (Task 4).
 - Produces:
   - `NavigationService.threadPanel: Signal<ChannelDto | null>`
@@ -859,68 +884,72 @@ import {MessageStore} from '../../../../../stores/message.store';
 import {ChannelDto, ChannelType} from '../../../../../dtos/response/guild.dto';
 
 function threadFixture(overrides: Partial<ChannelDto> = {}): ChannelDto {
-    return {
-        id: 'chan_thread',
-        createdAt: new Date('2026-08-19T00:00:00Z'),
-        updatedAt: new Date('2026-08-19T00:00:00Z'),
-        name: 'about that message',
-        description: '',
-        type: ChannelType.Thread,
-        guildId: 'g1',
-        isAgeRestricted: false,
-        isPrivate: false,
-        categoryId: undefined,
-        permissions: [],
-        position: 0,
-        slowModeSeconds: 0,
-        parentChannelId: 'chan_parent',
-        starterMessageId: 'mesg_starter',
-        ...overrides,
-    };
+  return {
+    id: 'chan_thread',
+    createdAt: new Date('2026-08-19T00:00:00Z'),
+    updatedAt: new Date('2026-08-19T00:00:00Z'),
+    name: 'about that message',
+    description: '',
+    type: ChannelType.Thread,
+    guildId: 'g1',
+    isAgeRestricted: false,
+    isPrivate: false,
+    categoryId: undefined,
+    permissions: [],
+    position: 0,
+    slowModeSeconds: 0,
+    parentChannelId: 'chan_parent',
+    starterMessageId: 'mesg_starter',
+    ...overrides,
+  };
 }
 
 async function setup(thread: ChannelDto, held: unknown[] = []) {
-    TestBed.resetTestingModule();
-    const messaging = {getMessageById: vi.fn(() => of({id: 'mesg_starter', content: btoa('hi')}))};
-    await TestBed.configureTestingModule({
-        imports: [ThreadSidePanelComponent],
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideTranslateService({defaultLanguage: 'en'}),
-            MessageService,
-            {provide: MessagingService, useValue: messaging},
-            {provide: MessageStore, useValue: {entities: () => held}},
-        ],
+  TestBed.resetTestingModule();
+  const messaging = {getMessageById: vi.fn(() => of({id: 'mesg_starter', content: btoa('hi')}))};
+  await TestBed.configureTestingModule({
+    imports: [ThreadSidePanelComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideTranslateService({defaultLanguage: 'en'}),
+      MessageService,
+      {provide: MessagingService, useValue: messaging},
+      {provide: MessageStore, useValue: {entities: () => held}},
+    ],
+  })
+    .overrideComponent(ThreadSidePanelComponent, {
+      remove: {imports: [ChannelConversationComponent]},
+      add: {imports: []},
     })
-        .overrideComponent(ThreadSidePanelComponent, {remove: {imports: [ChannelConversationComponent]}, add: {imports: []}})
-        .compileComponents();
+    .compileComponents();
 
-    const fixture: ComponentFixture<ThreadSidePanelComponent> = TestBed.createComponent(ThreadSidePanelComponent);
-    fixture.componentRef.setInput('thread', thread);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    return {fixture, messaging};
+  const fixture: ComponentFixture<ThreadSidePanelComponent> =
+    TestBed.createComponent(ThreadSidePanelComponent);
+  fixture.componentRef.setInput('thread', thread);
+  fixture.detectChanges();
+  await fixture.whenStable();
+  return {fixture, messaging};
 }
 
 describe('ThreadSidePanelComponent', () => {
-    it('fetches the starter message when the store does not hold it', async () => {
-        const {messaging} = await setup(threadFixture());
+  it('fetches the starter message when the store does not hold it', async () => {
+    const {messaging} = await setup(threadFixture());
 
-        expect(messaging.getMessageById).toHaveBeenCalledOnce();
-    });
+    expect(messaging.getMessageById).toHaveBeenCalledOnce();
+  });
 
-    it('does not fetch a starter message the store already holds', async () => {
-        const {messaging} = await setup(threadFixture(), [{id: 'mesg_starter', content: btoa('hi')}]);
+  it('does not fetch a starter message the store already holds', async () => {
+    const {messaging} = await setup(threadFixture(), [{id: 'mesg_starter', content: btoa('hi')}]);
 
-        expect(messaging.getMessageById).not.toHaveBeenCalled();
-    });
+    expect(messaging.getMessageById).not.toHaveBeenCalled();
+  });
 
-    it('shows the archived notice on an archived thread', async () => {
-        const {fixture} = await setup(threadFixture({isArchived: true}));
+  it('shows the archived notice on an archived thread', async () => {
+    const {fixture} = await setup(threadFixture({isArchived: true}));
 
-        expect(fixture.nativeElement.textContent).toContain('THREAD.ARCHIVED_NOTICE');
-    });
+    expect(fixture.nativeElement.textContent).toContain('THREAD.ARCHIVED_NOTICE');
+  });
 });
 ```
 
@@ -932,7 +961,16 @@ Expected: FAIL, the component does not exist.
 - [ ] **Step 4: Write the component**
 
 ```ts
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelDto} from '../../../../../dtos/response/guild.dto';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
@@ -943,53 +981,51 @@ import {ChannelConversationComponent} from '../channel-conversation/channel-conv
 import {AppAvatarComponent} from '../../../../../components/avatar/avatar.component';
 
 @Component({
-    selector: 'app-thread-side-panel',
-    imports: [ChannelConversationComponent, AppAvatarComponent, TranslateModule],
-    templateUrl: './thread-side-panel.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-thread-side-panel',
+  imports: [ChannelConversationComponent, AppAvatarComponent, TranslateModule],
+  templateUrl: './thread-side-panel.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ThreadSidePanelComponent {
-    readonly thread = input.required<ChannelDto>();
+  readonly thread = input.required<ChannelDto>();
 
-    protected readonly navService = inject(NavigationService);
-    private readonly messageStore = inject(MessageStore);
-    private readonly messaging = inject(MessagingService);
+  protected readonly navService = inject(NavigationService);
+  private readonly messageStore = inject(MessageStore);
+  private readonly messaging = inject(MessagingService);
 
-    private readonly fetchedStarter = signal<MessageDto | null>(null);
+  private readonly fetchedStarter = signal<MessageDto | null>(null);
 
-    /** The starter stays in the parent channel, so the panel draws it once at the top or opens on a reply to nothing. */
-    protected readonly starter = computed(() => {
-        const id = this.thread().starterMessageId;
-        if (!id) return null;
-        const held = this.messageStore.entities().find(m => m.id === id);
-        return held ?? this.fetchedStarter();
-    });
+  /** The starter stays in the parent channel, so the panel draws it once at the top or opens on a reply to nothing. */
+  protected readonly starter = computed(() => {
+    const id = this.thread().starterMessageId;
+    if (!id) return null;
+    const held = this.messageStore.entities().find(m => m.id === id);
+    return held ?? this.fetchedStarter();
+  });
 
-    protected readonly parentName = computed(() => {
-        const ws = this.navService.workspace();
-        if (ws.type !== 'server') return '';
-        return ws.guild.channels.find(c => c.id === this.thread().parentChannelId)?.name ?? '';
-    });
+  protected readonly parentName = computed(() => {
+    const ws = this.navService.workspace();
+    if (ws.type !== 'server') return '';
+    return ws.guild.channels.find(c => c.id === this.thread().parentChannelId)?.name ?? '';
+  });
 
-    constructor() {
-        effect(() => {
-            const thread = this.thread();
-            const id = thread.starterMessageId;
-            untracked(() => this.fetchedStarter.set(null));
-            if (!id) return;
-            if (untracked(() => this.messageStore.entities().some(m => m.id === id))) return;
+  constructor() {
+    effect(() => {
+      const thread = this.thread();
+      const id = thread.starterMessageId;
+      untracked(() => this.fetchedStarter.set(null));
+      if (!id) return;
+      if (untracked(() => this.messageStore.entities().some(m => m.id === id))) return;
 
-            untracked(() => {
-                this.messaging
-                    .getMessageById({channelId: thread.parentChannelId!, messageId: id})
-                    .subscribe({
-                        next: message => this.fetchedStarter.set(message),
-                        // A starter that has been deleted leaves the panel without its quote, which is survivable.
-                        error: () => {},
-                    });
-            });
+      untracked(() => {
+        this.messaging.getMessageById({channelId: thread.parentChannelId!, messageId: id}).subscribe({
+          next: message => this.fetchedStarter.set(message),
+          // A starter that has been deleted leaves the panel without its quote, which is survivable.
+          error: () => {},
         });
-    }
+      });
+    });
+  }
 }
 ```
 
@@ -999,45 +1035,43 @@ The template:
 
 ```html
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
-    <header class="app-header flex items-center gap-2 px-3 border-b border-white/[0.08] shrink-0">
-        <i class="pi pi-comments text-text-muted text-xs shrink-0"></i>
-        <div class="flex flex-col min-w-0 leading-tight">
-            <span class="text-sm font-semibold text-text-primary truncate">{{ thread().name }}</span>
-            <button
-                (click)="navService.closeThread()"
-                class="text-[0.6875rem] text-text-muted hover:text-text-secondary text-left truncate border-0 bg-transparent p-0 cursor-pointer"
-            >
-                {{ 'THREAD.PANEL_PARENT' | translate: {channel: parentName()} }}
-            </button>
-        </div>
-        <button
-            (click)="navService.closeThread()"
-            class="ml-auto shrink-0 w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] border-0 bg-transparent cursor-pointer"
-        >
-            <i class="pi pi-times text-[0.625rem]"></i>
-        </button>
-    </header>
+  <header class="app-header flex items-center gap-2 px-3 border-b border-white/[0.08] shrink-0">
+    <i class="pi pi-comments text-text-muted text-xs shrink-0"></i>
+    <div class="flex flex-col min-w-0 leading-tight">
+      <span class="text-sm font-semibold text-text-primary truncate">{{ thread().name }}</span>
+      <button
+        (click)="navService.closeThread()"
+        class="text-[0.6875rem] text-text-muted hover:text-text-secondary text-left truncate border-0 bg-transparent p-0 cursor-pointer"
+      >
+        {{ 'THREAD.PANEL_PARENT' | translate: {channel: parentName()} }}
+      </button>
+    </div>
+    <button
+      (click)="navService.closeThread()"
+      class="ml-auto shrink-0 w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] border-0 bg-transparent cursor-pointer"
+    >
+      <i class="pi pi-times text-[0.625rem]"></i>
+    </button>
+  </header>
 
-    @if (starter(); as message) {
-        <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 bg-white/[0.02]">
-            <p class="text-[0.6875rem] text-text-muted m-0 mb-1">
-                {{ 'THREAD.STARTED_FROM' | translate: {channel: parentName()} }}
-            </p>
-            <div class="flex items-start gap-2 min-w-0">
-                <app-avatar [size]="20" [userId]="message.authorId" />
-                <p class="text-xs text-text-secondary m-0 line-clamp-3 min-w-0">{{ starterText() }}</p>
-            </div>
-        </div>
-    }
+  @if (starter(); as message) {
+  <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 bg-white/[0.02]">
+    <p class="text-[0.6875rem] text-text-muted m-0 mb-1">
+      {{ 'THREAD.STARTED_FROM' | translate: {channel: parentName()} }}
+    </p>
+    <div class="flex items-start gap-2 min-w-0">
+      <app-avatar [size]="20" [userId]="message.authorId" />
+      <p class="text-xs text-text-secondary m-0 line-clamp-3 min-w-0">{{ starterText() }}</p>
+    </div>
+  </div>
+  } @if (thread().isArchived) {
+  <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 flex items-center gap-2">
+    <i class="pi pi-inbox text-connecting text-[0.75rem]"></i>
+    <span class="text-xs text-text-muted">{{ 'THREAD.ARCHIVED_NOTICE' | translate }}</span>
+  </div>
+  }
 
-    @if (thread().isArchived) {
-        <div class="px-3 py-2 border-b border-white/[0.06] shrink-0 flex items-center gap-2">
-            <i class="pi pi-inbox text-connecting text-[0.75rem]"></i>
-            <span class="text-xs text-text-muted">{{ 'THREAD.ARCHIVED_NOTICE' | translate }}</span>
-        </div>
-    }
-
-    <app-channel-conversation [channel]="thread()" class="flex-1 min-h-0 flex flex-col" variant="panel" />
+  <app-channel-conversation [channel]="thread()" class="flex-1 min-h-0 flex flex-col" variant="panel" />
 </div>
 ```
 
@@ -1056,25 +1090,25 @@ In `channel.component.html`, beside the two existing panels at line 404:
 
 ```html
 @if (navService.threadPanel(); as openThread) {
-    <app-thread-side-panel
-        [thread]="openThread"
-        [style.width.rem]="panelWidth()"
-        class="shrink-0 border-l border-white/[0.08] hidden sm:flex flex-col"
-    />
+<app-thread-side-panel
+  [thread]="openThread"
+  [style.width.rem]="panelWidth()"
+  class="shrink-0 border-l border-white/[0.08] hidden sm:flex flex-col"
+/>
 }
 ```
 
 Make the three panels mutually exclusive: opening the thread panel closes `showThreadPanel` and `showPinnedPanel`, and each of those calls `navService.closeThread()`. Do that with an effect in `channel.component.ts` rather than by editing four click handlers:
 
 ```ts
-        effect(() => {
-            if (this.navService.threadPanel()) {
-                untracked(() => {
-                    this.showThreadPanel.set(false);
-                    this.showPinnedPanel.set(false);
-                });
-            }
-        });
+effect(() => {
+  if (this.navService.threadPanel()) {
+    untracked(() => {
+      this.showThreadPanel.set(false);
+      this.showPinnedPanel.set(false);
+    });
+  }
+});
 ```
 
 and in the two toggle handlers, call `this.navService.closeThread()` when turning one on.
@@ -1106,9 +1140,9 @@ const THREAD_PANEL_MAX_REM = 40;
 
 ```ts
 function readPanelWidth(): number {
-    const raw = Number(localStorage.getItem(THREAD_PANEL_WIDTH_KEY));
-    if (!Number.isFinite(raw) || raw <= 0) return 25;
-    return Math.min(THREAD_PANEL_MAX_REM, Math.max(THREAD_PANEL_MIN_REM, raw));
+  const raw = Number(localStorage.getItem(THREAD_PANEL_WIDTH_KEY));
+  if (!Number.isFinite(raw) || raw <= 0) return 25;
+  return Math.min(THREAD_PANEL_MAX_REM, Math.max(THREAD_PANEL_MIN_REM, raw));
 }
 ```
 
@@ -1141,6 +1175,7 @@ git commit -m "feat(threads): open a thread in a resizable side panel beside its
 ### Task 6: Create a thread from the hover toolbar
 
 **Files:**
+
 - Create: `src/app/features/guild/components/channel/create-thread-dialog/create-thread-dialog.component.ts`
 - Create: `src/app/features/guild/components/channel/create-thread-dialog/create-thread-dialog.component.html`
 - Modify: `src/app/features/messaging/components/conversation/message/hover-toolbar/message-hover-toolbar.component.ts`
@@ -1151,6 +1186,7 @@ git commit -m "feat(threads): open a thread in a resizable side panel beside its
 - Test: `src/app/features/guild/components/channel/create-thread-dialog/create-thread-dialog.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `ThreadRegistryService.createFromMessage` (Task 1), `NavigationService.openThread` (Task 5), `THREAD.*` (Task 4).
 - Produces:
   - `MessageHoverToolbarComponent`: `input<boolean>(false) canCreateThread`, `input<string | null>(null) threadId`, `output<void> createThread`
@@ -1172,13 +1208,13 @@ In the template, between the reply button and the pin block:
 
 ```html
 @if (canCreateThread()) {
-    <button
-        (click)="createThread.emit()"
-        class="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
-        [title]="(threadId() ? 'THREAD.GO_TO' : 'THREAD.CREATE') | translate"
-    >
-        <i class="pi pi-comments text-[10px]"></i>
-    </button>
+<button
+  (click)="createThread.emit()"
+  class="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+  [title]="(threadId() ? 'THREAD.GO_TO' : 'THREAD.CREATE') | translate"
+>
+  <i class="pi pi-comments text-[10px]"></i>
+</button>
 }
 ```
 
@@ -1207,9 +1243,8 @@ The button is offered only on a real, persisted message:
 Wire it in `message.component.html` on the existing `<app-message-hover-toolbar>`:
 
 ```html
-                [canCreateThread]="canOfferThread()"
-                [threadId]="message().threadId ?? null"
-                (createThread)="createThread.emit(message())"
+[canCreateThread]="canOfferThread()" [threadId]="message().threadId ?? null"
+(createThread)="createThread.emit(message())"
 ```
 
 - [ ] **Step 3: Decide the gate in channel-conversation**
@@ -1232,8 +1267,7 @@ In `channel-conversation.component.ts`:
 and on `<app-message>` in its template:
 
 ```html
-                                            [canCreateThread]="canCreateThreads()"
-                                            (createThread)="onCreateThread($event)"
+[canCreateThread]="canCreateThreads()" (createThread)="onCreateThread($event)"
 ```
 
 `onCreateThread` opens the panel when the message already has a thread, and the dialog when it does not:
@@ -1285,98 +1319,102 @@ import {MessageType} from '../../../../../enums/message-type.enum';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 
 function starterFixture(content: string): MessageDto {
-    return {
-        id: 'mesg_1',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        content: btoa(content),
-        channelId: 'chan_parent',
-        conversationId: undefined,
-        authorId: 'u1',
-        isPending: false,
-        isFailed: false,
-        attachments: [],
-        inReplyTo: undefined,
-        mentions: [],
-        encryptionState: MessageEncryptionState.Plain,
-        mlsEpoch: undefined,
-        mlsSequenceNumber: undefined,
-        senderDeviceId: undefined,
-        type: MessageType.Message,
-    };
+  return {
+    id: 'mesg_1',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    content: btoa(content),
+    channelId: 'chan_parent',
+    conversationId: undefined,
+    authorId: 'u1',
+    isPending: false,
+    isFailed: false,
+    attachments: [],
+    inReplyTo: undefined,
+    mentions: [],
+    encryptionState: MessageEncryptionState.Plain,
+    mlsEpoch: undefined,
+    mlsSequenceNumber: undefined,
+    senderDeviceId: undefined,
+    type: MessageType.Message,
+  };
 }
 
 async function setup(result: 'ok' | '409' | 'error' = 'ok') {
-    TestBed.resetTestingModule();
-    const registry = {
-        createFromMessage: vi.fn(() => {
-            if (result === 'error') return throwError(() => ({status: 500}));
-            return of(result === '409' ? 'chan_existing' : 'chan_new');
-        }),
-    };
-    await TestBed.configureTestingModule({
-        imports: [CreateThreadDialogComponent],
-        providers: [
-            provideHttpClient(),
-            provideHttpClientTesting(),
-            provideTranslateService({defaultLanguage: 'en'}),
-            MessageService,
-            {provide: ThreadRegistryService, useValue: registry},
-        ],
-    }).compileComponents();
+  TestBed.resetTestingModule();
+  const registry = {
+    createFromMessage: vi.fn(() => {
+      if (result === 'error') return throwError(() => ({status: 500}));
+      return of(result === '409' ? 'chan_existing' : 'chan_new');
+    }),
+  };
+  await TestBed.configureTestingModule({
+    imports: [CreateThreadDialogComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideTranslateService({defaultLanguage: 'en'}),
+      MessageService,
+      {provide: ThreadRegistryService, useValue: registry},
+    ],
+  }).compileComponents();
 
-    const fixture: ComponentFixture<CreateThreadDialogComponent> = TestBed.createComponent(CreateThreadDialogComponent);
-    fixture.componentRef.setInput('channelId', 'chan_parent');
-    return {fixture, component: fixture.componentInstance as any, registry};
+  const fixture: ComponentFixture<CreateThreadDialogComponent> =
+    TestBed.createComponent(CreateThreadDialogComponent);
+  fixture.componentRef.setInput('channelId', 'chan_parent');
+  return {fixture, component: fixture.componentInstance as any, registry};
 }
 
 describe('CreateThreadDialogComponent', () => {
-    it('prefills the name from the first few words of the starter', async () => {
-        const {fixture, component} = await setup();
+  it('prefills the name from the first few words of the starter', async () => {
+    const {fixture, component} = await setup();
 
-        fixture.componentRef.setInput('starter', starterFixture('the deployment broke again and nobody knows why'));
-        fixture.componentRef.setInput('visible', true);
-        fixture.detectChanges();
+    fixture.componentRef.setInput(
+      'starter',
+      starterFixture('the deployment broke again and nobody knows why'),
+    );
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
 
-        expect(component.name()).toBe('the deployment broke again and');
-    });
+    expect(component.name()).toBe('the deployment broke again and');
+  });
 
-    it('leaves the name blank when the starter cannot be read', async () => {
-        const {fixture, component} = await setup();
-        const undecryptable = {...starterFixture(''), undecryptable: true};
+  it('leaves the name blank when the starter cannot be read', async () => {
+    const {fixture, component} = await setup();
+    const undecryptable = {...starterFixture(''), undecryptable: true};
 
-        fixture.componentRef.setInput('starter', undecryptable);
-        fixture.componentRef.setInput('visible', true);
-        fixture.detectChanges();
+    fixture.componentRef.setInput('starter', undecryptable);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
 
-        expect(component.name()).toBe('');
-    });
+    expect(component.name()).toBe('');
+  });
 
-    it('emits the existing thread id on a 409 without a toast', async () => {
-        const {fixture, component, registry} = await setup('409');
-        let emitted: string | null = null;
-        component.created.subscribe((id: string) => (emitted = id));
+  it('emits the existing thread id on a 409 without a toast', async () => {
+    const {fixture, component, registry} = await setup('409');
+    let emitted: string | null = null;
+    component.created.subscribe((id: string) => (emitted = id));
 
-        fixture.componentRef.setInput('starter', starterFixture('hello'));
-        fixture.componentRef.setInput('visible', true);
-        fixture.detectChanges();
-        component.submit();
+    fixture.componentRef.setInput('starter', starterFixture('hello'));
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    component.submit();
 
-        expect(registry.createFromMessage).toHaveBeenCalledOnce();
-        expect(emitted).toBe('chan_existing');
-    });
+    expect(registry.createFromMessage).toHaveBeenCalledOnce();
+    expect(emitted).toBe('chan_existing');
+  });
 
-    it('refuses to submit an empty name', async () => {
-        const {fixture, component, registry} = await setup();
+  it('refuses to submit an empty name', async () => {
+    const {fixture, component, registry} = await setup();
 
-        fixture.componentRef.setInput('starter', starterFixture(''));
-        fixture.componentRef.setInput('visible', true);
-        fixture.detectChanges();
-        component.name.set('   ');
-        component.submit();
+    fixture.componentRef.setInput('starter', starterFixture(''));
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    component.name.set('   ');
+    component.submit();
 
-        expect(registry.createFromMessage).not.toHaveBeenCalled();
-    });
+    expect(registry.createFromMessage).not.toHaveBeenCalled();
+  });
 });
 ```
 
@@ -1388,7 +1426,17 @@ Expected: FAIL, the component does not exist.
 - [ ] **Step 6: Write the dialog**
 
 ```ts
-import {ChangeDetectionStrategy, Component, effect, inject, input, model, output, signal, untracked} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  model,
+  output,
+  signal,
+  untracked,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -1404,69 +1452,71 @@ const NAME_WORDS = 5;
 const NAME_MAX = 90;
 
 @Component({
-    selector: 'app-create-thread-dialog',
-    imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule],
-    templateUrl: './create-thread-dialog.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-create-thread-dialog',
+  imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule],
+  templateUrl: './create-thread-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateThreadDialogComponent {
-    readonly visible = model(false);
-    readonly channelId = input.required<string>();
-    readonly starter = input<MessageDto | null>(null);
+  readonly visible = model(false);
+  readonly channelId = input.required<string>();
+  readonly starter = input<MessageDto | null>(null);
 
-    readonly created = output<string>();
+  readonly created = output<string>();
 
-    readonly name = signal('');
-    readonly firstMessage = signal('');
-    readonly submitting = signal(false);
+  readonly name = signal('');
+  readonly firstMessage = signal('');
+  readonly submitting = signal(false);
 
-    private readonly registry = inject(ThreadRegistryService);
-    private readonly toastService = inject(ToastService);
-    private readonly translate = inject(TranslateService);
+  private readonly registry = inject(ThreadRegistryService);
+  private readonly toastService = inject(ToastService);
+  private readonly translate = inject(TranslateService);
 
-    constructor() {
-        effect(() => {
-            if (!this.visible()) return;
-            const starter = this.starter();
-            untracked(() => {
-                this.name.set(starter ? suggestName(starter) : '');
-                this.firstMessage.set('');
-            });
-        });
-    }
+  constructor() {
+    effect(() => {
+      if (!this.visible()) return;
+      const starter = this.starter();
+      untracked(() => {
+        this.name.set(starter ? suggestName(starter) : '');
+        this.firstMessage.set('');
+      });
+    });
+  }
 
-    submit(): void {
-        const name = this.name().trim();
-        const starter = this.starter();
-        if (!name || !starter || this.submitting()) return;
+  submit(): void {
+    const name = this.name().trim();
+    const starter = this.starter();
+    if (!name || !starter || this.submitting()) return;
 
-        this.submitting.set(true);
-        const content = this.firstMessage().trim();
-        this.registry.createFromMessage(this.channelId(), starter.id, content ? {name, content} : {name}).subscribe({
-            next: threadId => {
-                this.submitting.set(false);
-                this.visible.set(false);
-                this.created.emit(threadId);
-            },
-            error: err => {
-                this.submitting.set(false);
-                this.toastService.httpError(this.translate.instant('THREAD.CREATE_ERROR'), err);
-            },
-        });
-    }
+    this.submitting.set(true);
+    const content = this.firstMessage().trim();
+    this.registry
+      .createFromMessage(this.channelId(), starter.id, content ? {name, content} : {name})
+      .subscribe({
+        next: threadId => {
+          this.submitting.set(false);
+          this.visible.set(false);
+          this.created.emit(threadId);
+        },
+        error: err => {
+          this.submitting.set(false);
+          this.toastService.httpError(this.translate.instant('THREAD.CREATE_ERROR'), err);
+        },
+      });
+  }
 }
 
 /** Ciphertext this device cannot read has no words to borrow, so the field opens blank. */
 function suggestName(message: MessageDto): string {
-    if (message.undecryptable) return '';
-    let text: string;
-    try {
-        text = new TextDecoder().decode(Uint8Array.from(atob(message.content), c => c.charCodeAt(0)));
-    } catch {
-        return '';
-    }
-    const words = text.trim().split(/\s+/).filter(Boolean).slice(0, NAME_WORDS);
-    return words.join(' ').slice(0, NAME_MAX);
+  if (message.undecryptable) return '';
+  let text: string;
+  try {
+    text = new TextDecoder().decode(Uint8Array.from(atob(message.content), c => c.charCodeAt(0)));
+  } catch {
+    return '';
+  }
+  const words = text.trim().split(/\s+/).filter(Boolean).slice(0, NAME_WORDS);
+  return words.join(' ').slice(0, NAME_MAX);
 }
 ```
 
@@ -1483,10 +1533,10 @@ At the end of `channel-conversation.component.html`:
 
 ```html
 <app-create-thread-dialog
-    (created)="openThreadById($event)"
-    [(visible)]="showCreateThread"
-    [channelId]="channel().id"
-    [starter]="threadStarter()"
+  (created)="openThreadById($event)"
+  [(visible)]="showCreateThread"
+  [channelId]="channel().id"
+  [starter]="threadStarter()"
 />
 ```
 
@@ -1506,6 +1556,7 @@ git commit -m "feat(threads): start a thread from a message in the hover toolbar
 ### Task 7: Right-click context menu on a message
 
 **Files:**
+
 - Create: `src/app/features/messaging/components/conversation/message/context-menu/message-context-menu.component.ts`
 - Create: `src/app/features/messaging/components/conversation/message/context-menu/message-context-menu.component.html`
 - Modify: `src/app/features/messaging/components/conversation/message/message.component.ts`
@@ -1513,6 +1564,7 @@ git commit -m "feat(threads): start a thread from a message in the hover toolbar
 - Test: `src/app/features/messaging/components/conversation/message/context-menu/message-context-menu.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `MessageComponent`'s existing handlers (`reply`, `startEdit`, `confirmDelete`, `togglePin`, `reportMessage`) and `canOfferThread` from Task 6.
 - Produces: `MessageContextMenuComponent`, selector `app-message-context-menu`, with `open(event: MouseEvent, items: MenuItem[]): void`.
 
@@ -1528,56 +1580,58 @@ Create `message-context-menu.component.spec.ts`:
 import {buildMessageMenuItems, MessageMenuAbilities} from './message-context-menu.component';
 
 function abilities(overrides: Partial<MessageMenuAbilities> = {}): MessageMenuAbilities {
-    return {
-        isOwn: false,
-        canPin: false,
-        isPinned: false,
-        canCreateThread: false,
-        threadId: null,
-        label: (key: string) => key,
-        onReply: () => {},
-        onCreateThread: () => {},
-        onCopyText: () => {},
-        onTogglePin: () => {},
-        onEdit: () => {},
-        onDelete: () => {},
-        onReport: () => {},
-        ...overrides,
-    };
+  return {
+    isOwn: false,
+    canPin: false,
+    isPinned: false,
+    canCreateThread: false,
+    threadId: null,
+    label: (key: string) => key,
+    onReply: () => {},
+    onCreateThread: () => {},
+    onCopyText: () => {},
+    onTogglePin: () => {},
+    onEdit: () => {},
+    onDelete: () => {},
+    onReport: () => {},
+    ...overrides,
+  };
 }
 
 describe('buildMessageMenuItems', () => {
-    it('offers Create Thread when the caller may start one', () => {
-        const labels = buildMessageMenuItems(abilities({canCreateThread: true})).map(i => i.label);
+  it('offers Create Thread when the caller may start one', () => {
+    const labels = buildMessageMenuItems(abilities({canCreateThread: true})).map(i => i.label);
 
-        expect(labels).toContain('THREAD.CREATE');
-    });
+    expect(labels).toContain('THREAD.CREATE');
+  });
 
-    it('offers Go to Thread instead once the message has one', () => {
-        const labels = buildMessageMenuItems(abilities({canCreateThread: true, threadId: 'chan_t'})).map(i => i.label);
+  it('offers Go to Thread instead once the message has one', () => {
+    const labels = buildMessageMenuItems(abilities({canCreateThread: true, threadId: 'chan_t'})).map(
+      i => i.label,
+    );
 
-        expect(labels).toContain('THREAD.GO_TO');
-        expect(labels).not.toContain('THREAD.CREATE');
-    });
+    expect(labels).toContain('THREAD.GO_TO');
+    expect(labels).not.toContain('THREAD.CREATE');
+  });
 
-    it('offers Go to Thread even when the caller may not create one', () => {
-        const labels = buildMessageMenuItems(abilities({threadId: 'chan_t'})).map(i => i.label);
+  it('offers Go to Thread even when the caller may not create one', () => {
+    const labels = buildMessageMenuItems(abilities({threadId: 'chan_t'})).map(i => i.label);
 
-        expect(labels).toContain('THREAD.GO_TO');
-    });
+    expect(labels).toContain('THREAD.GO_TO');
+  });
 
-    it('never offers edit or delete on someone else s message', () => {
-        const labels = buildMessageMenuItems(abilities({isOwn: false})).map(i => i.label);
+  it('never offers edit or delete on someone else s message', () => {
+    const labels = buildMessageMenuItems(abilities({isOwn: false})).map(i => i.label);
 
-        expect(labels).not.toContain('COMMON.EDIT');
-        expect(labels).not.toContain('COMMON.DELETE');
-    });
+    expect(labels).not.toContain('COMMON.EDIT');
+    expect(labels).not.toContain('COMMON.DELETE');
+  });
 
-    it('never offers report on your own message', () => {
-        const labels = buildMessageMenuItems(abilities({isOwn: true})).map(i => i.label);
+  it('never offers report on your own message', () => {
+    const labels = buildMessageMenuItems(abilities({isOwn: true})).map(i => i.label);
 
-        expect(labels).not.toContain('REPORT.TITLE_MESSAGE');
-    });
+    expect(labels).not.toContain('REPORT.TITLE_MESSAGE');
+  });
 });
 ```
 
@@ -1596,69 +1650,67 @@ import {MenuItem} from 'primeng/api';
 import {ContextMenu} from 'primeng/contextmenu';
 
 export interface MessageMenuAbilities {
-    isOwn: boolean;
-    canPin: boolean;
-    isPinned: boolean;
-    canCreateThread: boolean;
-    threadId: string | null;
-    label: (key: string) => string;
-    onReply: () => void;
-    onCreateThread: () => void;
-    onCopyText: () => void;
-    onTogglePin: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
-    onReport: () => void;
+  isOwn: boolean;
+  canPin: boolean;
+  isPinned: boolean;
+  canCreateThread: boolean;
+  threadId: string | null;
+  label: (key: string) => string;
+  onReply: () => void;
+  onCreateThread: () => void;
+  onCopyText: () => void;
+  onTogglePin: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
 }
 
 /** A message already carrying a thread offers the way in even to someone who could not have started it. */
 export function buildMessageMenuItems(a: MessageMenuAbilities): MenuItem[] {
-    const items: MenuItem[] = [
-        {label: a.label('MESSAGE.REPLY'), icon: 'pi pi-reply', command: a.onReply},
-    ];
+  const items: MenuItem[] = [{label: a.label('MESSAGE.REPLY'), icon: 'pi pi-reply', command: a.onReply}];
 
-    if (a.threadId) {
-        items.push({label: a.label('THREAD.GO_TO'), icon: 'pi pi-comments', command: a.onCreateThread});
-    } else if (a.canCreateThread) {
-        items.push({label: a.label('THREAD.CREATE'), icon: 'pi pi-comments', command: a.onCreateThread});
-    }
+  if (a.threadId) {
+    items.push({label: a.label('THREAD.GO_TO'), icon: 'pi pi-comments', command: a.onCreateThread});
+  } else if (a.canCreateThread) {
+    items.push({label: a.label('THREAD.CREATE'), icon: 'pi pi-comments', command: a.onCreateThread});
+  }
 
-    items.push({label: a.label('MESSAGE.COPY_TEXT'), icon: 'pi pi-copy', command: a.onCopyText});
+  items.push({label: a.label('MESSAGE.COPY_TEXT'), icon: 'pi pi-copy', command: a.onCopyText});
 
-    if (a.canPin) {
-        items.push({
-            label: a.label(a.isPinned ? 'MESSAGE.UNPIN' : 'MESSAGE.PIN'),
-            icon: 'pi pi-thumbtack',
-            command: a.onTogglePin,
-        });
-    }
+  if (a.canPin) {
+    items.push({
+      label: a.label(a.isPinned ? 'MESSAGE.UNPIN' : 'MESSAGE.PIN'),
+      icon: 'pi pi-thumbtack',
+      command: a.onTogglePin,
+    });
+  }
 
-    if (a.isOwn) {
-        items.push({separator: true});
-        items.push({label: a.label('COMMON.EDIT'), icon: 'pi pi-pencil', command: a.onEdit});
-        items.push({label: a.label('COMMON.DELETE'), icon: 'pi pi-trash', command: a.onDelete});
-    } else {
-        items.push({separator: true});
-        items.push({label: a.label('REPORT.TITLE_MESSAGE'), icon: 'pi pi-flag', command: a.onReport});
-    }
+  if (a.isOwn) {
+    items.push({separator: true});
+    items.push({label: a.label('COMMON.EDIT'), icon: 'pi pi-pencil', command: a.onEdit});
+    items.push({label: a.label('COMMON.DELETE'), icon: 'pi pi-trash', command: a.onDelete});
+  } else {
+    items.push({separator: true});
+    items.push({label: a.label('REPORT.TITLE_MESSAGE'), icon: 'pi pi-flag', command: a.onReport});
+  }
 
-    return items;
+  return items;
 }
 
 @Component({
-    selector: 'app-message-context-menu',
-    imports: [ContextMenu],
-    templateUrl: './message-context-menu.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-message-context-menu',
+  imports: [ContextMenu],
+  templateUrl: './message-context-menu.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageContextMenuComponent {
-    private readonly menu = viewChild.required<ContextMenu>('menu');
+  private readonly menu = viewChild.required<ContextMenu>('menu');
 
-    open(event: MouseEvent, items: MenuItem[]): void {
-        event.preventDefault();
-        this.menu().model = items;
-        this.menu().show(event);
-    }
+  open(event: MouseEvent, items: MenuItem[]): void {
+    event.preventDefault();
+    this.menu().model = items;
+    this.menu().show(event);
+  }
 }
 ```
 
@@ -1718,6 +1770,7 @@ git commit -m "feat(messages): add a right-click context menu with create thread
 ### Task 8: The thread card under the message
 
 **Files:**
+
 - Create: `src/app/features/messaging/components/conversation/message/thread-card/message-thread-card.component.ts`
 - Create: `src/app/features/messaging/components/conversation/message/thread-card/message-thread-card.component.html`
 - Modify: `src/app/features/messaging/components/conversation/message/message.component.html:455` (immediately before the reaction bar)
@@ -1725,6 +1778,7 @@ git commit -m "feat(messages): add a right-click context menu with create thread
 - Test: `src/app/features/messaging/components/conversation/message/thread-card/message-thread-card.component.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `ThreadRegistryService` (Task 1), `NavigationService.openThread` (Task 5).
 - Produces: `MessageThreadCardComponent`, selector `app-message-thread-card`, `input.required<string>() threadId`.
 
@@ -1740,71 +1794,72 @@ import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 
 function threadFixture(overrides: Partial<ChannelDto> = {}): ChannelDto {
-    return {
-        id: 'chan_thread',
-        createdAt: new Date('2026-08-19T00:00:00Z'),
-        updatedAt: new Date('2026-08-19T00:00:00Z'),
-        name: 'about that message',
-        description: '',
-        type: ChannelType.Thread,
-        guildId: 'g1',
-        isAgeRestricted: false,
-        isPrivate: false,
-        categoryId: undefined,
-        permissions: [],
-        position: 0,
-        slowModeSeconds: 0,
-        parentChannelId: 'chan_parent',
-        messageCount: 3,
-        ...overrides,
-    };
+  return {
+    id: 'chan_thread',
+    createdAt: new Date('2026-08-19T00:00:00Z'),
+    updatedAt: new Date('2026-08-19T00:00:00Z'),
+    name: 'about that message',
+    description: '',
+    type: ChannelType.Thread,
+    guildId: 'g1',
+    isAgeRestricted: false,
+    isPrivate: false,
+    categoryId: undefined,
+    permissions: [],
+    position: 0,
+    slowModeSeconds: 0,
+    parentChannelId: 'chan_parent',
+    messageCount: 3,
+    ...overrides,
+  };
 }
 
 async function setup(thread: ChannelDto | null) {
-    TestBed.resetTestingModule();
-    const registry = {thread: vi.fn(() => thread), ensureThread: vi.fn()};
-    const nav = {openThread: vi.fn()};
-    await TestBed.configureTestingModule({
-        imports: [MessageThreadCardComponent],
-        providers: [
-            provideTranslateService({defaultLanguage: 'en'}),
-            {provide: ThreadRegistryService, useValue: registry},
-            {provide: NavigationService, useValue: nav},
-        ],
-    }).compileComponents();
+  TestBed.resetTestingModule();
+  const registry = {thread: vi.fn(() => thread), ensureThread: vi.fn()};
+  const nav = {openThread: vi.fn()};
+  await TestBed.configureTestingModule({
+    imports: [MessageThreadCardComponent],
+    providers: [
+      provideTranslateService({defaultLanguage: 'en'}),
+      {provide: ThreadRegistryService, useValue: registry},
+      {provide: NavigationService, useValue: nav},
+    ],
+  }).compileComponents();
 
-    const fixture: ComponentFixture<MessageThreadCardComponent> = TestBed.createComponent(MessageThreadCardComponent);
-    fixture.componentRef.setInput('threadId', 'chan_thread');
-    fixture.detectChanges();
-    return {fixture, registry, nav};
+  const fixture: ComponentFixture<MessageThreadCardComponent> =
+    TestBed.createComponent(MessageThreadCardComponent);
+  fixture.componentRef.setInput('threadId', 'chan_thread');
+  fixture.detectChanges();
+  return {fixture, registry, nav};
 }
 
 describe('MessageThreadCardComponent', () => {
-    it('renders the thread name and count when the registry resolves it', async () => {
-        const {fixture} = await setup(threadFixture());
+  it('renders the thread name and count when the registry resolves it', async () => {
+    const {fixture} = await setup(threadFixture());
 
-        expect(fixture.nativeElement.textContent).toContain('about that message');
-    });
+    expect(fixture.nativeElement.textContent).toContain('about that message');
+  });
 
-    it('renders nothing for a threadId that resolves to nothing', async () => {
-        const {fixture} = await setup(null);
+  it('renders nothing for a threadId that resolves to nothing', async () => {
+    const {fixture} = await setup(null);
 
-        expect(fixture.nativeElement.textContent.trim()).toBe('');
-    });
+    expect(fixture.nativeElement.textContent.trim()).toBe('');
+  });
 
-    it('asks the registry to resolve an id it does not hold', async () => {
-        const {registry} = await setup(null);
+  it('asks the registry to resolve an id it does not hold', async () => {
+    const {registry} = await setup(null);
 
-        expect(registry.ensureThread).toHaveBeenCalledWith('chan_thread');
-    });
+    expect(registry.ensureThread).toHaveBeenCalledWith('chan_thread');
+  });
 
-    it('opens the panel when clicked', async () => {
-        const {fixture, nav} = await setup(threadFixture());
+  it('opens the panel when clicked', async () => {
+    const {fixture, nav} = await setup(threadFixture());
 
-        fixture.nativeElement.querySelector('button').click();
+    fixture.nativeElement.querySelector('button').click();
 
-        expect(nav.openThread).toHaveBeenCalledOnce();
-    });
+    expect(nav.openThread).toHaveBeenCalledOnce();
+  });
 });
 ```
 
@@ -1822,41 +1877,41 @@ import {ThreadRegistryService} from '../../../../../../services/thread-registry.
 import {NavigationService} from '../../../../../main-page/navigation.service';
 
 @Component({
-    selector: 'app-message-thread-card',
-    imports: [TranslateModule],
-    templateUrl: './message-thread-card.component.html',
-    changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-message-thread-card',
+  imports: [TranslateModule],
+  templateUrl: './message-thread-card.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageThreadCardComponent {
-    readonly threadId = input.required<string>();
+  readonly threadId = input.required<string>();
 
-    private readonly registry = inject(ThreadRegistryService);
-    private readonly navService = inject(NavigationService);
+  private readonly registry = inject(ThreadRegistryService);
+  private readonly navService = inject(NavigationService);
 
-    protected readonly thread = computed(() => this.registry.thread(this.threadId()));
+  protected readonly thread = computed(() => this.registry.thread(this.threadId()));
 
-    protected readonly messageCount = computed(() => this.thread()?.messageCount ?? 0);
+  protected readonly messageCount = computed(() => this.thread()?.messageCount ?? 0);
 
-    /** A thread that has never been posted in has no lastActivityAt; createdAt is what it was born with. */
-    protected readonly lastActivity = computed(() => {
-        const thread = this.thread();
-        if (!thread) return null;
-        const raw = thread.lastActivityAt ?? thread.createdAt;
-        const time = new Date(raw).getTime();
-        return Number.isNaN(time) ? null : time;
+  /** A thread that has never been posted in has no lastActivityAt; createdAt is what it was born with. */
+  protected readonly lastActivity = computed(() => {
+    const thread = this.thread();
+    if (!thread) return null;
+    const raw = thread.lastActivityAt ?? thread.createdAt;
+    const time = new Date(raw).getTime();
+    return Number.isNaN(time) ? null : time;
+  });
+
+  constructor() {
+    effect(() => {
+      const id = this.threadId();
+      untracked(() => this.registry.ensureThread(id));
     });
+  }
 
-    constructor() {
-        effect(() => {
-            const id = this.threadId();
-            untracked(() => this.registry.ensureThread(id));
-        });
-    }
-
-    protected open(): void {
-        const thread = this.thread();
-        if (thread) this.navService.openThread(thread);
-    }
+  protected open(): void {
+    const thread = this.thread();
+    if (thread) this.navService.openThread(thread);
+  }
 }
 ```
 
@@ -1864,20 +1919,23 @@ Template, with the elbow connector drawn as a border rather than an SVG so it in
 
 ```html
 @if (thread(); as openThread) {
-    <div class="flex items-stretch gap-0 mt-1 ml-[1.375rem]">
-        <div class="w-5 shrink-0 border-l-2 border-b-2 border-white/[0.10] rounded-bl-lg -mt-1 mb-3"></div>
-        <button
-            (click)="open()"
-            class="group flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] cursor-pointer transition-colors text-left"
-        >
-            <i class="pi pi-comments text-brand-dim text-[0.6875rem] shrink-0"></i>
-            <span class="text-[0.8125rem] font-semibold text-brand-dim truncate">{{ openThread.name }}</span>
-            <span class="text-[0.6875rem] text-text-muted shrink-0">
-                {{ (messageCount() === 1 ? 'THREAD.MESSAGE_COUNT_ONE' : 'THREAD.MESSAGE_COUNT') | translate: {count: messageCount()} }}
-            </span>
-            <i class="pi pi-chevron-right text-text-muted text-[0.5625rem] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-        </button>
-    </div>
+<div class="flex items-stretch gap-0 mt-1 ml-[1.375rem]">
+  <div class="w-5 shrink-0 border-l-2 border-b-2 border-white/[0.10] rounded-bl-lg -mt-1 mb-3"></div>
+  <button
+    (click)="open()"
+    class="group flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] cursor-pointer transition-colors text-left"
+  >
+    <i class="pi pi-comments text-brand-dim text-[0.6875rem] shrink-0"></i>
+    <span class="text-[0.8125rem] font-semibold text-brand-dim truncate">{{ openThread.name }}</span>
+    <span class="text-[0.6875rem] text-text-muted shrink-0">
+      {{ (messageCount() === 1 ? 'THREAD.MESSAGE_COUNT_ONE' : 'THREAD.MESSAGE_COUNT') | translate: {count:
+      messageCount()} }}
+    </span>
+    <i
+      class="pi pi-chevron-right text-text-muted text-[0.5625rem] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+    ></i>
+  </button>
+</div>
 }
 ```
 
@@ -1895,9 +1953,9 @@ Expected: PASS, 4 tests.
 In `message.component.html`, immediately before the reaction bar block at line 455:
 
 ```html
-        @if (message().threadId; as threadId) {
-            <app-message-thread-card [threadId]="threadId" />
-        }
+@if (message().threadId; as threadId) {
+<app-message-thread-card [threadId]="threadId" />
+}
 ```
 
 - [ ] **Step 6: Patch the message on MessageThreadAttached**
@@ -1920,10 +1978,10 @@ matching whatever the store's existing update helper is actually called; read `m
 Subscribe in `channel-conversation.component.ts`:
 
 ```ts
-        this.guildWs.messageThreadAttachedObservable.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(e => {
-            if (e.channelId !== untracked(() => this.channel().id)) return;
-            this.messageStore.attachThread(e.messageId, e.threadId);
-        });
+this.guildWs.messageThreadAttachedObservable.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(e => {
+  if (e.channelId !== untracked(() => this.channel().id)) return;
+  this.messageStore.attachThread(e.messageId, e.threadId);
+});
 ```
 
 - [ ] **Step 7: Add a store spec for the patch**
@@ -1931,14 +1989,14 @@ Subscribe in `channel-conversation.component.ts`:
 In `src/app/stores/message-store-update.spec.ts`, add:
 
 ```ts
-    it('attaches a thread to exactly the message named', () => {
-        const store = setupStore([messageFixture({id: 'm1'}), messageFixture({id: 'm2'})]);
+it('attaches a thread to exactly the message named', () => {
+  const store = setupStore([messageFixture({id: 'm1'}), messageFixture({id: 'm2'})]);
 
-        store.attachThread('m1', 'chan_t');
+  store.attachThread('m1', 'chan_t');
 
-        expect(store.entities().find(m => m.id === 'm1')?.threadId).toBe('chan_t');
-        expect(store.entities().find(m => m.id === 'm2')?.threadId).toBeUndefined();
-    });
+  expect(store.entities().find(m => m.id === 'm1')?.threadId).toBe('chan_t');
+  expect(store.entities().find(m => m.id === 'm2')?.threadId).toBeUndefined();
+});
 ```
 
 matching that file's existing setup helper name and fixture rather than inventing new ones.
@@ -1959,6 +2017,7 @@ git commit -m "feat(threads): show a thread card under the starter message"
 ### Task 9: Nested thread rows in the sidebar
 
 **Files:**
+
 - Rename: `src/app/features/guild/components/channel-list/components/forum-post-rows/forum-post-rows.util.ts` to `nested-thread-rows.util.ts`
 - Rename: `.../forum-post-rows.util.spec.ts` to `nested-thread-rows.util.spec.ts`
 - Rename: `src/app/services/forum-visited-posts.service.ts` to `visited-threads.service.ts`
@@ -1970,6 +2029,7 @@ git commit -m "feat(threads): show a thread card under the starter message"
 - Modify: `src/app/features/guild/components/channel-list/components/forum-post-rows/forum-post-rows.component.ts` (follow the renames)
 
 **Interfaces:**
+
 - Consumes: `ThreadRegistryService` (Task 1), `NavigationService.openThread` (Task 5).
 - Produces:
   - `selectNestedThreads(parentId: string, allThreads: readonly ChannelDto[], visitedIds: readonly string[], readStateOf: (id: string) => ChannelReadState): ChannelDto[]`
@@ -1998,17 +2058,17 @@ Expected: PASS, exactly the tests that were there before.
 In `nested-thread-rows.util.spec.ts`:
 
 ```ts
-    it('nests threads under a text channel the same way it nests posts under a forum', () => {
-        const threads = [
-            threadFixture({id: 't1', parentChannelId: 'chan_text'}),
-            threadFixture({id: 't2', parentChannelId: 'other'}),
-            threadFixture({id: 't3', parentChannelId: 'chan_text', isArchived: true}),
-        ];
+it('nests threads under a text channel the same way it nests posts under a forum', () => {
+  const threads = [
+    threadFixture({id: 't1', parentChannelId: 'chan_text'}),
+    threadFixture({id: 't2', parentChannelId: 'other'}),
+    threadFixture({id: 't3', parentChannelId: 'chan_text', isArchived: true}),
+  ];
 
-        const rows = selectNestedThreads('chan_text', threads, ['t1'], () => unreadState(false));
+  const rows = selectNestedThreads('chan_text', threads, ['t1'], () => unreadState(false));
 
-        expect(rows.map(t => t.id)).toEqual(['t1']);
-    });
+  expect(rows.map(t => t.id)).toEqual(['t1']);
+});
 ```
 
 using that file's existing fixture and read-state helpers rather than new ones.
@@ -2055,46 +2115,46 @@ import {selectNestedThreads} from '../forum-post-rows/nested-thread-rows.util';
 
 /** The threads hanging beneath a text channel: the ones you were just in, and the ones with something waiting. */
 @Component({
-    selector: 'app-thread-rows',
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    host: {class: 'contents'},
-    templateUrl: './thread-rows.component.html',
+  selector: 'app-thread-rows',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {class: 'contents'},
+  templateUrl: './thread-rows.component.html',
 })
 export class ThreadRowsComponent {
-    readonly parent = input.required<ChannelDto>();
+  readonly parent = input.required<ChannelDto>();
 
-    private readonly navService = inject(NavigationService);
-    private readonly readStateService = inject(GuildReadStateService);
-    private readonly visitedService = inject(VisitedThreadsService);
-    private readonly registry = inject(ThreadRegistryService);
+  private readonly navService = inject(NavigationService);
+  private readonly readStateService = inject(GuildReadStateService);
+  private readonly visitedService = inject(VisitedThreadsService);
+  private readonly registry = inject(ThreadRegistryService);
 
-    protected readonly threads = computed(() =>
-        selectNestedThreads(
-            this.parent().id,
-            this.registry.threadsFor(this.parent().id),
-            this.visitedService.threadsFor(this.parent().id),
-            id => this.readStateService.getChannelState(id),
-        ),
-    );
+  protected readonly threads = computed(() =>
+    selectNestedThreads(
+      this.parent().id,
+      this.registry.threadsFor(this.parent().id),
+      this.visitedService.threadsFor(this.parent().id),
+      id => this.readStateService.getChannelState(id),
+    ),
+  );
 
-    constructor() {
-        effect(() => {
-            const parentId = this.parent().id;
-            untracked(() => this.registry.ensureParent(parentId));
-        });
-    }
+  constructor() {
+    effect(() => {
+      const parentId = this.parent().id;
+      untracked(() => this.registry.ensureParent(parentId));
+    });
+  }
 
-    protected stateOf(threadId: string) {
-        return this.readStateService.getChannelState(threadId);
-    }
+  protected stateOf(threadId: string) {
+    return this.readStateService.getChannelState(threadId);
+  }
 
-    protected isOpen(threadId: string): boolean {
-        return this.navService.threadPanel()?.id === threadId;
-    }
+  protected isOpen(threadId: string): boolean {
+    return this.navService.threadPanel()?.id === threadId;
+  }
 
-    protected open(thread: ChannelDto): void {
-        this.navService.openThread(thread);
-    }
+  protected open(thread: ChannelDto): void {
+    this.navService.openThread(thread);
+  }
 }
 ```
 
@@ -2105,9 +2165,9 @@ Copy `forum-post-rows.component.html` verbatim for the template and change only 
 In `channel-list-items.component.html`, inside the `@else` branch after `<app-text-channel-item>` and beside the forum block:
 
 ```html
-        @if (channel.type === ChannelType.Text && hasThreads()) {
-            <app-thread-rows [parent]="channel" />
-        }
+@if (channel.type === ChannelType.Text && hasThreads()) {
+<app-thread-rows [parent]="channel" />
+}
 ```
 
 `hasThreads()` is a computed on `channel-list-items.component.ts` reading `guildHasFeature(guild, GuildFeature.Threads)`, matching how `channel.component.ts:140` does it.
@@ -2136,6 +2196,7 @@ bun run test
 bun run ng build --configuration development
 bun run lint
 ```
+
 Expected: passing count at or above the Task 2 baseline, clean build, clean lint.
 
 - [ ] **Step 2: Grep for the things house style forbids**
@@ -2143,6 +2204,7 @@ Expected: passing count at or above the Task 2 baseline, clean build, clean lint
 ```bash
 grep -rn "—" src/app/features/guild/components/channel src/app/features/messaging/components/conversation/message src/app/services/thread-registry.service.ts
 ```
+
 Expected: no output. An em dash anywhere in the new code is a defect.
 
 - [ ] **Step 3: Check every new string is translated**
@@ -2150,6 +2212,7 @@ Expected: no output. An em dash anywhere in the new code is a defect.
 ```bash
 bun run ng test --watch=false --include="**/i18n-keys.spec.ts"
 ```
+
 Expected: PASS.
 
 - [ ] **Step 4: Say what is unverified**

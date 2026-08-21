@@ -22,21 +22,21 @@ needs mirroring into `Echo/docs/specs` as a frontend guide once the wire shapes 
 
 ## Decisions taken
 
-| Question | Answer |
-|---|---|
-| Where the way in lives | The composer strip, in the slot the turn strip already owns. It carries both registers: bring a character in when the scene is open, ask when it is closed. |
-| How the character is picked | A dialog. It is the only surface with room to say where in the rotation the character lands, and it carries the optional note when the scene is closed. |
-| Where the GM answers | A banner under the scene header, in the slot the stalled-scene banner uses, plus an inbox task. |
-| How the GM sets the rules | Three named presets: Open table, Ask to join, Private table. The fourth combination is refused by the server, so the picker can never fail to describe a scene. |
-| What joining does to the rotation | Appends. The character is in the cast and takes the last turn in the order. |
-| Who speaks in a closed scene | The cast, plus anyone holding `ManageScenes`. |
-| Who speaks in the OOC thread | Anyone who can see the scene, cast or not. The companion thread follows visibility, never the cast. |
-| What hidden means | Hidden everywhere: the board, the archive, the folder rail, the thread list, message history, realtime fan-out and bot dispatch. No locked placeholder row. |
-| Asking into a hidden scene | Not possible. You cannot see it, so the GM adds you by hand. Requests exist only for a visible, closed scene. |
-| A denied request | Carries an optional reason, keeps its row, and does not stop the player asking again. |
-| Speaking as a character not in an open scene | Auto-joins it, with the same system message the explicit verb writes. My call, not a stated requirement: without it the cast means nothing in an open scene. |
-| Guild-wide defaults | None. Per scene only. |
-| Who the GM is | Anyone holding `ManageScenes`, not the scene's creator. Matches every other verb on a scene. |
+| Question                                     | Answer                                                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where the way in lives                       | The composer strip, in the slot the turn strip already owns. It carries both registers: bring a character in when the scene is open, ask when it is closed.     |
+| How the character is picked                  | A dialog. It is the only surface with room to say where in the rotation the character lands, and it carries the optional note when the scene is closed.         |
+| Where the GM answers                         | A banner under the scene header, in the slot the stalled-scene banner uses, plus an inbox task.                                                                 |
+| How the GM sets the rules                    | Three named presets: Open table, Ask to join, Private table. The fourth combination is refused by the server, so the picker can never fail to describe a scene. |
+| What joining does to the rotation            | Appends. The character is in the cast and takes the last turn in the order.                                                                                     |
+| Who speaks in a closed scene                 | The cast, plus anyone holding `ManageScenes`.                                                                                                                   |
+| Who speaks in the OOC thread                 | Anyone who can see the scene, cast or not. The companion thread follows visibility, never the cast.                                                             |
+| What hidden means                            | Hidden everywhere: the board, the archive, the folder rail, the thread list, message history, realtime fan-out and bot dispatch. No locked placeholder row.     |
+| Asking into a hidden scene                   | Not possible. You cannot see it, so the GM adds you by hand. Requests exist only for a visible, closed scene.                                                   |
+| A denied request                             | Carries an optional reason, keeps its row, and does not stop the player asking again.                                                                           |
+| Speaking as a character not in an open scene | Auto-joins it, with the same system message the explicit verb writes. My call, not a stated requirement: without it the cast means nothing in an open scene.    |
+| Guild-wide defaults                          | None. Per scene only.                                                                                                                                           |
+| Who the GM is                                | Anyone holding `ManageScenes`, not the scene's creator. Matches every other verb on a scene.                                                                    |
 
 ## A. Guild: data model
 
@@ -96,12 +96,12 @@ SceneVisibilityCache(IDistributedCache, MicroserviceContext, PersonaService)
 `GuildPermissionService` takes the cache as a constructor parameter and applies it after the mask
 answer in four paths, seven overloads between them:
 
-| Call site | What it stops leaking |
-|---|---|
-| `CanUserPerformActionAsync(user, channel, Permissions)` | The scene read, the message history read, every endpoint that asks `ViewChannel` |
-| `CanUserPerformActionAsync(user, channel, ModulePermissions)` | The module verbs on a scene channel |
-| `FilterUsersWithChannelPermissionAsync`, both overloads | Realtime fan-out and bot dispatch. This is what keeps a private scene's messages off other people's sockets |
-| `FilterChannelsWithPermissionAsync`, all three overloads | Channel lists, thread lists, search |
+| Call site                                                     | What it stops leaking                                                                                       |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `CanUserPerformActionAsync(user, channel, Permissions)`       | The scene read, the message history read, every endpoint that asks `ViewChannel`                            |
+| `CanUserPerformActionAsync(user, channel, ModulePermissions)` | The module verbs on a scene channel                                                                         |
+| `FilterUsersWithChannelPermissionAsync`, both overloads       | Realtime fan-out and bot dispatch. This is what keeps a private scene's messages off other people's sockets |
+| `FilterChannelsWithPermissionAsync`, all three overloads      | Channel lists, thread lists, search                                                                         |
 
 No dependency cycle: `PersonaService` takes only the cache and the context, and the `ManageScenes`
 check is `CanUserPerformActionOnGuildAsync`, which is a guild-level answer and does not re-enter the
@@ -171,7 +171,7 @@ Two new events, both addressed the way the nudge escalation is:
 - `guild.SceneJoinRequested` to `ManageScenes` holders: `guildId, channelId, requestId, personaId`,
   the character's display fields, `requestedByUserId`, `note`, `createdAt`.
 - `guild.SceneJoinRequestResolved` to the requester and to `ManageScenes` holders: `guildId,
-  channelId, requestId, status, decisionReason, decidedByUserId`.
+channelId, requestId, status, decisionReason, decidedByUserId`.
 
 There is no visibility-changed event. `guild.SceneUpdated` carries the new value, and a client that
 can no longer satisfy the predicate drops the scene itself. One rule, evaluated in one place on the
@@ -224,10 +224,10 @@ list all filter through it, so a scene going private disappears from four surfac
 
 ```ts
 interface SceneJoinPrompt {
-    state: 'open' | 'ask' | 'pending' | 'denied';
-    /** The reason a GM gave, for 'denied'. */
-    reason: string | null;
-    open: () => void;
+  state: 'open' | 'ask' | 'pending' | 'denied';
+  /** The reason a GM gave, for 'denied'. */
+  reason: string | null;
+  open: () => void;
 }
 ```
 
@@ -266,11 +266,11 @@ current component, before anything moves.
 
 `scene-dialog.component` gains a "Who plays here" block of three `p-radiobutton` rows:
 
-| Preset | joinPolicy | visibility | Line under it |
-|---|---|---|---|
-| Open table | Open | Everyone | Anyone can read it, anyone can bring a character in. |
-| Ask to join | Ask | Everyone | Anyone can read it. Getting a character in needs your yes. |
-| Private table | Ask | Cast | Only the cast and the GMs can see the scene at all. |
+| Preset        | joinPolicy | visibility | Line under it                                              |
+| ------------- | ---------- | ---------- | ---------------------------------------------------------- |
+| Open table    | Open       | Everyone   | Anyone can read it, anyone can bring a character in.       |
+| Ask to join   | Ask        | Everyone   | Anyone can read it. Getting a character in needs your yes. |
+| Private table | Ask        | Cast       | Only the cast and the GMs can see the scene at all.        |
 
 Because the server refuses the fourth pair, the picker can always name what a scene is set to, and
 there is no custom row to explain away. Editing an existing scene shows the same block seeded from

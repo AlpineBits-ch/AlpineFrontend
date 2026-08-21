@@ -61,28 +61,46 @@ Response `EffectivePermissionsDto`:
   "permissions": "ViewChannel, ReadMessageHistory",
   "modulePermissions": "None",
   "sources": [
-    {"permission": "ViewChannel",  "granted": true,  "decidedBy": "CategoryRoleAllow", "categoryId": "cat_1", "roleId": "role_456"},
-    {"permission": "SendMessages", "granted": false, "decidedBy": "ChannelEveryoneDeny", "categoryId": null,  "roleId": "role_every"},
-    {"permission": "AttachFiles",  "granted": false, "decidedBy": "Implied",            "categoryId": null,  "roleId": null}
+    {
+      "permission": "ViewChannel",
+      "granted": true,
+      "decidedBy": "CategoryRoleAllow",
+      "categoryId": "cat_1",
+      "roleId": "role_456"
+    },
+    {
+      "permission": "SendMessages",
+      "granted": false,
+      "decidedBy": "ChannelEveryoneDeny",
+      "categoryId": null,
+      "roleId": "role_every"
+    },
+    {
+      "permission": "AttachFiles",
+      "granted": false,
+      "decidedBy": "Implied",
+      "categoryId": null,
+      "roleId": null
+    }
   ]
 }
 ```
 
 `sources` carries one entry per permission in `CHANNEL_PERM_GROUPS`, always, whether granted or not. `decidedBy` is the last layer that wrote that bit:
 
-| Value | Meaning |
-|---|---|
-| `Base` | Came from the role union, no overwrite touched it |
-| `MemberGuildAllow` / `MemberGuildDeny` | The member's guild-level mask |
-| `CategoryEveryoneAllow` / `CategoryEveryoneDeny` | |
-| `CategoryRoleAllow` / `CategoryRoleDeny` | |
-| `CategoryMemberAllow` / `CategoryMemberDeny` | |
-| `ChannelEveryoneAllow` / `ChannelEveryoneDeny` | |
-| `ChannelRoleAllow` / `ChannelRoleDeny` | |
-| `ChannelMemberAllow` / `ChannelMemberDeny` | |
-| `Implied` | Removed by the reverse closure of some other deny, not named by any overwrite |
-| `Superadmin` | Subject holds Superadmin, everything short-circuits |
-| `Muted` | Member is timed out or has not accepted onboarding, cut back to `MuteRetainedPermissions` |
+| Value                                            | Meaning                                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `Base`                                           | Came from the role union, no overwrite touched it                                         |
+| `MemberGuildAllow` / `MemberGuildDeny`           | The member's guild-level mask                                                             |
+| `CategoryEveryoneAllow` / `CategoryEveryoneDeny` |                                                                                           |
+| `CategoryRoleAllow` / `CategoryRoleDeny`         |                                                                                           |
+| `CategoryMemberAllow` / `CategoryMemberDeny`     |                                                                                           |
+| `ChannelEveryoneAllow` / `ChannelEveryoneDeny`   |                                                                                           |
+| `ChannelRoleAllow` / `ChannelRoleDeny`           |                                                                                           |
+| `ChannelMemberAllow` / `ChannelMemberDeny`       |                                                                                           |
+| `Implied`                                        | Removed by the reverse closure of some other deny, not named by any overwrite             |
+| `Superadmin`                                     | Subject holds Superadmin, everything short-circuits                                       |
+| `Muted`                                          | Member is timed out or has not accepted onboarding, cut back to `MuteRetainedPermissions` |
 
 A **role** subject has no member row, so base is that role unioned with @everyone, the member tiers are skipped, and `MemberGuild*` and `Muted` can never appear. This deliberately answers "what would a member whose only role is this one get", which is the question the UI asks.
 
@@ -228,12 +246,12 @@ Executed as one `PUT` per channel, concurrency 4, with a progress row and a per-
 
 Four named starting points when adding an override, each writing the same masks the grid would:
 
-| Preset | Allows | Denies |
-|---|---|---|
-| Read only | ViewChannel, ReadMessageHistory | SendMessages, CreateThreads, AddReactions |
-| Hidden | none | ViewChannel |
-| Talk, do not manage | ViewChannel, SendMessages, CreateThreads, ReadMessageHistory | PinMessages, ManageChannel |
-| Listen only | ViewChannel, Connect | Speak, Stream |
+| Preset              | Allows                                                       | Denies                                    |
+| ------------------- | ------------------------------------------------------------ | ----------------------------------------- |
+| Read only           | ViewChannel, ReadMessageHistory                              | SendMessages, CreateThreads, AddReactions |
+| Hidden              | none                                                         | ViewChannel                               |
+| Talk, do not manage | ViewChannel, SendMessages, CreateThreads, ReadMessageHistory | PinMessages, ManageChannel                |
+| Listen only         | ViewChannel, Connect                                         | Speak, Stream                             |
 
 A preset is a shortcut, not a stored concept. The result stays editable and nothing records which preset produced it. Voice presets are offered on voice channels, the rest on everything else.
 

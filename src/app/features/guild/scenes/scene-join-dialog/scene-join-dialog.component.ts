@@ -71,16 +71,12 @@ export class SceneJoinDialogComponent {
             .map(entry => ({personaId: entry.persona.id, identity: personaIdentity(entry)}));
     });
 
-    protected readonly hasNone = computed(
-        () => !this.query() && this.rows().length === 0,
-    );
+    protected readonly hasNone = computed(() => !this.query() && this.rows().length === 0);
 
     /** Who the new character follows in the rotation. Absent while the cast is still empty. */
     protected readonly lastInOrder = computed((): string | null => {
         const scene = this.scene();
-        const order = scene.turnOrder.length
-            ? scene.turnOrder
-            : scene.participants.map(p => p.personaId);
+        const order = scene.turnOrder.length ? scene.turnOrder : scene.participants.map(p => p.personaId);
         const last = order[order.length - 1];
         if (!last) return null;
         return this.personas.identity(this.guildId(), last, participantHint(scene, last))?.name ?? null;
@@ -125,9 +121,7 @@ export class SceneJoinDialogComponent {
         work.subscribe({
             next: () => {
                 this.saving.set(false);
-                this.toast.success(
-                    this.translate.instant(asking ? 'SCENE.JOIN.ASKED' : 'SCENE.JOIN.JOINED'),
-                );
+                this.toast.success(this.translate.instant(asking ? 'SCENE.JOIN.ASKED' : 'SCENE.JOIN.JOINED'));
                 this.closed.emit();
             },
             error: err => {

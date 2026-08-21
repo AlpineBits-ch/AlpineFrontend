@@ -57,11 +57,7 @@ function request(overrides: Partial<SceneJoinRequestDto> = {}): SceneJoinRequest
     };
 }
 
-function setup(
-    overrides: Partial<SceneDto> = {},
-    canManage = true,
-    requests: SceneJoinRequestDto[] = [],
-) {
+function setup(overrides: Partial<SceneDto> = {}, canManage = true, requests: SceneJoinRequestDto[] = []) {
     // Reset here rather than in beforeEach: the pairs below stand two headers up in one test.
     TestBed.resetTestingModule();
 

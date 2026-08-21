@@ -14,21 +14,21 @@ Server contract: `threads-on-a-message-frontend-guide`. Everything below is clie
 
 ## Decisions taken
 
-| Question | Answer |
-|---|---|
-| Where a thread opens | Right side panel, parent channel stays live. Not a main-view replacement. |
-| Entry points | Hover toolbar button and a new right-click context menu. |
-| Sidebar | Active threads nested under the parent channel. |
-| Unread on the card | No. Count and relative time only. Sidebar rows keep ordinary channel read state. |
-| Extraction | Its own commit with characterization tests first, then the feature on top. |
+| Question             | Answer                                                                           |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Where a thread opens | Right side panel, parent channel stays live. Not a main-view replacement.        |
+| Entry points         | Hover toolbar button and a new right-click context menu.                         |
+| Sidebar              | Active threads nested under the parent channel.                                  |
+| Unread on the card   | No. Count and relative time only. Sidebar rows keep ordinary channel read state. |
+| Extraction           | Its own commit with characterization tests first, then the feature on top.       |
 
 ## A. Wire additions
 
-| File | Addition |
-|---|---|
-| `dtos/response/message.dto.ts` | `threadId?: string \| null`; `MessageFlags.HasThread = 1 << 5` |
-| `dtos/response/guild.dto.ts` | `ChannelDto.starterMessageId?: string` |
-| `services/guild.service.ts` | `createThreadFromMessage(channelId, messageId, dto)`, `getChannel(id)` |
+| File                                  | Addition                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `dtos/response/message.dto.ts`        | `threadId?: string \| null`; `MessageFlags.HasThread = 1 << 5`                              |
+| `dtos/response/guild.dto.ts`          | `ChannelDto.starterMessageId?: string`                                                      |
+| `services/guild.service.ts`           | `createThreadFromMessage(channelId, messageId, dto)`, `getChannel(id)`                      |
 | `services/guild-websocket.service.ts` | `WsMessageThreadAttached`, `messageThreadAttachedObservable`, `guild.MessageThreadAttached` |
 
 `CreateThreadDto` is reused unchanged. `tagIds` is ignored by this route.

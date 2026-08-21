@@ -16,18 +16,18 @@ Spans two repos. Sections A to D are `RiderProjects\Echo`; E onwards is this cli
 
 ## Decisions taken
 
-| Question | Answer |
-|---|---|
-| Icon family | Lucide (ISC), through the data-only `lucide` core package plus a local renderer. PrimeIcons stays for the rest of the app until a separate sweep. |
+| Question                               | Answer                                                                                                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Icon family                            | Lucide (ISC), through the data-only `lucide` core package plus a local renderer. PrimeIcons stays for the rest of the app until a separate sweep.                                   |
 | How wide the Lucide migration goes now | The channel icon slot only: `CHANNEL_META`, the `channelIcon` call sites, the voice row, the picker. The remaining ~1150 `pi pi-*` chrome usages are Phase B and out of scope here. |
-| Why not migrate everything now | 1167 usages across 246 files and 160 distinct glyphs with no 1:1 name mapping. The clash being avoided is *within the icon slot*; chrome icons never land there. |
-| Where a custom icon shows | Everywhere the channel's icon shows: sidebar row, mention autocomplete, wiki share dialog, household and forum view headers. |
-| Colour input | A fixed palette of swatches plus a Default chip. Stored as `#RRGGBB`, so a later free-form picker is not a wire change. |
-| Where it is set | Channel settings, Overview page. Not at creation time. |
-| What the server validates | Shape only: an icon-name pattern and a hex pattern. Not catalog membership, not palette membership. |
-| What an unknown icon name does | Falls back to the type's default icon. Never renders raw, never throws. |
-| How a value is cleared | `""` on the PATCH. `null` or an absent field leaves the value alone. |
-| Emoji | Untouched. What users send is Twemoji plus `GuildEmojiDto` uploads, a separate pipeline from the icon font. |
+| Why not migrate everything now         | 1167 usages across 246 files and 160 distinct glyphs with no 1:1 name mapping. The clash being avoided is _within the icon slot_; chrome icons never land there.                    |
+| Where a custom icon shows              | Everywhere the channel's icon shows: sidebar row, mention autocomplete, wiki share dialog, household and forum view headers.                                                        |
+| Colour input                           | A fixed palette of swatches plus a Default chip. Stored as `#RRGGBB`, so a later free-form picker is not a wire change.                                                             |
+| Where it is set                        | Channel settings, Overview page. Not at creation time.                                                                                                                              |
+| What the server validates              | Shape only: an icon-name pattern and a hex pattern. Not catalog membership, not palette membership.                                                                                 |
+| What an unknown icon name does         | Falls back to the type's default icon. Never renders raw, never throws.                                                                                                             |
+| How a value is cleared                 | `""` on the PATCH. `null` or an absent field leaves the value alone.                                                                                                                |
+| Emoji                                  | Untouched. What users send is Twemoji plus `GuildEmojiDto` uploads, a separate pipeline from the icon font.                                                                         |
 
 ## Why the clear sentinel
 
@@ -63,9 +63,9 @@ no DTO edit.
 
 `ChannelValidator`, each rule applying only when the value is neither null nor empty:
 
-| Field | Rule |
-|---|---|
-| `Icon` | `^[a-z0-9-]{1,48}$` |
+| Field       | Rule                |
+| ----------- | ------------------- |
+| `Icon`      | `^[a-z0-9-]{1,48}$` |
 | `IconColor` | `^#[0-9a-fA-F]{6}$` |
 
 The server enforces shape, not inventory. It has no business knowing Lucide's catalog, and a palette
@@ -154,22 +154,22 @@ never `import * as`, which would defeat tree-shaking.
 
 `CHANNEL_META.icon` values move from PrimeIcons classes to Lucide names:
 
-| Type | Was | Now |
-|---|---|---|
-| Text | `null` | `null` (keeps its literal `#`) |
-| Voice | `pi pi-volume-up` | `volume-2` |
-| Thread | `pi pi-comments` | `messages-square` |
-| Forum | `pi pi-comments` | `messages-square` |
-| Media | `pi pi-images` | `images` |
-| Scene | `pi pi-bookmark` | `bookmark` |
-| Announcement | `pi pi-megaphone` | `megaphone` |
-| List | `pi pi-check-square` | `square-check` |
-| Chores | `pi pi-sync` | `refresh-cw` |
-| Ledger | `pi pi-wallet` | `wallet` |
-| Pantry | `pi pi-box` | `package` |
-| Decisions | `pi pi-flag` | `flag` |
-| Meals | `pi pi-book` | `book-open` |
-| Maintenance | `pi pi-wrench` | `wrench` |
+| Type         | Was                  | Now                            |
+| ------------ | -------------------- | ------------------------------ |
+| Text         | `null`               | `null` (keeps its literal `#`) |
+| Voice        | `pi pi-volume-up`    | `volume-2`                     |
+| Thread       | `pi pi-comments`     | `messages-square`              |
+| Forum        | `pi pi-comments`     | `messages-square`              |
+| Media        | `pi pi-images`       | `images`                       |
+| Scene        | `pi pi-bookmark`     | `bookmark`                     |
+| Announcement | `pi pi-megaphone`    | `megaphone`                    |
+| List         | `pi pi-check-square` | `square-check`                 |
+| Chores       | `pi pi-sync`         | `refresh-cw`                   |
+| Ledger       | `pi pi-wallet`       | `wallet`                       |
+| Pantry       | `pi pi-box`          | `package`                      |
+| Decisions    | `pi pi-flag`         | `flag`                         |
+| Meals        | `pi pi-book`         | `book-open`                    |
+| Maintenance  | `pi pi-wrench`       | `wrench`                       |
 
 Two functions:
 
@@ -203,12 +203,12 @@ and a custom property:
 
 ```css
 .chan-icon-tinted {
-    color: color-mix(in srgb, var(--chan-icon-tint) 78%, transparent);
+  color: color-mix(in srgb, var(--chan-icon-tint) 78%, transparent);
 }
 .chan-row:hover .chan-icon-tinted,
 .chan-row.is-active .chan-icon-tinted,
 .chan-row.is-unread .chan-icon-tinted {
-    color: var(--chan-icon-tint);
+  color: var(--chan-icon-tint);
 }
 ```
 
@@ -245,15 +245,15 @@ owner, which would lock the owner out of their own channel's appearance.
 
 ## K. Tests
 
-| Area | Test |
-|---|---|
-| `channel-types.spec.ts` | Icon assertions move to Lucide names. |
-| Catalog | Every `CHANNEL_META.icon` resolves in the registry; catalog names are unique. |
-| `channelIconFor` | Custom wins; an unknown name falls back to the type default; null falls back. |
-| Tint | A channel with no custom colour is unchanged from today. |
-| `ChannelValidator` | Both patterns, including that null and `""` pass. |
-| Endpoint | `null` preserves the stored value, `""` clears it, a value sets it. |
-| Endpoint | The 200 response carries the icon fields and the four restored ones. |
+| Area                    | Test                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `channel-types.spec.ts` | Icon assertions move to Lucide names.                                         |
+| Catalog                 | Every `CHANNEL_META.icon` resolves in the registry; catalog names are unique. |
+| `channelIconFor`        | Custom wins; an unknown name falls back to the type default; null falls back. |
+| Tint                    | A channel with no custom colour is unchanged from today.                      |
+| `ChannelValidator`      | Both patterns, including that null and `""` pass.                             |
+| Endpoint                | `null` preserves the stored value, `""` clears it, a value sets it.           |
+| Endpoint                | The 200 response carries the icon fields and the four restored ones.          |
 
 Guild.Tests failures without Docker are expected and pre-existing.
 

@@ -8,12 +8,12 @@ Extends `2026-08-20-scene-folder-tree-design.md`.
 
 ## Decisions
 
-| Question | Answer |
-|---|---|
-| Layout | The rail stays; the scene opens in the content pane beside it |
-| Location | A breadcrumb above the scene, every segment clickable |
-| Folder links | Reopen the archive already filtered to that folder |
-| Scenes opened from elsewhere | Still a plain channel view, unchanged |
+| Question                     | Answer                                                        |
+| ---------------------------- | ------------------------------------------------------------- |
+| Layout                       | The rail stays; the scene opens in the content pane beside it |
+| Location                     | A breadcrumb above the scene, every segment clickable         |
+| Folder links                 | Reopen the archive already filtered to that folder            |
+| Scenes opened from elsewhere | Still a plain channel view, unchanged                         |
 
 ## The navigation model grows two fields
 

@@ -1,9 +1,4 @@
-import {
-    SceneDto,
-    SceneJoinPolicy,
-    SceneListItemDto,
-    SceneVisibility,
-} from '../../../dtos/response/scene.dto';
+import {SceneDto, SceneJoinPolicy, SceneListItemDto, SceneVisibility} from '../../../dtos/response/scene.dto';
 
 /**
  * The three tables a scene can be. The fourth pair the two fields could express, hidden but open to
@@ -66,9 +61,7 @@ export function presetOf(
     visibility: SceneVisibility | null | undefined,
 ): SceneAccessPreset {
     if (visibility === SceneVisibility.Cast) return SceneAccessPreset.PrivateTable;
-    return joinPolicy === SceneJoinPolicy.Ask
-        ? SceneAccessPreset.AskToJoin
-        : SceneAccessPreset.OpenTable;
+    return joinPolicy === SceneJoinPolicy.Ask ? SceneAccessPreset.AskToJoin : SceneAccessPreset.OpenTable;
 }
 
 /** What the scene answers to. A scene with no access fields yet behaves as an open table. */

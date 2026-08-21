@@ -173,20 +173,10 @@
                         {{ request.note || ('SCENE.REQUEST.NO_NOTE' | translate) }}
                     </span>
                 </span>
-                <button
-                    (click)="approve(request.id)"
-                    [disabled]="busy()"
-                    class="scene-request-approve"
-                    type="button"
-                >
+                <button (click)="approve(request.id)" [disabled]="busy()" class="scene-request-approve" type="button">
                     {{ 'SCENE.REQUEST.APPROVE' | translate }}
                 </button>
-                <button
-                    (click)="openDeny(request.id, denyPanel, $event)"
-                    [disabled]="busy()"
-                    class="scene-stalled-action"
-                    type="button"
-                >
+                <button (click)="openDeny(request.id, denyPanel, $event)" [disabled]="busy()" class="scene-stalled-action" type="button">
                     {{ 'SCENE.REQUEST.DENY' | translate }}
                 </button>
             </div>
@@ -208,12 +198,7 @@
                 <button (click)="denyPanel.hide()" class="scene-stalled-action" type="button">
                     {{ 'PERSONA.CANCEL' | translate }}
                 </button>
-                <button
-                    (click)="deny(denyPanel)"
-                    [disabled]="busy()"
-                    class="scene-request-confirm"
-                    type="button"
-                >
+                <button (click)="deny(denyPanel)" [disabled]="busy()" class="scene-request-confirm" type="button">
                     {{ 'SCENE.REQUEST.DENY' | translate }}
                 </button>
             </div>
