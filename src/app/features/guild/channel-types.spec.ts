@@ -5,6 +5,7 @@ import {GuildFeature} from './guild-features';
 import {lookupChannelIcon} from './channel-icon-catalog';
 import {
     CHANNEL_META,
+    ChannelView,
     channelIcon,
     channelIconDataFor,
     channelIconTint,
@@ -24,6 +25,20 @@ const HOUSEHOLD_TYPES = [
     ChannelType.Meals,
     ChannelType.Maintenance,
 ] as const;
+
+const KNOWN_VIEWS: ReadonlySet<ChannelView> = new Set<ChannelView>([
+    'voice',
+    'forum',
+    'message',
+    'list',
+    'chores',
+    'ledger',
+    'pantry',
+    'decisions',
+    'meals',
+    'maintenance',
+    'unsupported',
+]);
 
 describe('CHANNEL_META', () => {
     it('has exactly one entry for every ChannelType', () => {
@@ -48,6 +63,31 @@ describe('CHANNEL_META', () => {
             }
         }
     });
+
+    it('gives every entry a view this build knows', () => {
+        for (const meta of CHANNEL_META) {
+            expect(KNOWN_VIEWS.has(meta.view), `${meta.type} -> ${meta.view}`).toBe(true);
+        }
+    });
+
+    it('is the only thing channelViewFor consults', () => {
+        for (const meta of CHANNEL_META) {
+            expect(channelViewFor(meta.type), meta.type).toBe(meta.view);
+        }
+    });
+
+    it('never gives a household row the message view', () => {
+        for (const meta of CHANNEL_META) {
+            if (!meta.household) continue;
+            expect(meta.view, meta.type).not.toBe('message');
+        }
+    });
+
+    it('gives each household row a view of its own, never the placeholder', () => {
+        const views = CHANNEL_META.filter(m => m.household).map(m => m.view);
+        expect(views).not.toContain('unsupported');
+        expect(new Set(views).size).toBe(views.length);
+    });
 });
 
 describe('channelIcon', () => {
@@ -65,6 +105,8 @@ describe('channelIcon', () => {
         expect(channelIcon(ChannelType.Ledger)).toBe('wallet');
         expect(channelIcon(ChannelType.Pantry)).toBe('package');
         expect(channelIcon(ChannelType.Decisions)).toBe('flag');
+        expect(channelIcon(ChannelType.Meals)).toBe('book-open');
+        expect(channelIcon(ChannelType.Maintenance)).toBe('wrench');
     });
 
     it('is null for a type this build does not know', () => {
@@ -155,6 +197,8 @@ describe('householdFeatureFor', () => {
         expect(householdFeatureFor(ChannelType.Ledger)).toBe(GuildFeature.Ledger);
         expect(householdFeatureFor(ChannelType.Pantry)).toBe(GuildFeature.Pantry);
         expect(householdFeatureFor(ChannelType.Decisions)).toBe(GuildFeature.Decisions);
+        expect(householdFeatureFor(ChannelType.Meals)).toBe(GuildFeature.Meals);
+        expect(householdFeatureFor(ChannelType.Maintenance)).toBe(GuildFeature.Maintenance);
     });
 
     it('returns null for the chat types', () => {
@@ -203,6 +247,8 @@ describe('channelViewFor', () => {
         expect(channelViewFor(ChannelType.Ledger)).toBe('ledger');
         expect(channelViewFor(ChannelType.Pantry)).toBe('pantry');
         expect(channelViewFor(ChannelType.Decisions)).toBe('decisions');
+        expect(channelViewFor(ChannelType.Meals)).toBe('meals');
+        expect(channelViewFor(ChannelType.Maintenance)).toBe('maintenance');
     });
 
     /** The drift guard the view table's docblock promises: a household type added without a view silently falls through to `unsupported` instead of erroring. */
