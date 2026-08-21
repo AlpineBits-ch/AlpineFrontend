@@ -1,95 +1,155 @@
 # Venta
 
-Tauri 2 + Angular desktop client. The frontend is Angular; everything from audio capture to the
-WebRTC transport lives in Rust under `src-tauri/`.
+A desktop chat and household client. Angular 21 in a Tauri 2 shell, with audio capture, WebRTC and
+the MLS crypto living in Rust under `src-tauri/`.
 
-## Prerequisites
+If you have used Discord the shape is familiar: servers, channels, voice, DMs. The part that is not
+familiar is that a server can also run household modules, so a channel might be a chore rota, a
+shared ledger or a pantry rather than a message list.
 
-| Tool                                                            | Why                                                            | Install                                                                                |
-| --------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [Rust](https://rustup.rs) (stable, MSVC toolchain)              | The whole `src-tauri` crate                                    | `rustup default stable-x86_64-pc-windows-msvc`                                         |
-| [Bun](https://bun.sh)                                           | Package manager and script runner                              | `powershell -c "irm bun.sh/install.ps1 \| iex"`                                        |
-| Visual Studio Build Tools with **Desktop development with C++** | MSVC (`cl`, `link`), which Rust and the vendored C++ both need | [Build Tools installer](https://visualstudio.microsoft.com/visual-cpp-build-tools/)    |
-| WebView2 runtime                                                | The webview Tauri renders into                                 | Preinstalled on Windows 11                                                             |
-| Python 3                                                        | Runs meson                                                     | [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12` |
-| **meson** and **ninja**                                         | Build echo cancellation from source — see below                | `pip install meson ninja`                                                              |
-| CMake                                                           | libopus, vendored by `audiopus_sys`                            | `winget install Kitware.CMake`                                                         |
-
-CI installs exactly this set; the Windows job in `.github/workflows/build.yml` is the reference.
-
-### The `aec` feature is the one that bites
-
-`src-tauri/Cargo.toml` declares `default = ["aec"]`. That feature compiles WebRTC's AudioProcessing
-module — real C++, built from source through meson and ninja — and it is what provides echo
-cancellation, noise suppression and gain control. Because it is a **default** feature, a plain
-`cargo build`, `cargo test` or `tauri build` all turn it on, and a machine without meson on `PATH`
-fails the build outright with `Failed to execute meson. Do you have it installed?`.
-
-Two consequences worth knowing before you debug anything audio-related:
-
-- Building with `--no-default-features` succeeds without meson, but produces a **different
-  executable** from the one CI ships: `media::voice::process::create` returns the passthrough
-  processor instead of the real one. Voice still works, without echo cancellation.
-- meson only finds `cl` if MSVC is already on `PATH`. A plain PowerShell prompt has no MSVC and
-  fails with an unhelpful `[WinError 2]`. Build from an **x64 Native Tools Command Prompt for VS**,
-  or run `vcvars64.bat` first.
-
-## Running
+## Run it
 
 ```bash
 bun install
-bun run tauri dev          # debug build, Angular dev server, hot reload
+bun run tauri dev
 ```
 
-`tauri dev` is _not_ the artifact CI produces. It is a debug build (no optimisations, debug
-assertions on, a console attached) running against `ng serve`. Timing-sensitive faults — anything
-involving WebRTC negotiation, device callbacks or thread scheduling — can appear in one and not the
-other, so a bug reproduced only in `dev` is not evidence about the shipped client, and vice versa.
-
-### Reproducing the CI artifact
+That wants Rust, MSVC, meson and a few other things first. The full list, and the four ways this
+build goes wrong, are in [docs/building.md](docs/building.md). Read it before you file a bug about
+audio or about a release build behaving differently from `dev`, because both have a known cause.
 
 ```bash
-bun run tauri:ci          # byte-for-byte what release-windows builds: NSIS installer, release profile,
-                          # default features, production Angular bundle
-bun run tauri:ci:run      # the same binary without the installer, launched with its output captured
+bun run test                                  # Angular tests
+bun run ng test --watch=false --include="**/one-file.spec.ts"
+bun run lint
+bun run ng build --configuration development
 ```
 
-`tauri:ci:run` writes a transcript to `logs/venta-<timestamp>.log` as well as to the terminal. That
-file is what to attach to a bug report.
+Always go through the Angular CLI via bun. Bare `vitest` and `npx ng` both fail here in ways that
+look like your code is broken when it is not.
 
-**Do not substitute `cargo build --release`.** It compiles, it produces `Venta.exe`, and the app it
-produces loads `http://localhost:1420` and shows _"localhost refused to connect"_ unless `ng serve`
-happens to be up. Whether a build is a dev build or a production one has nothing to do with the
-cargo profile: `tauri`'s build script sets `dev = !custom-protocol`, and the `custom-protocol`
-feature is passed by the Tauri CLI, not by cargo. So `cargo build --release` is an _optimised dev
-build_ — release profile, dev frontend wiring — which is a configuration CI never produces and
-nothing should be diagnosed against. Always go through `tauri build` (or the scripts above).
+## How the app fits together
 
-### Reading a release build's output
+Four ideas carry most of it. If you understand these you can find your way around the rest.
 
-Release builds are linked with `windows_subsystem = "windows"` so no console window appears when the
-app is launched from Explorer. That also leaves the process with no standard handles, and Rust
-silently discards writes to an absent stderr — which is why a shipped client used to produce no
-diagnostics at all.
+### 1. One socket, and one place events arrive
 
-`attach_parent_console` in `src-tauri/src/main.rs` adopts the console of whatever started the
-process, so **an installed client run from a terminal prints its full log**:
+There is a single SignalR connection to `/api/v1/ws/hub`, owned by `RealtimeConnectionService`. Every
+domain shares it, which is why event names are prefixed: `guild.*`, `conversation.*`, `call.*`,
+`presence.*`.
 
-```powershell
-& "$env:LOCALAPPDATA\Venta\Venta.exe"
+`services/realtime-events.ts` maps every event name to its payload type. You subscribe by name and
+get the right type back:
+
+```ts
+private realtime = inject(RealtimeConnectionService);
+
+this.realtime.stream('guild.ChoreCreated').subscribe(d => this.upsert(d.channelId, d.chore));
 ```
 
-Double-clicking still opens no console, exactly as before.
+Whatever listens has to be on the `LISTENERS` array in `services/realtime-listeners.ts`. That array
+is resolved once when the app starts. This matters more than it looks: an Angular service is not
+constructed until something injects it, so a listener that is not on the list does not start
+listening until a user happens to open the view that uses it, and every event before that is lost.
 
-## Tests
+Components should not subscribe to events at all. State reacts to events, components read state. A
+handful of older components still break this rule and are being cleaned up.
 
-```bash
-cargo test --manifest-path src-tauri/Cargo.toml            # Rust, debug
-cargo test --manifest-path src-tauri/Cargo.toml --release  # Rust, as CI compiles it
-bun run test                                               # Angular
+### 2. State goes in one of three places
+
+Server state goes in a store. Device state goes in a service. View state stays in the component.
+The full rule, including the case where the tests collide, is under "Where state goes" in
+`CLAUDE.md`. It is short and it is worth reading before you add a signal anywhere.
+
+The rough version: if another user's action can change it, it belongs in a store.
+
+### 3. A store is assembled, not hand written
+
+Stores live in `src/app/stores/` and are built from `@ngrx/signals` plus two local features in
+`src/app/stores/foundation/`:
+
+- `withKeyedIndex` gives you one entity map partitioned by a key such as a channel id, with loading
+  state, error state, staleness and in flight coalescing per key.
+- `withOptimisticEntities` gives you a write that applies immediately and returns both its undo and
+  its settle.
+
+Between them you get almost everything a server backed module needs without writing it. `pantry.store.ts`
+and `list.store.ts` are the two worked examples. Read those before writing a third.
+
+HTTP stays out of the store. Each module has a `*-api.service.ts` that does nothing but build
+requests, and the store calls it.
+
+A few older services still hold their own `signal<Record<string, T>>` state instead. They are being
+moved. If you land in one, move it rather than adding to it.
+
+### 4. Channel types are a table, not a switch
+
+Adding a channel type means adding a row to `CHANNEL_META` in `features/guild/channel-types.ts` and
+an entry in `features/guild/channel-views.ts`. The compiler makes you do the second once you have
+done the first. No template edits, and nothing in `main-page.component.ts`.
+
+`channelViewFor()` is an allowlist on purpose. A type with no row renders as unsupported rather than
+falling through to a message view with a composer.
+
+## Adding the usual things
+
+**A realtime event.** Add the name and payload to `realtime-events.ts`. Handle it in the store that
+owns that state. Make sure that store is on `LISTENERS`.
+
+**A server backed module.** A `*-api.service.ts` for the HTTP, a store built on the two features, and
+one line in `LISTENERS`. Copy the shape from Pantry or Lists.
+
+**A channel type.** One row in `CHANNEL_META`, one entry in `CHANNEL_VIEW_COMPONENTS`, one component.
+
+**A string.** `src/assets/i18n/locales`, flat dot separated keys. Prefer an existing key.
+
+## Where things live
+
+```
+src/app/
+  stores/        server state. foundation/ holds the two store features
+  services/      device and session state, HTTP clients, the realtime connection
+  features/      screens, grouped by area (guild, messaging, settings, login, call)
+  dtos/          wire types, request/ and response/
+  core/          small pure modules with tests. money, entitlements, error copy
+  helpers/       small pure functions
+  platform/      the desktop and web splits behind one interface
+  theme/         the PrimeNG preset and Tailwind tokens
+src-tauri/       the Rust shell. audio capture, screen capture, WebRTC publish, presence
+crates/          venta-crypto, the MLS and device certificate code, shared with the web build
 ```
 
-`media::voice::e2e_tests` is the gate on the voice pipeline: two real peer connections, real Opus
-and real SRTP, asserting on the samples a speaker would emit. If it fails, voice is broken — there
-is no version of it failing that means anything else. Worth running under `--release` too, since
-that is the profile users get and several of these faults are timing-dependent.
+## Things that will catch you
+
+Money is stored and passed as whole minor units and formatted only at display. See
+`helpers/money.helper.ts`.
+
+`bun run format` runs prettier over the entire repository, so it will rewrite files you never
+touched. Format your own files instead: `bunx prettier --write path/to/file.ts`.
+
+Adding a spec file changes how Vitest batches files across workers, which can make a test fail in a
+file you did not touch. That is usually a known pre existing bug, not your change. `CLAUDE.md`
+explains it under "Tests".
+
+`bun run lint` currently exits non zero on a backlog of pre existing findings. Compare against the
+baseline rather than expecting green.
+
+## Further reading
+
+`CLAUDE.md` holds the working rules: how to write, how to commit, the state rule, the testing traps.
+It is the first thing to read after this file.
+
+Server contracts, written from the client's side:
+
+- [docs/api/household-modules-frontend-guide.md](docs/api/household-modules-frontend-guide.md), the
+  chores, ledger, pantry, meals, maintenance and decisions endpoints
+- [docs/api/inbox-frontend-guide.md](docs/api/inbox-frontend-guide.md)
+- [docs/contracts/entitlements-client-requirements.md](docs/contracts/entitlements-client-requirements.md),
+  what the client must enforce about plans and limits
+- [docs/contracts/voice-client-notes.md](docs/contracts/voice-client-notes.md)
+- [docs/contracts/web-push-frontend-guide.md](docs/contracts/web-push-frontend-guide.md)
+- [docs/specs/channel-permissions-ux.md](docs/specs/channel-permissions-ux.md)
+
+`docs/superpowers/` holds design notes and implementation plans for features that have already
+shipped. They are kept for the reasoning, not as documentation, and some of them describe code that
+has since changed. Treat the source as the truth and those as history.
