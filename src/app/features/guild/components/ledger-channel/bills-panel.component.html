@@ -227,12 +227,15 @@
 
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.DESCRIPTION' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-description">{{
+                'BILLS.DESCRIPTION' | translate
+            }}</label>
             <input
                 (ngModelChange)="formDescription.set($event)"
                 [maxlength]="descriptionMaxLength"
                 [ngModel]="formDescription()"
                 [placeholder]="'BILLS.DESCRIPTION_PLACEHOLDER' | translate"
+                id="bill-description"
                 pInputText
                 type="text"
             />
@@ -255,13 +258,14 @@
 
             @if (formHasFixedAmount()) {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+                    <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-amount">
                         {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
                     </label>
                     <input
                         (ngModelChange)="formAmount.set($event)"
                         [ngModel]="formAmount()"
                         [placeholder]="'LEDGER.AMOUNT_PLACEHOLDER' | translate"
+                        id="bill-amount"
                         inputmode="decimal"
                         pInputText
                         type="text"
@@ -277,23 +281,29 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.PAID_BY_LABEL' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-payer">{{
+                    'BILLS.PAID_BY_LABEL' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="formPayerUserId.set($event)"
                     [filter]="true"
                     [ngModel]="formPayerUserId()"
                     [options]="memberOptions()"
+                    inputId="bill-payer"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CATEGORY' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-category">{{
+                    'LEDGER.CATEGORY' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="formCategory.set($event)"
                     [ngModel]="formCategory()"
                     [options]="categoryOptions()"
+                    inputId="bill-category"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
@@ -303,29 +313,53 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-24">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.EVERY' | translate }}</label>
-                <input (ngModelChange)="formInterval.set(+$event)" [ngModel]="formInterval()" min="1" pInputText type="number" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-interval">{{
+                    'BILLS.EVERY' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="formInterval.set(+$event)"
+                    [ngModel]="formInterval()"
+                    id="bill-interval"
+                    min="1"
+                    pInputText
+                    type="number"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.UNIT' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-unit">{{
+                    'BILLS.UNIT' | translate
+                }}</label>
                 <p-select
                     (ngModelChange)="formUnit.set($event)"
                     [ngModel]="formUnit()"
                     [options]="unitOptions()"
+                    inputId="bill-unit"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
                 />
             </div>
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.FIRST_DUE' | translate }}</label>
-                <input (ngModelChange)="formAnchorAt.set($event)" [ngModel]="formAnchorAt()" pInputText type="date" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-first-due">{{
+                    'BILLS.FIRST_DUE' | translate
+                }}</label>
+                <input (ngModelChange)="formAnchorAt.set($event)" [ngModel]="formAnchorAt()" id="bill-first-due" pInputText type="date" />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.LEAD_DAYS' | translate }}</label>
-            <input (ngModelChange)="formLeadDays.set(+$event)" [ngModel]="formLeadDays()" max="30" min="0" pInputText type="number" />
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-lead-days">{{
+                'BILLS.LEAD_DAYS' | translate
+            }}</label>
+            <input
+                (ngModelChange)="formLeadDays.set(+$event)"
+                [ngModel]="formLeadDays()"
+                id="bill-lead-days"
+                max="30"
+                min="0"
+                pInputText
+                type="number"
+            />
             <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.LEAD_DAYS_HINT' | translate }}</span>
         </div>
 
@@ -393,13 +427,14 @@
         </p>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-post-amount">
                 {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
             </label>
             <input
                 (keydown.enter)="submitPost()"
                 (ngModelChange)="postAmount.set($event)"
                 [ngModel]="postAmount()"
+                id="bill-post-amount"
                 inputmode="decimal"
                 pInputText
                 type="text"
@@ -449,13 +484,16 @@
         <p class="text-[0.6875rem] text-text-muted m-0">{{ 'BILLS.SKIP_EXPLAINER' | translate }}</p>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.SKIP_REASON' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="bill-skip-reason">{{
+                'BILLS.SKIP_REASON' | translate
+            }}</label>
             <input
                 (keydown.enter)="submitSkip()"
                 (ngModelChange)="skipReason.set($event)"
                 [maxlength]="skipReasonMaxLength"
                 [ngModel]="skipReason()"
                 [placeholder]="'BILLS.SKIP_REASON_PLACEHOLDER' | translate"
+                id="bill-skip-reason"
                 pInputText
                 type="text"
             />

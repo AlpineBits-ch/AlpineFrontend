@@ -1,8 +1,9 @@
 @if (open()) {
-    <div (click)="closed.emit()" class="fixed inset-0 z-50 bg-black/60">
+    <div (click)="closed.emit()" role="presentation" class="fixed inset-0 z-50 bg-black/60">
         <div
             (click)="$event.stopPropagation()"
             (keydown)="onKeydown($event)"
+            role="presentation"
             class="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
         >
             <!-- Query -->

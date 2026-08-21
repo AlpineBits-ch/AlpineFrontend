@@ -31,7 +31,7 @@
             }
             @for (option of request.command.options; track option.name) {
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm text-text-primary flex items-center gap-1.5">
+                    <label [attr.for]="'bot-opt-' + option.name" class="text-sm text-text-primary flex items-center gap-1.5">
                         {{ option.name }}
                         <span class="text-[10px] text-text-muted">{{ option.required ? '(required)' : '(optional)' }}</span>
                     </label>
@@ -41,6 +41,7 @@
                     @if (discordOptionInputKind(option.type) === 'boolean') {
                         <p-toggleswitch
                             (ngModelChange)="setValue(option.name, $event)"
+                            [inputId]="'bot-opt-' + option.name"
                             [ngModel]="optionValues()[option.name]"
                             [name]="'opt-' + option.name"
                         />
@@ -48,6 +49,7 @@
                         <input
                             (keydown.enter)="submit()"
                             (ngModelChange)="setValue(option.name, $event)"
+                            [attr.id]="'bot-opt-' + option.name"
                             [ngModel]="optionValues()[option.name]"
                             [name]="'opt-' + option.name"
                             [placeholder]="discordOptionPlaceholder(option.type)"

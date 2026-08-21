@@ -128,12 +128,15 @@
                             <div class="space-y-5 pb-4 max-w-xl">
                                 <!-- Name -->
                                 <div>
-                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                        'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate
-                                    }}</label>
+                                    <label
+                                        class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                                        for="role-edit-name"
+                                        >{{ 'GUILD_SETTINGS.ROLES.ROLE_NAME' | translate }}</label
+                                    >
                                     <input
                                         (ngModelChange)="editName.set($event); onEditField()"
                                         [disabled]="role.type === RoleType.Everyone"
+                                        id="role-edit-name"
                                         [maxlength]="100"
                                         [ngModel]="editName()"
                                         class="w-full"
@@ -148,12 +151,15 @@
 
                                 <!-- Description -->
                                 <div>
-                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                        'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate
-                                    }}</label>
+                                    <label
+                                        class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                                        for="role-edit-description"
+                                        >{{ 'GUILD_SETTINGS.ROLES.DESCRIPTION' | translate }}</label
+                                    >
                                     <textarea
                                         (ngModelChange)="editDescription.set($event); onEditField()"
                                         [maxlength]="300"
+                                        id="role-edit-description"
                                         [ngModel]="editDescription()"
                                         class="w-full resize-none"
                                         pTextarea
@@ -163,14 +169,17 @@
 
                                 <!-- Color -->
                                 <div>
-                                    <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
-                                        'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate
-                                    }}</label>
+                                    <label
+                                        class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+                                        for="role-edit-color"
+                                        >{{ 'GUILD_SETTINGS.ROLES.ROLE_COLOR' | translate }}</label
+                                    >
                                     <div class="flex items-center gap-3">
                                         <input
                                             (ngModelChange)="editColor.set($event); onEditField()"
                                             [ngModel]="editColor()"
                                             class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
+                                            id="role-edit-color"
                                             type="color"
                                         />
                                         <input
@@ -419,7 +428,7 @@
     </ng-template>
     <div class="space-y-4 py-2">
         <div>
-            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2"
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2" for="role-create-name"
                 >{{ 'GUILD_SETTINGS.ROLES.CREATE_NAME' | translate }} <span class="text-rose-400">*</span></label
             >
             <!-- Enter creates. `createRole()` re-checks the trimmed name and the in-flight flag, so a held key cannot mint two roles. The colour swatch below is a native picker that swallows Enter itself; the hex field beside it submits. -->
@@ -429,11 +438,12 @@
                 [ngModel]="createName()"
                 [placeholder]="'GUILD_SETTINGS.ROLES.CREATE_NAME_PLACEHOLDER' | translate"
                 class="w-full"
+                id="role-create-name"
                 pInputText
             />
         </div>
         <div>
-            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{{
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2" for="role-create-color">{{
                 'GUILD_SETTINGS.ROLES.CREATE_COLOR' | translate
             }}</label>
             <div class="flex items-center gap-3">
@@ -441,6 +451,7 @@
                     (ngModelChange)="createColor.set($event)"
                     [ngModel]="createColor()"
                     class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
+                    id="role-create-color"
                     type="color"
                 />
                 <input

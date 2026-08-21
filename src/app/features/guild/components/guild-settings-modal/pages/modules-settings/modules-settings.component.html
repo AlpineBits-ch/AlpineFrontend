@@ -11,6 +11,7 @@
             [attr.aria-label]="'GUILD_SETTINGS.MODULES.KIND_GROUP_ARIA' | translate"
             class="flex flex-col gap-1.5"
             role="radiogroup"
+            tabindex="-1"
         >
             @for (meta of kinds; track meta.kind) {
                 <button
@@ -66,6 +67,7 @@
                         (click)="toggle(module, !isOn(module))"
                         [class]="isBusy(module) ? 'cursor-default' : 'cursor-pointer'"
                         class="min-w-0 flex-1 pr-4 select-none"
+                        role="presentation"
                     >
                         <p [id]="labelId(module)" class="text-[0.8125rem] text-text-primary">{{ labelKey(module) | translate }}</p>
                         <p class="text-xs text-text-secondary mt-0.5">{{ descriptionKey(module) | translate }}</p>
@@ -98,6 +100,7 @@
                             (click)="toggle(module, !isOn(module))"
                             [class]="isBusy(module) ? 'cursor-default' : 'cursor-pointer'"
                             class="min-w-0 flex-1 pr-4 select-none"
+                            role="presentation"
                         >
                             <p [id]="labelId(module)" class="text-[0.8125rem] text-text-primary">{{ labelKey(module) | translate }}</p>
                             <p class="text-xs text-text-secondary mt-0.5">{{ 'GUILD_SETTINGS.MODULES.NOT_BUILT_YET' | translate }}</p>

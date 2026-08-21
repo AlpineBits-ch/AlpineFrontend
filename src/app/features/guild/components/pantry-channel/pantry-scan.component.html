@@ -2,13 +2,16 @@
     <p class="text-[0.6875rem] text-text-muted m-0">{{ 'PANTRY.SCAN_HINT' | translate }}</p>
 
     <div class="flex flex-col gap-1.5">
-        <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.BARCODE' | translate }}</label>
+        <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="pantry-scan-barcode">{{
+            'PANTRY.BARCODE' | translate
+        }}</label>
         <!-- Autofocused and submitting on Enter: a hardware scanner types a code and presses Enter, and so does a person who has done this twice. -->
         <input
             (keydown.enter)="submit()"
             (ngModelChange)="barcode.set($event)"
             [ngModel]="barcode()"
             [placeholder]="'PANTRY.BARCODE_PLACEHOLDER' | translate"
+            id="pantry-scan-barcode"
             inputmode="numeric"
             pInputText
             type="text"
@@ -21,12 +24,15 @@
     </div>
 
     <div class="flex flex-col gap-1.5">
-        <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.SCAN_QUANTITY' | translate }}</label>
+        <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="pantry-scan-quantity">{{
+            'PANTRY.SCAN_QUANTITY' | translate
+        }}</label>
         <input
             (keydown.enter)="submit()"
             (ngModelChange)="quantity.set($event)"
             [ngModel]="quantity()"
             [placeholder]="'PANTRY.SCAN_QUANTITY_PLACEHOLDER' | translate"
+            id="pantry-scan-quantity"
             inputmode="decimal"
             pInputText
             type="text"
@@ -40,24 +46,30 @@
             <p class="text-[0.6875rem] text-amber-300 m-0">{{ 'PANTRY.SCAN_UNKNOWN_CODE' | translate }}</p>
 
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.FIELD_NAME' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="pantry-scan-name">{{
+                    'PANTRY.FIELD_NAME' | translate
+                }}</label>
                 <input
                     (keydown.enter)="submit()"
                     (ngModelChange)="name.set($event)"
                     [ngModel]="name()"
                     [placeholder]="'PANTRY.FIELD_NAME_PLACEHOLDER' | translate"
+                    id="pantry-scan-name"
                     pInputText
                     type="text"
                 />
             </div>
 
             <div class="flex flex-col gap-1.5">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'PANTRY.FIELD_UNIT' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="pantry-scan-unit">{{
+                    'PANTRY.FIELD_UNIT' | translate
+                }}</label>
                 <input
                     (keydown.enter)="submit()"
                     (ngModelChange)="unit.set($event)"
                     [ngModel]="unit()"
                     [placeholder]="'PANTRY.FIELD_UNIT_PLACEHOLDER' | translate"
+                    id="pantry-scan-unit"
                     pInputText
                     type="text"
                 />

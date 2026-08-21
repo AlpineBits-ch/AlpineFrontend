@@ -14,8 +14,10 @@
             @if (menuOpen()) {
                 <div
                     (click)="$event.stopPropagation()"
+                    (keydown.escape)="closeMenu()"
                     class="absolute right-0 top-9 z-30 flex min-w-[10rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2 shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]"
                     role="menu"
+                    tabindex="-1"
                 >
                     @if (isBlocked()) {
                         <button
@@ -53,7 +55,11 @@
 
     <!-- Blocking severs a friendship and is invisible to the other party, so it is confirmed. -->
     @if (confirmingBlock()) {
-        <div (click)="$event.stopPropagation()" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4">
+        <div
+            (click)="$event.stopPropagation()"
+            role="presentation"
+            class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4"
+        >
             <div class="flex w-full max-w-[23.75rem] flex-col gap-4 rounded-2xl border border-border bg-card p-5">
                 <h3 class="m-0 text-base font-semibold text-text-primary">
                     {{ 'PROFILE.BLOCK_CONFIRM_TITLE' | translate: {name: p.userName} }}

@@ -4,10 +4,11 @@
         <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Microphone</h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Input Device</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="voice-input-device">Input Device</label>
             <p-select
                 [(ngModel)]="selectedMicId"
                 [options]="micOptions()"
+                inputId="voice-input-device"
                 optionLabel="label"
                 optionValue="value"
                 placeholder="Select microphone"
@@ -24,7 +25,7 @@
 
         <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
-                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Input Volume</label>
+                <span class="text-xs font-medium text-text-secondary uppercase tracking-wide">Input Volume</span>
                 <span class="text-xs text-text-muted tabular-nums">{{ inputVolume }}%</span>
             </div>
             <p-slider [(ngModel)]="inputVolume" [max]="100" [min]="0" styleClass="w-full" />
@@ -96,6 +97,7 @@
                 <!-- The push-to-talk row is disabled rather than dropped where no global hotkey exists:
                      it is the mode people arrive expecting, and the reason belongs next to it. -->
                 <label
+                    [attr.for]="'voice-input-mode-' + opt.value"
                     [class.opacity-50]="opt.value === 'push-to-talk' && !canPushToTalk"
                     [class.cursor-pointer]="opt.value !== 'push-to-talk' || canPushToTalk"
                     class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
@@ -108,6 +110,7 @@
                         <p-radiobutton
                             [(ngModel)]="inputMode"
                             [disabled]="opt.value === 'push-to-talk' && !canPushToTalk"
+                            [inputId]="'voice-input-mode-' + opt.value"
                             [value]="opt.value"
                             name="inputMode"
                         />
@@ -242,10 +245,13 @@
         <!-- Gated on `outputSupport().selectable`, never on the list being empty. -->
         @if (outputSelectable()) {
             <div class="flex flex-col gap-1.5" data-testid="output-picker">
-                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Output Device</label>
+                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="voice-output-device"
+                    >Output Device</label
+                >
                 <p-select
                     [(ngModel)]="selectedSpeakerId"
                     [options]="speakerOptions()"
+                    inputId="voice-output-device"
                     optionLabel="label"
                     optionValue="value"
                     placeholder="Select speaker"
@@ -265,7 +271,7 @@
 
         <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
-                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Output Volume</label>
+                <span class="text-xs font-medium text-text-secondary uppercase tracking-wide">Output Volume</span>
                 <span class="text-xs text-text-muted tabular-nums">{{ outputVolume }}%</span>
             </div>
             <p-slider [(ngModel)]="outputVolume" [max]="100" [min]="0" styleClass="w-full" />
@@ -277,10 +283,11 @@
         <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Camera</h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Video Device</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="voice-video-device">Video Device</label>
             <p-select
                 [(ngModel)]="selectedCameraId"
                 [options]="cameraOptions()"
+                inputId="voice-video-device"
                 optionLabel="label"
                 optionValue="value"
                 placeholder="Select camera"
@@ -326,10 +333,13 @@
         <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">Voice Processing</h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">Noise Suppression</label>
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="voice-noise-suppression"
+                >Noise Suppression</label
+            >
             <p-select
                 [(ngModel)]="noiseSuppressionMode"
                 [options]="noiseSuppressionOptions"
+                inputId="voice-noise-suppression"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"

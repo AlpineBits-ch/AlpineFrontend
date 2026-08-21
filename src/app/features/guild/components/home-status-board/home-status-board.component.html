@@ -92,6 +92,10 @@
             @for (row of rows(); track row.status.userId) {
                 <div
                     (click)="profilePopout.open(row.status.userId)"
+                    (keydown.enter)="profilePopout.open(row.status.userId)"
+                    (keydown.space)="$event.preventDefault(); profilePopout.open(row.status.userId)"
+                    role="button"
+                    tabindex="0"
                     class="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer"
                 >
                     <div class="w-6 h-6 rounded-full overflow-hidden bg-card flex items-center justify-center shrink-0">

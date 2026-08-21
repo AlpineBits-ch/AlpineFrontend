@@ -20,39 +20,42 @@
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
-                <label class="flex flex-col gap-1.5">
+                <label class="flex flex-col gap-1.5" for="forum-default-sort">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.DEFAULT_SORT' | translate }}</span>
                     <p-select
                         (ngModelChange)="patchConfig('defaultSortOrder', $event)"
                         [ngModel]="cfg.defaultSortOrder"
                         [options]="sortOptions()"
                         appendTo="body"
+                        inputId="forum-default-sort"
                         optionLabel="label"
                         optionValue="value"
                         styleClass="w-full"
                     />
                 </label>
 
-                <label class="flex flex-col gap-1.5">
+                <label class="flex flex-col gap-1.5" for="forum-default-layout">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.DEFAULT_LAYOUT' | translate }}</span>
                     <p-select
                         (ngModelChange)="patchConfig('defaultLayout', $event)"
                         [ngModel]="cfg.defaultLayout"
                         [options]="layoutOptions()"
                         appendTo="body"
+                        inputId="forum-default-layout"
                         optionLabel="label"
                         optionValue="value"
                         styleClass="w-full"
                     />
                 </label>
 
-                <label class="flex flex-col gap-1.5">
+                <label class="flex flex-col gap-1.5" for="forum-auto-archive">
                     <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.AUTO_ARCHIVE' | translate }}</span>
                     <p-select
                         (ngModelChange)="patchConfig('defaultAutoArchiveMinutes', $event)"
                         [ngModel]="cfg.defaultAutoArchiveMinutes"
                         [options]="archiveOptions()"
                         appendTo="body"
+                        inputId="forum-auto-archive"
                         optionLabel="label"
                         optionValue="value"
                         styleClass="w-full"
@@ -229,7 +232,7 @@
             </label>
         </div>
 
-        <label class="flex flex-col gap-1.5">
+        <label class="flex flex-col gap-1.5" for="forum-tag-server-emoji">
             <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_SERVER_EMOJI' | translate }}</span>
             <p-select
                 (ngModelChange)="setGuildEmoji($event)"
@@ -237,6 +240,7 @@
                 [ngModel]="draft().emojiId"
                 [options]="guildEmojiOptions()"
                 appendTo="body"
+                inputId="forum-tag-server-emoji"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"

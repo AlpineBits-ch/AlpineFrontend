@@ -45,7 +45,7 @@
             </div>
         } @else {
             <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-medium uppercase tracking-wide" style="color: var(--color-text-muted)">
+                <label class="text-xs font-medium uppercase tracking-wide" for="mfa-recovery-code" style="color: var(--color-text-muted)">
                     {{ 'LOGIN.MFA.RECOVERY_CODE_LABEL' | translate }}
                 </label>
                 <input
@@ -55,6 +55,7 @@
                     [placeholder]="'LOGIN.MFA.RECOVERY_CODE_PLACEHOLDER' | translate"
                     autocomplete="one-time-code"
                     class="w-full"
+                    id="mfa-recovery-code"
                     pInputText
                     type="text"
                 />

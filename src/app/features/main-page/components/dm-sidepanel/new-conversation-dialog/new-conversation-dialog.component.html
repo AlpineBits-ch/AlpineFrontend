@@ -71,13 +71,19 @@
     <!-- Group name (shown when 2+ selected) -->
     @if (isGroup()) {
         <div class="pt-3 px-1 border-t border-white/[0.06] mt-3">
-            <label class="text-[10.5px] font-semibold text-text-muted uppercase tracking-widest block mb-2">Group Name (optional)</label>
+            <label
+                class="text-[10.5px] font-semibold text-text-muted uppercase tracking-widest block mb-2"
+                for="new-conversation-group-name"
+            >
+                Group Name (optional)
+            </label>
             <!-- Enter opens the conversation. -->
             <input
                 (keydown.enter)="create()"
                 (ngModelChange)="groupName.set($event)"
                 [ngModel]="groupName()"
                 class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-text-muted !rounded-xl !text-sm"
+                id="new-conversation-group-name"
                 pInputText
                 placeholder="e.g. Study group"
             />

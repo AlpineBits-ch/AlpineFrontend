@@ -1,9 +1,10 @@
 @if (picker.visible()) {
     <!-- Backdrop -->
-    <div (click)="cancel()" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div (click)="cancel()" role="presentation" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <!-- Panel. -->
         <div
             (click)="$event.stopPropagation()"
+            role="presentation"
             class="relative flex flex-col w-[min(56.25rem,92vw)] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden"
         >
             <!-- Header -->

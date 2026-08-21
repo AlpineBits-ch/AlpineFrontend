@@ -25,6 +25,7 @@
         [class.cursor-grab]="zoom() > 1"
         [class.cursor-pointer]="zoom() === 1"
         class="absolute inset-0 overflow-hidden"
+        role="presentation"
     >
         <div
             [style.transform]="transform()"
@@ -38,6 +39,7 @@
                 <div
                     (click)="resumePreview(); $event.stopPropagation()"
                     class="flex cursor-pointer select-none flex-col items-center gap-3 px-6 text-center"
+                    role="presentation"
                 >
                     <i class="pi pi-pause-circle text-4xl text-white/30"></i>
                     <div>
@@ -155,13 +157,13 @@
     <div
         class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity group-hover/tile:opacity-100 focus-within:opacity-100"
     >
-        @if (s.isLocal && s.renderedFps != null) {
+        @if (s.isLocal && s.renderedFps !== null && s.renderedFps !== undefined) {
             <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55 backdrop-blur-sm">
                 {{ 'CALL.FPS_OUT' | translate: {fps: s.renderedFps} }}
             </span>
         }
         <!-- Remote only: null, not 0, until the inbound-rtp stat has actually reported a frame rate. -->
-        @if (!s.isLocal && s.inboundFps != null) {
+        @if (!s.isLocal && s.inboundFps !== null && s.inboundFps !== undefined) {
             <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55 backdrop-blur-sm">
                 {{ 'CALL.FPS_IN' | translate: {fps: s.inboundFps} }}
             </span>

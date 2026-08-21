@@ -187,7 +187,7 @@
         <span class="scene-field-label">{{ 'SCENE.ACCESS.TITLE' | translate }}</span>
         <div class="mt-1.5 flex flex-col gap-1.5">
             @for (option of ACCESS_PRESETS; track option.preset) {
-                <label [class.is-on]="preset() === option.preset" class="scene-access-row">
+                <label [attr.for]="'scene-access-' + option.preset" [class.is-on]="preset() === option.preset" class="scene-access-row">
                     <p-radiobutton
                         [inputId]="'scene-access-' + option.preset"
                         [ngModel]="preset()"

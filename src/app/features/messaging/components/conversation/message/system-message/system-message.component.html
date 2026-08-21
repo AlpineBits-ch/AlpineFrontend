@@ -5,9 +5,15 @@
         <!-- Copy without the token still renders, as plain text. -->
         @if (parts.length > 1) {
             {{ parts[0]
-            }}<span (click)="openProfile()" [appUserNameStyle]="userProfile()" class="mention-chip cursor-pointer">{{
-                userDisplayName()
-            }}</span
+            }}<span
+                (click)="openProfile()"
+                (keydown.enter)="openProfile()"
+                (keydown.space)="$event.preventDefault(); openProfile()"
+                [appUserNameStyle]="userProfile()"
+                role="button"
+                tabindex="0"
+                class="mention-chip cursor-pointer"
+                >{{ userDisplayName() }}</span
             >{{ parts[1] }}
         } @else {
             {{ text }}

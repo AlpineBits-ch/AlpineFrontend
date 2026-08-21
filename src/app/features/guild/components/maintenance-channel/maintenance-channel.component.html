@@ -375,70 +375,108 @@
     <div class="flex flex-col gap-4">
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NAME' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-name">{{
+                    'MAINTENANCE.NAME' | translate
+                }}</label>
                 <input
                     (ngModelChange)="assetName.set($event)"
                     [maxlength]="nameMaxLength"
                     [ngModel]="assetName()"
                     [placeholder]="'MAINTENANCE.NAME_PLACEHOLDER' | translate"
+                    id="maint-asset-name"
                     pInputText
                     type="text"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.LOCATION' | translate }}</label>
-                <input (ngModelChange)="assetLocation.set($event)" [ngModel]="assetLocation()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-location">{{
+                    'MAINTENANCE.LOCATION' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="assetLocation.set($event)"
+                    [ngModel]="assetLocation()"
+                    id="maint-asset-location"
+                    pInputText
+                    type="text"
+                />
             </div>
         </div>
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.BRAND' | translate }}</label>
-                <input (ngModelChange)="assetBrand.set($event)" [ngModel]="assetBrand()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-brand">{{
+                    'MAINTENANCE.BRAND' | translate
+                }}</label>
+                <input (ngModelChange)="assetBrand.set($event)" [ngModel]="assetBrand()" id="maint-asset-brand" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.MODEL' | translate }}</label>
-                <input (ngModelChange)="assetModel.set($event)" [ngModel]="assetModel()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-model">{{
+                    'MAINTENANCE.MODEL' | translate
+                }}</label>
+                <input (ngModelChange)="assetModel.set($event)" [ngModel]="assetModel()" id="maint-asset-model" pInputText type="text" />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.SERIAL' | translate }}</label>
-                <input (ngModelChange)="assetSerial.set($event)" [ngModel]="assetSerial()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-serial">{{
+                    'MAINTENANCE.SERIAL' | translate
+                }}</label>
+                <input (ngModelChange)="assetSerial.set($event)" [ngModel]="assetSerial()" id="maint-asset-serial" pInputText type="text" />
             </div>
         </div>
 
         <!-- Purchase and warranty together, because the second is the reason to record the first. -->
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-purchased-at">{{
                     'MAINTENANCE.PURCHASED_AT' | translate
                 }}</label>
-                <input (ngModelChange)="assetPurchasedAt.set($event)" [ngModel]="assetPurchasedAt()" pInputText type="date" />
+                <input
+                    (ngModelChange)="assetPurchasedAt.set($event)"
+                    [ngModel]="assetPurchasedAt()"
+                    id="maint-asset-purchased-at"
+                    pInputText
+                    type="date"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.WARRANTY' | translate }}</label>
-                <input (ngModelChange)="assetWarrantyUntil.set($event)" [ngModel]="assetWarrantyUntil()" pInputText type="date" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-warranty">{{
+                    'MAINTENANCE.WARRANTY' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="assetWarrantyUntil.set($event)"
+                    [ngModel]="assetWarrantyUntil()"
+                    id="maint-asset-warranty"
+                    pInputText
+                    type="date"
+                />
                 <span class="text-[0.625rem] text-text-muted">{{ 'MAINTENANCE.WARRANTY_HINT' | translate }}</span>
             </div>
         </div>
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-service-interval">{{
                     'MAINTENANCE.SERVICE_INTERVAL' | translate
                 }}</label>
                 <input
                     (ngModelChange)="assetServiceIntervalDays.set($event ? +$event : null)"
                     [ngModel]="assetServiceIntervalDays()"
+                    id="maint-asset-service-interval"
                     min="1"
                     pInputText
                     type="number"
                 />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-last-serviced">{{
                     'MAINTENANCE.LAST_SERVICED' | translate
                 }}</label>
-                <input (ngModelChange)="assetLastServicedAt.set($event)" [ngModel]="assetLastServicedAt()" pInputText type="date" />
+                <input
+                    (ngModelChange)="assetLastServicedAt.set($event)"
+                    [ngModel]="assetLastServicedAt()"
+                    id="maint-asset-last-serviced"
+                    pInputText
+                    type="date"
+                />
                 <!-- Counted from here rather than from today, so a boiler serviced eight months ago is due in four rather than in twelve. -->
                 <span class="text-[0.625rem] text-text-muted">{{ 'MAINTENANCE.LAST_SERVICED_HINT' | translate }}</span>
             </div>
@@ -446,26 +484,55 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR' | translate }}</label>
-                <input (ngModelChange)="assetVendorName.set($event)" [ngModel]="assetVendorName()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-vendor">{{
+                    'MAINTENANCE.VENDOR' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="assetVendorName.set($event)"
+                    [ngModel]="assetVendorName()"
+                    id="maint-asset-vendor"
+                    pInputText
+                    type="text"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-vendor-phone">{{
                     'MAINTENANCE.VENDOR_PHONE' | translate
                 }}</label>
-                <input (ngModelChange)="assetVendorPhone.set($event)" [ngModel]="assetVendorPhone()" pInputText type="tel" />
+                <input
+                    (ngModelChange)="assetVendorPhone.set($event)"
+                    [ngModel]="assetVendorPhone()"
+                    id="maint-asset-vendor-phone"
+                    pInputText
+                    type="tel"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-vendor-email">{{
                     'MAINTENANCE.VENDOR_EMAIL' | translate
                 }}</label>
-                <input (ngModelChange)="assetVendorEmail.set($event)" [ngModel]="assetVendorEmail()" pInputText type="email" />
+                <input
+                    (ngModelChange)="assetVendorEmail.set($event)"
+                    [ngModel]="assetVendorEmail()"
+                    id="maint-asset-vendor-email"
+                    pInputText
+                    type="email"
+                />
             </div>
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NOTES' | translate }}</label>
-            <input (ngModelChange)="assetNotes.set($event)" [maxlength]="noteMaxLength" [ngModel]="assetNotes()" pInputText type="text" />
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-asset-notes">{{
+                'MAINTENANCE.NOTES' | translate
+            }}</label>
+            <input
+                (ngModelChange)="assetNotes.set($event)"
+                [maxlength]="noteMaxLength"
+                [ngModel]="assetNotes()"
+                id="maint-asset-notes"
+                pInputText
+                type="text"
+            />
         </div>
     </div>
 
@@ -500,11 +567,14 @@
 
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.STATUS' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-status">{{
+                'MAINTENANCE.STATUS' | translate
+            }}</label>
             <p-select
                 (ngModelChange)="statusValue.set($event)"
                 [ngModel]="statusValue()"
                 [options]="statusOptions()"
+                inputId="maint-status"
                 optionLabel="label"
                 optionValue="value"
                 styleClass="w-full"
@@ -514,13 +584,16 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.STATUS_NOTE' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-status-note">{{
+                'MAINTENANCE.STATUS_NOTE' | translate
+            }}</label>
             <input
                 (keydown.enter)="submitStatus()"
                 (ngModelChange)="statusNote.set($event)"
                 [maxlength]="noteMaxLength"
                 [ngModel]="statusNote()"
                 [placeholder]="'MAINTENANCE.STATUS_NOTE_PLACEHOLDER' | translate"
+                id="maint-status-note"
                 pInputText
                 type="text"
             />
@@ -553,19 +626,26 @@
     <div class="flex flex-col gap-4">
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 w-40">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-performed-at">{{
                     'MAINTENANCE.PERFORMED_AT' | translate
                 }}</label>
-                <input (ngModelChange)="servicePerformedAt.set($event)" [ngModel]="servicePerformedAt()" pInputText type="date" />
+                <input
+                    (ngModelChange)="servicePerformedAt.set($event)"
+                    [ngModel]="servicePerformedAt()"
+                    id="maint-service-performed-at"
+                    pInputText
+                    type="date"
+                />
             </div>
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-title">{{
                     'MAINTENANCE.SERVICE_TITLE' | translate
                 }}</label>
                 <input
                     (ngModelChange)="serviceTitle.set($event)"
                     [ngModel]="serviceTitle()"
                     [placeholder]="'MAINTENANCE.SERVICE_TITLE_PLACEHOLDER' | translate"
+                    id="maint-service-title"
                     pInputText
                     type="text"
                 />
@@ -576,20 +656,40 @@
 
         <div class="flex gap-3">
             <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.VENDOR' | translate }}</label>
-                <input (ngModelChange)="serviceVendorName.set($event)" [ngModel]="serviceVendorName()" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-vendor">{{
+                    'MAINTENANCE.VENDOR' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="serviceVendorName.set($event)"
+                    [ngModel]="serviceVendorName()"
+                    id="maint-service-vendor"
+                    pInputText
+                    type="text"
+                />
             </div>
             <div class="flex flex-col gap-1.5 w-32">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.COST' | translate }}</label>
-                <input (ngModelChange)="serviceCost.set($event)" [ngModel]="serviceCost()" inputmode="decimal" pInputText type="text" />
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-cost">{{
+                    'MAINTENANCE.COST' | translate
+                }}</label>
+                <input
+                    (ngModelChange)="serviceCost.set($event)"
+                    [ngModel]="serviceCost()"
+                    id="maint-service-cost"
+                    inputmode="decimal"
+                    pInputText
+                    type="text"
+                />
             </div>
             <div class="flex flex-col gap-1.5 w-24">
-                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.CURRENCY' | translate }}</label>
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-currency">{{
+                    'MAINTENANCE.CURRENCY' | translate
+                }}</label>
                 <input
                     (ngModelChange)="serviceCurrency.set($event)"
                     [maxlength]="3"
                     [ngModel]="serviceCurrency()"
                     class="uppercase"
+                    id="maint-service-currency"
                     pInputText
                     type="text"
                 />
@@ -597,11 +697,14 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'MAINTENANCE.NOTES' | translate }}</label>
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted" for="maint-service-notes">{{
+                'MAINTENANCE.NOTES' | translate
+            }}</label>
             <input
                 (ngModelChange)="serviceNotes.set($event)"
                 [maxlength]="noteMaxLength"
                 [ngModel]="serviceNotes()"
+                id="maint-service-notes"
                 pInputText
                 type="text"
             />

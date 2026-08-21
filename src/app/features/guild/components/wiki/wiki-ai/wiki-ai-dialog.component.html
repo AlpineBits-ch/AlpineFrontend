@@ -30,7 +30,7 @@
         <div class="flex flex-col gap-4 pt-1">
             <!-- Prompt -->
             <div class="flex flex-col gap-2">
-                <label class="text-xs font-medium text-text-secondary">
+                <label class="text-xs font-medium text-text-secondary" for="wiki-ai-prompt">
                     {{ 'WIKI.AI.PROMPT_LABEL' | translate }}
                 </label>
                 <textarea
@@ -38,6 +38,7 @@
                     [disabled]="running()"
                     [placeholder]="'WIKI.AI.PROMPT_PLACEHOLDER' | translate"
                     class="min-h-[5rem] w-full resize-y rounded-lg border border-border bg-card px-3 py-2 text-[0.8125rem] leading-relaxed text-text-primary outline-none placeholder-white/25 focus:border-brand-dim thin-scrollbar"
+                    id="wiki-ai-prompt"
                     rows="3"
                 ></textarea>
             </div>
@@ -68,9 +69,9 @@
                  where the result is already rendered by the thing that will hold it. -->
             @if (draft() || running()) {
                 <div class="flex flex-col gap-2">
-                    <label class="text-xs font-medium text-text-secondary">
+                    <span class="text-xs font-medium text-text-secondary">
                         {{ 'WIKI.AI.PREVIEW_LABEL' | translate }}
-                    </label>
+                    </span>
                     <div
                         class="max-h-[18rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-app-bg px-3 py-2 font-mono text-[0.75rem] leading-relaxed text-text-primary thin-scrollbar"
                     >

@@ -61,6 +61,10 @@
                     <div
                         #row
                         (click)="profilePopout.open(member.userId, row)"
+                        (keydown.enter)="profilePopout.open(member.userId, row)"
+                        (keydown.space)="$event.preventDefault(); profilePopout.open(member.userId, row)"
+                        role="button"
+                        tabindex="0"
                         class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
                     >
                         <div class="relative shrink-0">

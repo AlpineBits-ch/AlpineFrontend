@@ -22,7 +22,7 @@
 
         <!-- Destination server -->
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2" for="follow-channel-guild">
                 {{ 'FOLLOW_CHANNEL.SELECT_SERVER_LABEL' | translate }}
             </label>
             <p-select
@@ -31,6 +31,7 @@
                 [options]="guildOptions()"
                 [placeholder]="'FOLLOW_CHANNEL.SELECT_SERVER_PLACEHOLDER' | translate"
                 [style]="{width: '100%'}"
+                inputId="follow-channel-guild"
                 optionLabel="label"
                 optionValue="value"
             />
@@ -38,7 +39,7 @@
 
         <!-- Destination channel -->
         <div>
-            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
+            <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2" for="follow-channel-target">
                 {{ 'FOLLOW_CHANNEL.SELECT_CHANNEL_LABEL' | translate }}
             </label>
             <p-select
@@ -48,6 +49,7 @@
                 [options]="channelOptions()"
                 [placeholder]="'FOLLOW_CHANNEL.SELECT_CHANNEL_PLACEHOLDER' | translate"
                 [style]="{width: '100%'}"
+                inputId="follow-channel-target"
                 optionLabel="label"
                 optionValue="value"
             />

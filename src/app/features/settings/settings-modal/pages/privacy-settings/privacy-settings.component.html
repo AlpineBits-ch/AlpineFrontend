@@ -41,6 +41,7 @@
             @for (opt of directMessageOptions; track opt.value) {
                 <label
                     class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                    [attr.for]="'privacy-dm-policy-' + opt.value"
                     [class.cursor-pointer]="!isDisabled('directMessagePolicy')"
                     [class.cursor-not-allowed]="isDisabled('directMessagePolicy')"
                 >
@@ -50,6 +51,7 @@
                     </div>
                     <p-radiobutton
                         [disabled]="isDisabled('directMessagePolicy')"
+                        [inputId]="'privacy-dm-policy-' + opt.value"
                         [ngModel]="settings().directMessagePolicy"
                         (ngModelChange)="write('directMessagePolicy', $event)"
                         [value]="opt.value"
@@ -77,6 +79,7 @@
             @for (opt of friendRequestOptions; track opt.value) {
                 <label
                     class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                    [attr.for]="'privacy-fr-policy-' + opt.value"
                     [class.cursor-pointer]="!isDisabled('friendRequestPolicy')"
                     [class.cursor-not-allowed]="isDisabled('friendRequestPolicy')"
                 >
@@ -86,6 +89,7 @@
                     </div>
                     <p-radiobutton
                         [disabled]="isDisabled('friendRequestPolicy')"
+                        [inputId]="'privacy-fr-policy-' + opt.value"
                         [ngModel]="settings().friendRequestPolicy"
                         (ngModelChange)="write('friendRequestPolicy', $event)"
                         [value]="opt.value"
@@ -191,8 +195,11 @@
             </div>
             @if (retentionEnabled()) {
                 <div class="flex items-center gap-3 pt-3 border-t border-white/[0.06]">
-                    <label class="text-xs text-text-muted">{{ 'SETTINGS.PRIVACY.DM_RETENTION_DAYS' | translate }}</label>
+                    <label class="text-xs text-text-muted" for="privacy-dm-retention-days">{{
+                        'SETTINGS.PRIVACY.DM_RETENTION_DAYS' | translate
+                    }}</label>
                     <p-inputnumber
+                        inputId="privacy-dm-retention-days"
                         [disabled]="isDisabled('dmRetentionDays')"
                         [ngModel]="settings().dmRetentionDays"
                         (ngModelChange)="onRetentionDays($event)"

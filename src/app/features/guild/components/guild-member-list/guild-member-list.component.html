@@ -10,6 +10,10 @@
             #row
             (click)="profilePopout.open(member.userId, row)"
             (contextmenu)="onMemberContextMenu($event, member)"
+            (keydown.enter)="profilePopout.open(member.userId, row)"
+            (keydown.space)="$event.preventDefault(); profilePopout.open(member.userId, row)"
+            role="button"
+            tabindex="0"
             class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer"
         >
             <div class="relative shrink-0">

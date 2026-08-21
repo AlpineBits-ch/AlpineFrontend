@@ -126,7 +126,7 @@
 
                         <!-- Username -->
                         <div class="flex flex-col gap-1">
-                            <label class="field-label">{{ 'LOGIN.LOGIN.USERNAME' | translate }}</label>
+                            <label class="field-label" for="login-username">{{ 'LOGIN.LOGIN.USERNAME' | translate }}</label>
                             <input
                                 (input)="clearSuggestion()"
                                 (keydown.enter)="login()"
@@ -134,6 +134,7 @@
                                 [placeholder]="'LOGIN.LOGIN.IDENTITY_PLACEHOLDER' | translate"
                                 autocomplete="username"
                                 data-testid="login-username"
+                                id="login-username"
                                 pInputText
                                 type="text"
                             />
@@ -141,13 +142,14 @@
 
                         <!-- Password -->
                         <div class="flex flex-col gap-1">
-                            <label class="field-label">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
+                            <label class="field-label" for="login-password">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
                             <input
                                 (keydown.enter)="login()"
                                 [formField]="loginForm.password"
                                 [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
                                 autocomplete="current-password"
                                 data-testid="login-password"
+                                id="login-password"
                                 pPassword
                                 type="password"
                             />
@@ -205,9 +207,14 @@
 
                         <p class="legal">
                             {{ 'LOGIN.TERMS' | translate }}
-                            <a (click)="openLink('https://venta.gg/#/eula')">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                            <a (click)="$event.preventDefault(); openLink('https://venta.gg/#/eula')" href="https://venta.gg/#/eula">{{
+                                'LOGIN.TERMS_OF_SERVICE' | translate
+                            }}</a>
                             {{ 'LOGIN.AND' | translate }}
-                            <a (click)="openLink('https://venta.gg/#/privacy')">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a
+                            <a
+                                (click)="$event.preventDefault(); openLink('https://venta.gg/#/privacy')"
+                                href="https://venta.gg/#/privacy"
+                                >{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a
                             >.
                         </p>
                     </div>
@@ -229,13 +236,14 @@
                         } @else {
                             <!-- Username -->
                             <div class="flex flex-col gap-1">
-                                <label class="field-label">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
+                                <label class="field-label" for="register-username">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
                                 <input
                                     (input)="clearServerError('username')"
                                     [formField]="registerForm.username"
                                     [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate"
                                     autocomplete="username"
                                     data-testid="register-username"
+                                    id="register-username"
                                     pInputText
                                     type="text"
                                 />
@@ -251,13 +259,14 @@
 
                             <!-- Email -->
                             <div class="flex flex-col gap-1">
-                                <label class="field-label">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
+                                <label class="field-label" for="register-email">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
                                 <input
                                     (input)="clearServerError('email')"
                                     [formField]="registerForm.email"
                                     [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
                                     autocomplete="email"
                                     data-testid="register-email"
+                                    id="register-email"
                                     inputmode="email"
                                     pInputText
                                     type="email"
@@ -274,13 +283,14 @@
 
                             <!-- Date of birth -->
                             <div class="flex flex-col gap-1">
-                                <label class="field-label">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
+                                <label class="field-label" for="register-birthdate">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
                                 <input
                                     (input)="clearServerError('birthdate')"
                                     [formField]="registerForm.birthdate"
                                     [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate"
                                     autocomplete="bday"
                                     data-testid="register-birthdate"
+                                    id="register-birthdate"
                                     pInputText
                                     type="text"
                                 />
@@ -296,13 +306,14 @@
 
                             <!-- Password -->
                             <div class="flex flex-col gap-1">
-                                <label class="field-label">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
+                                <label class="field-label" for="register-password">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
                                 <input
                                     (input)="passwordMismatch.set(false)"
                                     [formField]="registerForm.password"
                                     [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate"
                                     autocomplete="new-password"
                                     data-testid="register-password"
+                                    id="register-password"
                                     pPassword
                                     type="password"
                                 />
@@ -315,7 +326,9 @@
 
                             <!-- Confirm password -->
                             <div class="flex flex-col gap-1">
-                                <label class="field-label">{{ 'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate }}</label>
+                                <label class="field-label" for="register-confirm-password">{{
+                                    'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate
+                                }}</label>
                                 <input
                                     (input)="passwordMismatch.set(false)"
                                     (keydown.enter)="register()"
@@ -323,6 +336,7 @@
                                     [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate"
                                     autocomplete="new-password"
                                     data-testid="register-confirm-password"
+                                    id="register-confirm-password"
                                     pPassword
                                     type="password"
                                 />
@@ -354,9 +368,14 @@
 
                             <p class="legal">
                                 {{ 'LOGIN.TERMS' | translate }}
-                                <a (click)="openLink('https://venta.gg/#/eula')">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                                <a (click)="$event.preventDefault(); openLink('https://venta.gg/#/eula')" href="https://venta.gg/#/eula">{{
+                                    'LOGIN.TERMS_OF_SERVICE' | translate
+                                }}</a>
                                 {{ 'LOGIN.AND' | translate }}
-                                <a (click)="openLink('https://venta.gg/#/privacy')">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a
+                                <a
+                                    (click)="$event.preventDefault(); openLink('https://venta.gg/#/privacy')"
+                                    href="https://venta.gg/#/privacy"
+                                    >{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a
                                 >.
                             </p>
                         }

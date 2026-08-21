@@ -10,12 +10,13 @@
     } @else {
         <!-- Name -->
         <div>
-            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2" for="guild-template-name">
                 {{ 'GUILD_SETTINGS.TEMPLATES.NAME_LABEL' | translate }} <span class="text-rose-400">*</span>
             </label>
             <input
                 (ngModelChange)="name.set($event)"
                 [disabled]="saving()"
+                id="guild-template-name"
                 [maxlength]="nameLimit"
                 [ngModel]="name()"
                 [placeholder]="'GUILD_SETTINGS.TEMPLATES.NAME_PLACEHOLDER' | translate"
@@ -27,12 +28,13 @@
 
         <!-- Description -->
         <div>
-            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            <label class="block text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2" for="guild-template-description">
                 {{ 'GUILD_SETTINGS.TEMPLATES.DESCRIPTION_LABEL' | translate }}
             </label>
             <textarea
                 (ngModelChange)="description.set($event)"
                 [disabled]="saving()"
+                id="guild-template-description"
                 [maxlength]="descriptionLimit"
                 [ngModel]="description()"
                 [placeholder]="'GUILD_SETTINGS.TEMPLATES.DESCRIPTION_PLACEHOLDER' | translate"

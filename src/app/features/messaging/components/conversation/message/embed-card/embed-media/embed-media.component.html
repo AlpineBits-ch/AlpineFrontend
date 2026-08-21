@@ -5,6 +5,10 @@
         [style.height.px]="box()?.height"
         [style.width.px]="box()?.width"
         (click)="onClick()"
+        (keydown.enter)="onClick()"
+        (keydown.space)="$event.preventDefault(); onClick()"
+        [attr.role]="clickable() ? 'button' : null"
+        [attr.tabindex]="clickable() ? 0 : null"
         class="group/media relative overflow-hidden bg-white/[0.03] max-w-full"
     >
         <!-- BlurHash, holding the frame until the real pixels decode -->

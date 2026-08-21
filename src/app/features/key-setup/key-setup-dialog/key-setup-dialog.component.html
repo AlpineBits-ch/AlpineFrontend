@@ -35,13 +35,14 @@
                 }
 
                 <div class="ks-field">
-                    <label class="ks-label">Password</label>
+                    <label class="ks-label" for="key-setup-password">Password</label>
                     <input
                         (input)="onPasswordInput($event)"
                         (keydown.enter)="onContinue()"
                         [feedback]="false"
                         [value]="password()"
                         data-testid="key-setup-password"
+                        id="key-setup-password"
                         pPassword
                         placeholder="Your account password"
                         type="password"
@@ -149,13 +150,14 @@
                 <p class="ks-subtitle">Type it back in so we know you really have it. Hyphens and capitalisation don't matter.</p>
 
                 <div class="ks-field">
-                    <label class="ks-label">Recovery code</label>
+                    <label class="ks-label" for="key-setup-confirm-code">Recovery code</label>
                     <input
                         (input)="onConfirmationInput($event)"
                         (keydown.enter)="onConfirmCode()"
                         [value]="confirmation()"
                         class="w-full font-mono"
                         data-testid="key-setup-confirm-code"
+                        id="key-setup-confirm-code"
                         placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
                         type="text"
                     />
