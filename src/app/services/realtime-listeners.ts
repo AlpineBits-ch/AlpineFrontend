@@ -1,6 +1,5 @@
 import {InjectionToken, Provider, ProviderToken} from '@angular/core';
 import {AbsenceService} from './absence.service';
-import {BillService} from './bill.service';
 import {ChoreService} from './chore.service';
 import {DecisionService} from './decision.service';
 import {HomeStatusService} from './home-status.service';
@@ -10,6 +9,7 @@ import {LedgerService} from './ledger.service';
 import {MaintenanceService} from './maintenance.service';
 import {MealService} from './meal.service';
 import {VoiceRingStateService} from './voice-ring-state.service';
+import {BillStore} from '../stores/bill.store';
 import {ConversationStore} from '../stores/conversation.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
@@ -33,7 +33,6 @@ export const REALTIME_LISTENER = new InjectionToken<readonly unknown[]>('REALTIM
 
 const LISTENERS: ProviderToken<unknown>[] = [
     AbsenceService,
-    BillService,
     ChoreService,
     DecisionService,
     HomeStatusService,
@@ -46,6 +45,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     MealService,
     VoiceRingStateService,
     // The signal stores register in `withHooks({onInit})`, which a root store runs on first inject.
+    BillStore,
     ConversationStore,
     EntitlementStore,
     GuildEmojiStore,
