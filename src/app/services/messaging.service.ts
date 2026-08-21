@@ -1,7 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable, Subject} from 'rxjs';
-import {environment} from '../../environments/environment';
 import {CreateMessageDto} from '../dtos/request/create-message.dto';
 import {EmbedSuppressionResponse, MessageDto, PinMessageResponse} from '../dtos/response/message.dto';
 import {CreateReactionDto} from '../dtos/request/create-reaction.dto';

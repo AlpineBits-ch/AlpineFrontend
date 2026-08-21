@@ -25,12 +25,7 @@ import {
     OnboardingPromptOption,
     OnboardingPromptType,
 } from '../../../../../../dtos/response/guild-safety.dto';
-import {
-    hasPermission,
-    parsePermissions,
-    PermissionValue,
-    Permissions,
-} from '../../../../../../enums/permissions.enum';
+import {parsePermissions, PermissionValue, Permissions} from '../../../../../../enums/permissions.enum';
 import {
     ModulePermissions,
     ModulePermissionValue,

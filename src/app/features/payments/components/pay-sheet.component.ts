@@ -6,7 +6,6 @@ import {
     inject,
     input,
     output,
-    signal,
     untracked,
 } from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';

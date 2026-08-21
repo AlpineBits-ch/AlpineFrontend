@@ -1788,7 +1788,7 @@ describe('MlsService', () => {
                 return GROUP_INFO;
             });
 
-            const a = firstValueFrom(service.createGroup(GID, KEY_HANDLE)).catch(() => {});
+            void firstValueFrom(service.createGroup(GID, KEY_HANDLE)).catch(() => {});
             const b = firstValueFrom(service.createGroup(GID, KEY_HANDLE));
             await b;
             expect(results).toEqual([2]);

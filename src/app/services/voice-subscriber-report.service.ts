@@ -2,7 +2,6 @@ import {inject, Injectable, Injector, OnDestroy} from '@angular/core';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceService} from './voice.service';
 import {scopeKey, WatchScope} from './share-watch.service';
-import {VoiceSubscriberUpdate} from '../models/voice-room';
 
 /**
  * How long the tile sizes have to stop moving before they are reported, in milliseconds.

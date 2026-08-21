@@ -17,9 +17,6 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {MlsCoverageDevicesComponent} from '../../../../../../components/mls-coverage-devices/mls-coverage-devices.component';
 import {MlsCoverageService} from '../../../../../../services/mls-coverage.service';
 
-/** One page of members per request; a channel roster past this is paged through. */
-const MEMBER_PAGE = 100;
-
 @Component({
     selector: 'app-channel-encryption',
     imports: [NgClass, Button, TranslateModule, MlsCoverageDevicesComponent],

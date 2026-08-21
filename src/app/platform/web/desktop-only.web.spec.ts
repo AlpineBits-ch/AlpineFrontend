@@ -5,8 +5,7 @@
  * window was minimised; `setEnabled(true)` resolving says the app will start with the machine;
  * `rpcStart()` resolving with a status says a socket was bound. None of those can be told apart from
  * the real thing by a caller, so each becomes a control that moves and does nothing - the failure
- * `activity-settings.component.ts` documents and `provide-platform.ts`'s `notWired` was written to
- * avoid.</p>
+ * `activity-settings.component.ts` documents.</p>
  *
  * <p>Reads are different: "not maximised", "no launch entry", "nothing detected" are all true of a
  * browser tab, so answering them is honest rather than a stub. The point of this file is that the line

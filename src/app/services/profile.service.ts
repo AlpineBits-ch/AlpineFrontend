@@ -1,7 +1,6 @@
 import {inject, Injectable, signal, untracked} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {catchError, EMPTY, finalize, Observable, of, shareReplay, switchMap, tap} from 'rxjs';
-import {environment} from '../../environments/environment';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';
 import {ApiConfigService} from './api-config.service';
 import {BrokenImageService} from './broken-image.service';
