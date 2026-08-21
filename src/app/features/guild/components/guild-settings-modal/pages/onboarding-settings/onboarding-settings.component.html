@@ -202,13 +202,14 @@
             <!-- Lives here rather than at the foot of the page: the Save below is what writes it. -->
             <section class="flex flex-col gap-2">
                 <h3 class="text-sm font-semibold text-text-primary m-0">{{ 'GUILD_SETTINGS.ONBOARDING.ADVANCED_TITLE' | translate }}</h3>
-                <label class="flex flex-col gap-1.5">
+                <label class="flex flex-col gap-1.5" for="guild-onboarding-mode">
                     <span class="text-xs font-medium text-text-secondary">{{ 'GUILD_SETTINGS.ONBOARDING.MODE' | translate }}</span>
                     <p-select
                         (ngModelChange)="mode.set($event)"
                         [ngModel]="mode()"
                         [options]="modeOptions()"
                         appendTo="body"
+                        inputId="guild-onboarding-mode"
                         optionLabel="label"
                         optionValue="value"
                         styleClass="w-full sm:w-64"

@@ -30,13 +30,14 @@
         </h2>
 
         <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide">
+            <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="other-language">
                 {{ 'SETTINGS.OTHER.LANGUAGE' | translate }}</label
             >
             <p-select
                 (ngModelChange)="language.setLanguage($event)"
                 [ngModel]="language.current()"
                 [options]="language.languages"
+                inputId="other-language"
                 optionLabel="label"
                 optionValue="code"
                 styleClass="w-full"

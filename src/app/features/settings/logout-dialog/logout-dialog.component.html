@@ -61,11 +61,12 @@
                 </div>
 
                 <div class="lo-field">
-                    <label class="lo-label">Password</label>
+                    <label class="lo-label" for="logout-export-password">Password</label>
                     <input
                         (input)="onPasswordInput($event)"
                         (keydown.enter)="submitExport()"
                         [feedback]="false"
+                        id="logout-export-password"
                         [value]="password()"
                         pPassword
                         placeholder="Your account password"

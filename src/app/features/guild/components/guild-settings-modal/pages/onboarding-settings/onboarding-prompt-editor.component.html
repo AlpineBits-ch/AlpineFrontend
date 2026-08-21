@@ -26,7 +26,7 @@
         </div>
     </ng-template>
 
-    <div (keydown.escape)="requestClose()" class="flex flex-col gap-5">
+    <div (keydown.escape)="requestClose()" class="flex flex-col gap-5" tabindex="-1">
         <!-- Question -->
         <label class="flex flex-col gap-1.5">
             <span class="text-xs font-medium text-text-secondary">{{ 'ONBOARDING_EDIT.QUESTION' | translate }}</span>
@@ -42,13 +42,14 @@
 
         <!-- Behaviour -->
         <div class="grid gap-3 sm:grid-cols-2">
-            <label class="flex flex-col gap-1.5">
+            <label class="flex flex-col gap-1.5" for="onboarding-prompt-type">
                 <span class="text-xs font-medium text-text-secondary">{{ 'ONBOARDING_EDIT.TYPE' | translate }}</span>
                 <p-select
                     (ngModelChange)="patch({type: $event})"
                     [ngModel]="draft().type"
                     [options]="typeOptions()"
                     appendTo="body"
+                    inputId="onboarding-prompt-type"
                     optionLabel="label"
                     optionValue="value"
                     styleClass="w-full"
@@ -56,28 +57,40 @@
             </label>
 
             <div class="flex flex-col gap-2 justify-end pb-1">
-                <label class="flex items-center justify-between gap-3">
+                <label class="flex items-center justify-between gap-3" for="onboarding-prompt-single-select">
                     <span class="text-xs text-text-secondary">{{ 'ONBOARDING_EDIT.SINGLE_SELECT' | translate }}</span>
-                    <p-toggleswitch (ngModelChange)="patch({singleSelect: $event})" [ngModel]="draft().singleSelect" />
+                    <p-toggleswitch
+                        (ngModelChange)="patch({singleSelect: $event})"
+                        [ngModel]="draft().singleSelect"
+                        inputId="onboarding-prompt-single-select"
+                    />
                 </label>
             </div>
         </div>
 
         <div class="flex flex-col gap-3 p-3 rounded-xl bg-card/60 border border-border-subtle">
-            <label class="flex items-start justify-between gap-4">
+            <label class="flex items-start justify-between gap-4" for="onboarding-prompt-required">
                 <span class="min-w-0">
                     <span class="block text-sm text-text-primary">{{ 'ONBOARDING_EDIT.REQUIRED' | translate }}</span>
                     <span class="block text-xs text-text-secondary mt-0.5">{{ 'ONBOARDING_EDIT.REQUIRED_DESC' | translate }}</span>
                 </span>
-                <p-toggleswitch (ngModelChange)="patch({required: $event})" [ngModel]="draft().required" />
+                <p-toggleswitch
+                    (ngModelChange)="patch({required: $event})"
+                    [ngModel]="draft().required"
+                    inputId="onboarding-prompt-required"
+                />
             </label>
 
-            <label class="flex items-start justify-between gap-4">
+            <label class="flex items-start justify-between gap-4" for="onboarding-prompt-in-onboarding">
                 <span class="min-w-0">
                     <span class="block text-sm text-text-primary">{{ 'ONBOARDING_EDIT.IN_ONBOARDING' | translate }}</span>
                     <span class="block text-xs text-text-secondary mt-0.5">{{ 'ONBOARDING_EDIT.IN_ONBOARDING_DESC' | translate }}</span>
                 </span>
-                <p-toggleswitch (ngModelChange)="patch({inOnboarding: $event})" [ngModel]="draft().inOnboarding" />
+                <p-toggleswitch
+                    (ngModelChange)="patch({inOnboarding: $event})"
+                    [ngModel]="draft().inOnboarding"
+                    inputId="onboarding-prompt-in-onboarding"
+                />
             </label>
         </div>
 
