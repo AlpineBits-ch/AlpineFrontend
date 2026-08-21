@@ -42,7 +42,9 @@ bootstrapApplication(AppComponent, appConfig)
                     await win.unmaximize();
                     await win.maximize();
                 }
-            } catch {}
+            } catch {
+                // The maximize fix is a Windows-only command; without it the window still shows.
+            }
             await win.show();
         } catch {
             // Running in a browser (non-Tauri): no-op

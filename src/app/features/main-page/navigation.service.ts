@@ -595,7 +595,9 @@ export class NavigationService {
         }
         try {
             localStorage.setItem(this.navKey(), JSON.stringify(state));
-        } catch {}
+        } catch {
+            // Private mode or a full quota. The last view is a convenience, not state worth failing on.
+        }
     }
 }
 
