@@ -26,6 +26,8 @@ import {GuildOnboardingStateService} from '../../../../services/guild-onboarding
 import {RoleplayApi} from '../../../../services/roleplay-api.service';
 import {ToastService} from '../../../../services/toast.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
+import {WindowChrome} from '../../../../platform/ports/window-chrome.port';
+import {FakeWindowChrome} from '../../../../platform/testing/fake-window-chrome';
 
 const GUILD = {
     id: 'guild-1',
@@ -104,6 +106,8 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
             {provide: ScheduledEventStore, useValue: {eventsForGuild: () => [], loadFor: () => undefined}},
             {provide: MinuteClockService, useValue: {retain: () => undefined, now: () => 0}},
             {provide: GuildOnboardingStateService, useValue: {statusFor: () => undefined}},
+            // The guild settings modal injects this port for its titlebar inset, and the creation pass builds the modal.
+            {provide: WindowChrome, useClass: FakeWindowChrome},
             // The guild settings modal reads this store to decide whether the instance sells anything, and the real one reaches an HTTP service; nothing here exercises billing, so it answers "nothing to buy".
             {
                 provide: EntitlementStore,
