@@ -46,7 +46,9 @@ describe('ProfileModalComponent', () => {
     let friends: ReturnType<typeof vi.fn>;
     let servers: ReturnType<typeof vi.fn>;
     let cached: ProfileDto;
-    let canvas: ProfileCanvasDto;
+    // A real signal, not a plain variable: two of the canvas cases below change the value after
+    // the modal has already opened, and a plain closure read would never notify the component.
+    let canvasSignal: ReturnType<typeof signal<ProfileCanvasDto>>;
 
     function openOn(tab: 'canvas' | 'activity' | 'friends' | 'servers' = 'activity'): void {
         popoutSvc.openModal(USER_ID, tab);
@@ -83,7 +85,7 @@ describe('ProfileModalComponent', () => {
 
     beforeEach(() => {
         cached = profile();
-        canvas = canvasWith(0);
+        canvasSignal = signal(canvasWith(0));
         friends = vi.fn().mockReturnValue(of({items: [], nextCursor: null}));
         servers = vi.fn().mockReturnValue(of({items: [], nextCursor: null}));
 
@@ -93,7 +95,7 @@ describe('ProfileModalComponent', () => {
                 {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
                 {
                     provide: ProfileCanvasStore,
-                    useValue: {canvasFor: () => canvas, ensureLoaded: () => undefined},
+                    useValue: {canvasFor: () => canvasSignal(), ensureLoaded: () => undefined},
                 },
                 {
                     provide: ProfileService,
@@ -200,7 +202,7 @@ describe('ProfileModalComponent', () => {
     });
 
     it('shows the canvas tab and draws it when the subject has widgets', () => {
-        canvas = canvasWith(1);
+        canvasSignal.set(canvasWith(1));
         openOn();
 
         expect(tabLabels()).toContain('PROFILE.CANVAS.TAB');
@@ -208,7 +210,7 @@ describe('ProfileModalComponent', () => {
     });
 
     it('offers no canvas tab when the subject has never arranged one', () => {
-        canvas = canvasWith(0);
+        canvasSignal.set(canvasWith(0));
         openOn();
 
         expect(tabLabels()).not.toContain('PROFILE.CANVAS.TAB');
@@ -216,10 +218,45 @@ describe('ProfileModalComponent', () => {
     });
 
     it('falls back to activity when a canvas tab is asked for and there is none', () => {
-        canvas = canvasWith(0);
+        canvasSignal.set(canvasWith(0));
         openOn('canvas');
 
         expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
         expect(fixture.nativeElement.textContent).toContain('PROFILE.NO_ACTIVITY');
+    });
+
+    it('does not yank back a manual tab choice once the canvas arrives late', () => {
+        canvasSignal.set(canvasWith(0));
+        openOn();
+
+        const component = fixture.componentInstance as unknown as {selectTab(t: string): void};
+        component.selectTab('activity');
+        fixture.detectChanges();
+
+        canvasSignal.set(canvasWith(1));
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('PROFILE.NO_ACTIVITY');
+    });
+
+    it('re-arms the canvas default when reopened on a different subject', () => {
+        cached = profile({mutualServers: [{guildId: 'g1', name: 'guild-one'}]});
+        canvasSignal.set(canvasWith(1));
+        openOn();
+
+        const component = fixture.componentInstance as unknown as {selectTab(t: string): void};
+        component.selectTab('servers');
+        fixture.detectChanges();
+
+        popoutSvc.closeModal();
+        fixture.detectChanges();
+
+        const otherUserId = 'user-other';
+        cached = profile({userId: otherUserId, id: 'prfl_2'});
+        popoutSvc.openModal(otherUserId);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).not.toBeNull();
     });
 });

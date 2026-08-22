@@ -86,7 +86,7 @@ export class ProfileModalComponent {
     protected readonly showCanvasTab = computed(() => (this.canvas()?.widgets.length ?? 0) > 0);
 
     /** Set on open when the default tab was asked for, cleared once acted on or overridden by hand. */
-    private promoteDefaultToCanvas = false;
+    private readonly promoteDefaultToCanvas = signal(false);
 
     protected readonly activities = computed(() =>
         this.userActivity.activitiesFor(this.popoutSvc.modal()?.userId),
@@ -98,6 +98,7 @@ export class ProfileModalComponent {
      */
     protected readonly effectiveTab = computed((): ProfileModalTab => {
         const tab = this.tab();
+        if (tab === 'activity' && this.promoteDefaultToCanvas() && this.showCanvasTab()) return 'canvas';
         if (tab === 'canvas' && !this.showCanvasTab()) return 'activity';
         if (tab === 'friends' && !this.showFriendsTab()) return 'activity';
         if (tab === 'servers' && !this.showServersTab()) return 'activity';
@@ -117,12 +118,12 @@ export class ProfileModalComponent {
 
                 if (!target) {
                     this.profile.set(undefined);
-                    this.promoteDefaultToCanvas = false;
+                    this.promoteDefaultToCanvas.set(false);
                     return;
                 }
 
                 this.tab.set(target.tab);
-                this.promoteDefaultToCanvas = target.tab === 'activity';
+                this.promoteDefaultToCanvas.set(target.tab === 'activity');
 
                 const cached = this.profileService.getCachedByUserId(target.userId);
                 this.profile.set(cached);
@@ -140,18 +141,6 @@ export class ProfileModalComponent {
                 });
             });
         });
-
-        // The store is cold on first open, so the canvas can still be loading when the modal
-        // appears. The default tab is decided once it lands, not up front.
-        effect(() => {
-            const hasCanvas = this.showCanvasTab();
-
-            untracked(() => {
-                if (!this.promoteDefaultToCanvas || !hasCanvas) return;
-                this.promoteDefaultToCanvas = false;
-                this.tab.set('canvas');
-            });
-        });
     }
 
     protected close(): void {
@@ -163,7 +152,7 @@ export class ProfileModalComponent {
     }
 
     protected selectTab(tab: ProfileModalTab): void {
-        this.promoteDefaultToCanvas = false;
+        this.promoteDefaultToCanvas.set(false);
         this.tab.set(tab);
         const profile = this.profile();
         if (profile) this.loadTab(tab, profile);
