@@ -52,6 +52,16 @@ function fits(taken: Set<string>, x: number, y: number, w: number, h: number): b
     return true;
 }
 
+// Row scan bound for a widget height that isn't a real footprint. Not a footprint rule, just
+// large enough that a stray NaN or Infinity can't hang or crash the packer.
+const MAX_SPAN = 64;
+
+/** A finite integer in [1, max]. widget.w and widget.h are typed number, so NaN and Infinity are legal inputs. */
+function sanitiseDimension(value: number, max: number): number {
+    const floored = Number.isFinite(value) ? Math.floor(value) : max;
+    return Math.min(Math.max(floored, 1), max);
+}
+
 /**
  * Packs widgets into `columns`, first free cell wins. Array order out is reading order, which is
  * what lets the editor move an array element and leave x and y to be derived.
@@ -61,8 +71,8 @@ export function reflow(widgets: CanvasWidgetDto[], columns: number): CanvasWidge
     const placed: CanvasWidgetDto[] = [];
 
     for (const widget of [...widgets].sort(byReadingOrder)) {
-        const w = Math.min(widget.w, columns);
-        const h = widget.h;
+        const w = sanitiseDimension(widget.w, columns);
+        const h = sanitiseDimension(widget.h, MAX_SPAN);
 
         let x = 0;
         let y = 0;
@@ -80,10 +90,12 @@ export function reflow(widgets: CanvasWidgetDto[], columns: number): CanvasWidge
         for (let dy = 0; dy < h; dy++) {
             for (let dx = 0; dx < w; dx++) taken.add(`${x + dx},${y + dy}`);
         }
-        placed.push({...widget, x, y, w});
+        placed.push({...widget, x, y, w, h});
     }
 
-    return placed;
+    // Assigned (y, x) is a unique total order: two widgets never share a top-left cell. Sorting by
+    // it is what keeps the array in reading order even when a later widget fills an earlier gap.
+    return placed.sort(byReadingOrder);
 }
 
 /** The one gate every canvas passes through, on read and on write. */

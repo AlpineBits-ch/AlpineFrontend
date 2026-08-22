@@ -49,7 +49,9 @@ describe('snapFootprint', () => {
     });
 
     it('rejects a non-integer size', () => {
-        expect(snapFootprint(2.5, 1)).toEqual({w: 2, h: 1});
+        // 3.9 floors to 3, which still snaps to {2, 1}; ceil would round it up to the {4, 1}
+        // footprint instead, so this distinguishes truncation direction where 2.5 could not.
+        expect(snapFootprint(3.9, 1)).toEqual({w: 2, h: 1});
     });
 });
 
@@ -84,8 +86,40 @@ describe('reflow', () => {
     });
 
     it('is stable: reflowing its own output changes nothing', () => {
-        const once = reflow([widget('a'), widget('b'), widget('c')], 4);
+        // A later widget ('f') fills the gap left at (2, 0) beside the two full-row widgets
+        // above it. That gap-fill is what a naive push-in-processing-order return misses: the
+        // array below regresses to processing order, not the reading order the widget landed in.
+        const input = [
+            widget('a', {w: 2, h: 1}),
+            widget('b', {w: 4, h: 1}),
+            widget('c', {w: 4, h: 1}),
+            widget('d', {w: 2, h: 2}),
+            widget('e', {w: 2, h: 2}),
+            widget('f', {w: 2, h: 1}),
+        ];
+        const once = reflow(input, 4);
+        const readingOrder = [...once].sort((a, b) => a.y - b.y || a.x - b.x);
+        expect(once).toEqual(readingOrder);
         expect(reflow(once, 4)).toEqual(once);
+    });
+
+    it('returns instead of hanging on an infinite height', () => {
+        const out = reflow([widget('a', {w: 2, h: Infinity})], 4);
+        expect(out).toHaveLength(1);
+        expect(Number.isFinite(out[0].h)).toBe(true);
+        expect(out[0].h).toBeGreaterThan(0);
+        expect(out[0].x).toBe(0);
+        expect(out[0].y).toBe(0);
+    });
+
+    it('returns instead of throwing on a NaN width', () => {
+        const out = reflow([widget('a', {w: NaN, h: 1})], 4);
+        expect(out).toHaveLength(1);
+        expect(Number.isFinite(out[0].w)).toBe(true);
+        expect(out[0].w).toBeGreaterThan(0);
+        expect(out[0].w).toBeLessThanOrEqual(4);
+        expect(out[0].x).toBe(0);
+        expect(out[0].y).toBe(0);
     });
 });
 
