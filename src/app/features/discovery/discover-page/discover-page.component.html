@@ -3,16 +3,16 @@
         <i class="pi pi-compass shrink-0 text-sm text-brand-dim"></i>
         <span class="shrink-0 text-[0.8125rem] font-semibold text-text-primary">{{ 'DISCOVERY.TITLE' | translate }}</span>
 
-        <nav class="ml-3 flex items-center gap-0.5">
-            <button
-                (click)="activeTab.set('communities')"
-                [class]="activeTab() === 'communities' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
-                class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
-                type="button"
-            >
-                {{ 'DISCOVERY.TAB.COMMUNITIES' | translate }}
-            </button>
-            @if (showPostingsTab()) {
+        @if (showPostingsTab()) {
+            <nav class="ml-3 flex items-center gap-0.5">
+                <button
+                    (click)="activeTab.set('communities')"
+                    [class]="activeTab() === 'communities' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+                    class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+                    type="button"
+                >
+                    {{ 'DISCOVERY.TAB.COMMUNITIES' | translate }}
+                </button>
                 <button
                     (click)="activeTab.set('postings')"
                     [class]="activeTab() === 'postings' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
@@ -21,14 +21,28 @@
                 >
                     {{ 'DISCOVERY.TAB.POSTINGS' | translate }}
                 </button>
-            }
-        </nav>
+            </nav>
+        }
 
-        <input
-            [(ngModel)]="searchTerm"
-            [placeholder]="'DISCOVERY.SEARCH_PLACEHOLDER' | translate"
-            class="ml-auto w-56 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint"
-        />
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+            @if (interests() !== null && !showOnboarding()) {
+                <button
+                    (click)="openInterestEditor()"
+                    class="flex items-center gap-1 rounded-lg border-0 bg-transparent px-2 py-1 text-[0.75rem] font-medium text-text-muted transition-colors cursor-pointer hover:bg-white/[0.04] hover:text-text-secondary"
+                    type="button"
+                >
+                    <i class="pi pi-sliders-h text-[0.6875rem]"></i>
+                    {{ 'DISCOVERY.INTERESTS.BUTTON' | translate }}
+                </button>
+            }
+            @if (!showOnboarding()) {
+                <input
+                    [(ngModel)]="searchTerm"
+                    [placeholder]="'DISCOVERY.SEARCH_PLACEHOLDER' | translate"
+                    class="w-24 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint sm:w-40"
+                />
+            }
+        </div>
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar px-4 py-5 sm:px-6">
@@ -36,6 +50,10 @@
             @case ('communities') {
                 @if (showOnboarding()) {
                     <app-interest-onboarding (skipped)="onOnboardingSkipped()" />
+                } @else if (interestsPending()) {
+                    <div class="flex justify-center py-16">
+                        <i class="pi pi-spin pi-spinner text-text-muted"></i>
+                    </div>
                 } @else if (feedLoading() && !cards().length) {
                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         @for (i of [1, 2, 3, 4, 5, 6]; track i) {
@@ -76,3 +94,23 @@
         }
     </div>
 </div>
+
+<p-dialog
+    (visibleChange)="editingInterests.set($event)"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '28rem'}"
+    [visible]="editingInterests()"
+    appendTo="body"
+    maskStyleClass="backdrop-blur-sm"
+    styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+>
+    <app-interest-onboarding
+        (saved)="editingInterests.set(false)"
+        (skipped)="editingInterests.set(false)"
+        [(topics)]="editTopics"
+        [(visible)]="editVisible"
+        mode="edit"
+    />
+</p-dialog>

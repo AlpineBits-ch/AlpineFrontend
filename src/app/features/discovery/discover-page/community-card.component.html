@@ -4,7 +4,10 @@
         <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-semibold text-text-primary">{{ card().guildName }}</p>
             <p class="text-[0.6875rem] text-text-muted">
-                {{ 'DISCOVERY.FEED.MEMBER_COUNT' | translate: {count: card().memberCount} }}
+                {{
+                    (card().memberCount === 1 ? 'DISCOVERY.FEED.MEMBER_COUNT_ONE' : 'DISCOVERY.FEED.MEMBER_COUNT')
+                        | translate: {count: card().memberCount}
+                }}
             </p>
         </div>
     </div>

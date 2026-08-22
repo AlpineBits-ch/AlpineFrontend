@@ -340,6 +340,9 @@ export class NavigationService {
             this.mainView.set({type: 'discover'});
             this.saveNav();
         }
+        // Global, unlike the guild-scoped views: a guild's events panel must not stay pinned
+        // beside it.
+        this.eventsPanelGuildId.set(null);
         this.mobileNavOpen.set(false);
     }
 

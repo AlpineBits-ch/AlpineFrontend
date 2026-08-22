@@ -2,15 +2,16 @@ import {ChangeDetectionStrategy, Component, computed, effect, inject, signal, un
 import {toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {debounceTime, distinctUntilChanged, map} from 'rxjs';
 import {FormsModule} from '@angular/forms';
+import {Dialog} from 'primeng/dialog';
 import {TranslateModule} from '@ngx-translate/core';
 import {CommunityCardComponent} from './community-card.component';
 import {InterestOnboardingComponent} from '../interest-onboarding/interest-onboarding.component';
 import {discoveryFeedKey, DiscoveryStore} from '../../../stores/discovery.store';
 import {DiscoveryFeedQuery} from '../../../dtos/request/discovery.dto';
+import {TopicDto} from '../../../dtos/response/discovery.dto';
 
 type DiscoverTab = 'communities' | 'postings';
 
-/** Long enough that a typed word is one request, short enough the feed still feels live. */
 const SEARCH_DEBOUNCE_MS = 300;
 
 /** Builds the feed's cache key and its fetch argument from the same query, so the two can never drift apart. */
@@ -18,20 +19,23 @@ function loadFeed(store: InstanceType<typeof DiscoveryStore>, query: DiscoveryFe
     store.loadFeed(discoveryFeedKey(query), {arg: query});
 }
 
-/** Discover: a destination, not a modal. Two tabs over one search box, per spec 13.2. */
 @Component({
     selector: 'app-discover-page',
-    imports: [FormsModule, TranslateModule, CommunityCardComponent, InterestOnboardingComponent],
+    imports: [FormsModule, Dialog, TranslateModule, CommunityCardComponent, InterestOnboardingComponent],
     templateUrl: './discover-page.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiscoverPageComponent {
     protected readonly searchTerm = signal('');
     protected readonly activeTab = signal<DiscoverTab>('communities');
-    /** A later phase gates this on the age floor in spec 8.3; unconditional until that lands. */
-    protected readonly showPostingsTab = computed(() => true);
+    /** A later phase gates this on the age floor in spec 8.3, by flipping this one boolean. */
+    protected readonly showPostingsTab = computed(() => false);
     /** Session-local: leaving Discover and coming back re-asks, since interests are still unset. */
     private readonly onboardingSkipped = signal(false);
+
+    protected readonly editingInterests = signal(false);
+    protected readonly editTopics = signal<TopicDto[]>([]);
+    protected readonly editVisible = signal(true);
 
     private readonly store = inject(DiscoveryStore);
     protected readonly interests = this.store.interests;
@@ -69,6 +73,11 @@ export class DiscoverPageComponent {
         );
     });
 
+    /** Whether it is still too early to know if onboarding applies: holds the feed off starting its own skeleton so the two never race and swap on screen. */
+    protected readonly interestsPending = computed(
+        () => this.interests() === null && this.searchTerm().trim() === '',
+    );
+
     constructor() {
         this.store.loadInterests();
 
@@ -84,5 +93,12 @@ export class DiscoverPageComponent {
 
     protected onOnboardingSkipped(): void {
         this.onboardingSkipped.set(true);
+    }
+
+    protected openInterestEditor(): void {
+        const current = this.interests();
+        this.editTopics.set(current?.topics ?? []);
+        this.editVisible.set(current?.visible ?? true);
+        this.editingInterests.set(true);
     }
 }

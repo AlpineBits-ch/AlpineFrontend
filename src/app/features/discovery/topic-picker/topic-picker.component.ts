@@ -1,14 +1,20 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, output, signal} from '@angular/core';
 import {toObservable, toSignal} from '@angular/core/rxjs-interop';
-import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
+import {catchError, debounceTime, distinctUntilChanged, map, of, switchMap} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {TagChipComponent} from '../../../components/tag-chip/tag-chip.component';
 import {TopicDto} from '../../../dtos/response/discovery.dto';
 import {DiscoveryApiService} from '../../../services/discovery-api.service';
 
-/** Long enough that a typed word is one request, short enough it still feels live. */
 const TOPIC_SEARCH_DEBOUNCE_MS = 250;
+
+interface SearchOutcome {
+    topics: TopicDto[];
+    failed: boolean;
+}
+
+const EMPTY_OUTCOME: SearchOutcome = {topics: [], failed: false};
 
 function sameTopic(a: TopicDto, b: TopicDto): boolean {
     return a.kind === b.kind && a.id === b.id;
@@ -29,19 +35,24 @@ export class TopicPickerComponent {
     protected readonly query = signal('');
     private readonly api = inject(DiscoveryApiService);
 
-    protected readonly results = toSignal(
+    private readonly outcome = toSignal(
         toObservable(this.query).pipe(
             debounceTime(TOPIC_SEARCH_DEBOUNCE_MS),
+            distinctUntilChanged(),
             switchMap(term => {
-                if (!term.trim()) return of<TopicDto[]>([]);
-                return this.api.searchTopics({q: term}).pipe(
-                    map(r => r.topics),
-                    catchError(() => of<TopicDto[]>([])),
+                const trimmed = term.trim();
+                if (!trimmed) return of(EMPTY_OUTCOME);
+                return this.api.searchTopics({q: trimmed}).pipe(
+                    map((r): SearchOutcome => ({topics: r.topics, failed: false})),
+                    catchError(() => of<SearchOutcome>({topics: [], failed: true})),
                 );
             }),
         ),
-        {initialValue: [] as TopicDto[]},
+        {initialValue: EMPTY_OUTCOME},
     );
+
+    protected readonly results = computed(() => this.outcome().topics);
+    protected readonly searchFailed = computed(() => this.outcome().failed);
 
     protected readonly atCap = computed(() => this.selected().length >= this.cap());
 

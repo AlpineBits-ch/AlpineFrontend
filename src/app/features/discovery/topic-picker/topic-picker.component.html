@@ -34,5 +34,11 @@
                 </button>
             }
         </div>
+    } @else if (query().trim()) {
+        @if (searchFailed()) {
+            <p class="text-[0.6875rem] text-offline">{{ 'DISCOVERY.TOPICS.SEARCH_FAILED' | translate }}</p>
+        } @else {
+            <p class="text-[0.6875rem] text-text-muted">{{ 'DISCOVERY.TOPICS.NO_MATCHES' | translate }}</p>
+        }
     }
 </div>

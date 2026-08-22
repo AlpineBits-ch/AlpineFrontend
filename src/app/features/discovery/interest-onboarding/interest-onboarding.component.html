@@ -1,7 +1,7 @@
-<div class="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-16 text-center">
+<div class="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-10 text-center">
     <i class="pi pi-compass text-3xl text-brand-dim"></i>
     <div>
-        <p class="text-sm font-semibold text-text-primary">{{ 'DISCOVERY.ONBOARDING.TITLE' | translate }}</p>
+        <p class="text-sm font-semibold text-text-primary">{{ titleKey() | translate }}</p>
         <p class="mt-1 text-[0.75rem] text-text-muted">{{ 'DISCOVERY.ONBOARDING.SUBTITLE' | translate }}</p>
     </div>
 
@@ -9,8 +9,8 @@
         <app-topic-picker (selectedChange)="topics.set($event)" [cap]="cap" [selected]="topics()" />
     </div>
 
-    <label class="flex items-center gap-2 self-start text-[0.75rem] text-text-secondary">
-        <input [(ngModel)]="visible" type="checkbox" />
+    <label class="flex cursor-pointer items-center gap-2 self-start text-[0.75rem] text-text-secondary">
+        <input [(ngModel)]="visible" class="accent-brand" type="checkbox" />
         {{ 'DISCOVERY.ONBOARDING.VISIBLE' | translate }}
     </label>
 
@@ -20,7 +20,7 @@
             class="cursor-pointer border-0 bg-transparent text-[0.75rem] text-text-muted hover:text-text-secondary"
             type="button"
         >
-            {{ 'DISCOVERY.ONBOARDING.SKIP' | translate }}
+            {{ secondaryLabelKey() | translate }}
         </button>
         <p-button
             (onClick)="save()"

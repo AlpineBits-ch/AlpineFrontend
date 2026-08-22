@@ -4267,6 +4267,7 @@
   "DISCOVERY.FEED.ERROR": "Could not load the feed.",
   "DISCOVERY.FEED.LOAD_MORE": "Load more",
   "DISCOVERY.FEED.MEMBER_COUNT": "{{ count }} members",
+  "DISCOVERY.FEED.MEMBER_COUNT_ONE": "1 member",
   "DISCOVERY.FEED.MATCHED": "Matches",
   "DISCOVERY.POSTINGS.EMPTY": "Recruitment postings are coming in a later update.",
   "DISCOVERY.ONBOARDING.TITLE": "Pick a few interests",
@@ -4274,5 +4275,11 @@
   "DISCOVERY.ONBOARDING.VISIBLE": "Show these on my profile",
   "DISCOVERY.ONBOARDING.SKIP": "Skip for now",
   "DISCOVERY.ONBOARDING.SAVE": "Save",
-  "DISCOVERY.TOPICS.SEARCH_PLACEHOLDER": "Search games and tags"
+  "DISCOVERY.ONBOARDING.SAVE_FAILED": "Could not save your interests.",
+  "DISCOVERY.INTERESTS.BUTTON": "Interests",
+  "DISCOVERY.INTERESTS.EDIT_TITLE": "Your interests",
+  "DISCOVERY.INTERESTS.CANCEL": "Cancel",
+  "DISCOVERY.TOPICS.SEARCH_PLACEHOLDER": "Search games and tags",
+  "DISCOVERY.TOPICS.SEARCH_FAILED": "Could not search topics.",
+  "DISCOVERY.TOPICS.NO_MATCHES": "No matches."
 }

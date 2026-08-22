@@ -128,6 +128,16 @@ describe('NavigationService restoring from the cached layout', () => {
 
         expect(relaunch().tryRestoreGuildNav([])).toBe(false);
     });
+
+    /** Global, unlike every other kind this restore handles: no guild to look up, so an empty list still succeeds. */
+    it('restores Discover with no guild list to check it against', () => {
+        const nav = setup();
+        nav.openDiscover();
+
+        const cold = relaunch();
+        expect(cold.tryRestoreGuildNav([])).toBe(true);
+        expect(cold.mainView().type).toBe('discover');
+    });
 });
 
 describe('NavigationService scenes shell', () => {
