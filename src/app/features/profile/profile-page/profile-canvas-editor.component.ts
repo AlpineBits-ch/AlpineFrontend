@@ -27,8 +27,6 @@ import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
 import {CanvasLatticeComponent} from './canvas-lattice.component';
 import {cellAt, MeasuredGrid, measureGrid, rowTopAt, TileRect} from './canvas-grid-geometry';
 
-export {columnAt, rowAt, rowGeometryAt, rowTopAt} from './canvas-grid-geometry';
-
 /** Who the canvas is being previewed as. The owner ('me') is the only one who sees every visibility. */
 export type PreviewViewer = 'me' | 'friend' | 'mutual' | 'stranger';
 

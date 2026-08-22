@@ -3,13 +3,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {
-    columnAt,
-    ProfileCanvasEditorComponent,
-    rowAt,
-    rowGeometryAt,
-    rowTopAt,
-} from './profile-canvas-editor.component';
+import {ProfileCanvasEditorComponent} from './profile-canvas-editor.component';
+import {columnAt, rowAt, rowGeometryAt, rowTopAt} from './canvas-grid-geometry';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {WIDGET_REGISTRY} from '../../../components/profile-canvas/widget-registry';
