@@ -67,6 +67,19 @@ describe('ProfileCanvasComponent', () => {
         expect(fixture.nativeElement.querySelectorAll('[style*="grid-column"]')).toHaveLength(0);
     });
 
+    it('skips an unknown type sitting between two known ones', () => {
+        const fixture = render(
+            canvasOf([
+                widget('a', {config: {text: 'first'}}),
+                widget('b', {type: 'from-the-future'}),
+                widget('c', {config: {text: 'third'}}),
+            ]),
+        );
+        expect(fixture.nativeElement.textContent).toContain('first');
+        expect(fixture.nativeElement.textContent).toContain('third');
+        expect(fixture.nativeElement.querySelectorAll('[style*="grid-column"]')).toHaveLength(2);
+    });
+
     it('renders nothing for a malformed config', () => {
         const fixture = render(canvasOf([widget('a', {config: {text: 42}})]));
         expect(fixture.nativeElement.textContent).not.toContain('42');
