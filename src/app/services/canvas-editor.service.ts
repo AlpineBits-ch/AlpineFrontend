@@ -28,9 +28,8 @@ export class CanvasEditorService {
     }
 
     discard(): void {
-        const canvas = this.current();
-        if (!canvas) return;
-        this.current.set({...canvas, widgets: JSON.parse(this.baseline()) as CanvasWidgetDto[]});
+        if (!this.current()) return;
+        this.write(JSON.parse(this.baseline()) as CanvasWidgetDto[]);
     }
 
     canInsert(type: string): boolean {
@@ -51,8 +50,7 @@ export class CanvasEditorService {
             id: draftId(),
             type,
             x: 0,
-            // Placed last, then reflow derives the real coordinates.
-            y: canvas.widgets.length + 1,
+            y: 0, // write()'s restamp assigns the real position; this value is never read.
             w: footprint.w,
             h: footprint.h,
             visibility: 'everyone',

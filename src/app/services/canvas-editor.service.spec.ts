@@ -1,7 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {CanvasEditorService} from './canvas-editor.service';
-import {ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
+import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {emptyCanvas, MAX_WIDGETS} from '../models/profile-canvas';
 
 function service(): CanvasEditorService {
@@ -13,6 +13,20 @@ function started(canvas: ProfileCanvasDto = emptyCanvas('p1')): CanvasEditorServ
     const editor = service();
     editor.begin(canvas);
     return editor;
+}
+
+function seedWidget(id: string, y: number): CanvasWidgetDto {
+    return {
+        id,
+        type: 'quote',
+        x: 0,
+        y,
+        w: 1,
+        h: 1,
+        visibility: 'everyone',
+        card: false,
+        config: {},
+    };
 }
 
 describe('CanvasEditorService', () => {
@@ -46,8 +60,17 @@ describe('CanvasEditorService', () => {
     });
 
     it('refuses to insert past the cap', () => {
-        for (let i = 0; i < MAX_WIDGETS + 3; i++) editor.insert('photo');
-        expect(editor.draft()?.widgets.length).toBeLessThanOrEqual(MAX_WIDGETS);
+        // Registry per-type maxes sum to less than MAX_WIDGETS, so insert() alone can never
+        // reach it. Seed a full draft directly to exercise the global cap on its own, with a
+        // type ('marquee') nowhere near its own max so only the cap can be refusing it.
+        const widgets = Array.from({length: MAX_WIDGETS}, (_, i) => seedWidget(`seed-${i}`, i));
+        editor.begin({...emptyCanvas('p1'), widgets});
+        expect(editor.draft()!.widgets).toHaveLength(MAX_WIDGETS);
+
+        expect(editor.canInsert('marquee')).toBe(false);
+        editor.insert('marquee');
+        expect(editor.draft()!.widgets.filter(w => w.type === 'marquee')).toHaveLength(0);
+        expect(editor.draft()!.widgets).toHaveLength(MAX_WIDGETS);
     });
 
     it('canInsert goes false once a type is at its max', () => {
@@ -74,17 +97,29 @@ describe('CanvasEditorService', () => {
 
     it('move past either end does nothing', () => {
         editor.insert('quote');
-        const only = editor.draft()!.widgets[0].id;
-        editor.move(only, -1);
-        editor.move(only, 1);
-        expect(editor.draft()!.widgets[0].id).toBe(only);
+        editor.insert('photo');
+        editor.insert('infobox');
+        const ids = editor.draft()!.widgets.map(w => w.id);
+
+        editor.move(ids[0], -1);
+        expect(editor.draft()!.widgets.map(w => w.id)).toEqual(ids);
+
+        editor.move(ids[2], 1);
+        expect(editor.draft()!.widgets.map(w => w.id)).toEqual(ids);
     });
 
-    it('resize snaps to a legal footprint', () => {
+    it('resize snaps an illegal footprint down to the nearest legal one', () => {
         editor.insert('quote');
         const id = editor.draft()!.widgets[0].id;
-        editor.resize(id, {w: 4, h: 1});
-        expect(editor.draft()!.widgets[0]).toMatchObject({w: 4, h: 1});
+        editor.resize(id, {w: 3, h: 3});
+        expect(editor.draft()!.widgets[0]).toMatchObject({w: 2, h: 2});
+    });
+
+    it('setVisibility changes a widget visibility', () => {
+        editor.insert('quote');
+        const id = editor.draft()!.widgets[0].id;
+        editor.setVisibility(id, 'friends');
+        expect(editor.draft()!.widgets[0].visibility).toBe('friends');
     });
 
     it('patchConfig merges rather than replacing', () => {
@@ -104,6 +139,28 @@ describe('CanvasEditorService', () => {
         editor.setCard(ids[2], true);
 
         expect(editor.draft()!.widgets.filter(w => w.card)).toHaveLength(2);
+    });
+
+    it('setCard lets a widget already flagged toggle off and back on', () => {
+        editor.insert('quote');
+        editor.insert('photo');
+        const ids = editor.draft()!.widgets.map(w => w.id);
+        editor.setCard(ids[0], true);
+        editor.setCard(ids[1], true);
+
+        editor.setCard(ids[0], false);
+        editor.setCard(ids[0], true);
+
+        expect(editor.draft()!.widgets.find(w => w.id === ids[0])!.card).toBe(true);
+        expect(editor.draft()!.widgets.filter(w => w.card)).toHaveLength(2);
+    });
+
+    it('dirty stays false when a mutation is a genuine no-op', () => {
+        editor.insert('quote');
+        editor.begin(editor.draft()!);
+        const id = editor.draft()!.widgets[0].id;
+        editor.setVisibility(id, 'everyone');
+        expect(editor.dirty()).toBe(false);
     });
 
     it('discard returns to the baseline and goes clean', () => {
