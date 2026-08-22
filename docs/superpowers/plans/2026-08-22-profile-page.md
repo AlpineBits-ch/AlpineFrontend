@@ -56,10 +56,15 @@ Being deleted: `canvas-editor.component.*` (the settings shell, superseded by th
 Wave A (parallel):   T1 dropAt + spacer   T2 route and shell
 Wave B:              T3 page, view state   (needs T2)
 Wave C:              T4 edit state         (needs T3)
-Wave D (parallel):   T5 widget editor      T6 visitor preview     (both need T4)
-Wave E:              T7 cell drag          (needs T1 + T4)
-Wave F:              T8 migrate and delete (needs everything)
+Wave D:              T5 widget editor      (needs T4)
+Wave E:              T6 visitor preview    (needs T5)
+Wave F:              T7 cell drag          (needs T1 + T5)
+Wave G:              T8 migrate and delete (needs everything)
 ```
+
+T5, T6 and T7 all modify `profile-page.component.{ts,html}`, so they are serial. An earlier draft of
+this plan put T5 and T6 in one parallel wave, which would have had two agents writing the same two
+files. Only T1 and T2 are genuinely disjoint.
 
 T8 is last and atomic: nothing is deleted from settings until the page can do all of it.
 
