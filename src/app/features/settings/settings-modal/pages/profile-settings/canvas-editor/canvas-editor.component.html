@@ -1,0 +1,118 @@
+<section class="flex flex-col gap-4">
+    <header class="flex flex-col gap-1">
+        <h3 class="text-base font-semibold text-text-primary">{{ 'PROFILE.CANVAS.EDITOR.TITLE' | translate }}</h3>
+        <p class="text-sm text-text-muted">{{ 'PROFILE.CANVAS.EDITOR.SUBTITLE' | translate }}</p>
+    </header>
+
+    <div class="flex flex-wrap gap-2">
+        @for (definition of registry; track definition.type) {
+            <button
+                (click)="insert(definition.type)"
+                [disabled]="!editor.canInsert(definition.type)"
+                class="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-hover px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+                data-testid="insert-widget"
+                type="button"
+            >
+                <i [class]="'pi ' + definition.icon" class="text-xs"></i>
+                {{ definition.labelKey | translate }}
+            </button>
+        }
+    </div>
+
+    @if (editor.draft(); as draft) {
+        @if (owner(); as profile) {
+            <div class="flex flex-col gap-4 lg:flex-row">
+                <div class="min-w-0 flex-1">
+                    <app-profile-canvas [canvas]="draft" [columns]="4" [owner]="profile" />
+
+                    <ul class="mt-3 flex flex-col gap-1">
+                        @for (widget of draft.widgets; track widget.id; let i = $index) {
+                            <li
+                                (dragend)="dragIndex.set(null)"
+                                (dragover)="onDragOver($event, i)"
+                                (dragstart)="dragIndex.set(i)"
+                                (drop)="onDrop($event, i)"
+                                [class.opacity-40]="dragIndex() === i"
+                                [class.border-brand]="selectedId() === widget.id"
+                                [class.border-border]="selectedId() !== widget.id"
+                                class="flex items-center gap-2 rounded-lg border bg-card px-2 py-2 transition-colors"
+                                data-testid="widget-row"
+                                draggable="true"
+                            >
+                                <i class="pi pi-bars cursor-grab text-xs text-text-faint"></i>
+
+                                <button
+                                    (click)="selectedId.set(widget.id)"
+                                    (keydown)="onKeydown($event, widget.id)"
+                                    [attr.data-testid]="'widget-select-' + widget.id"
+                                    class="min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    type="button"
+                                >
+                                    {{ labelFor(widget.type) | translate }}
+                                </button>
+
+                                <button
+                                    (click)="editor.move(widget.id, -1)"
+                                    [attr.aria-label]="'PROFILE.CANVAS.EDITOR.MOVE_UP' | translate"
+                                    [disabled]="i === 0"
+                                    class="cursor-pointer border-0 bg-transparent p-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-30"
+                                    type="button"
+                                >
+                                    <i class="pi pi-chevron-up"></i>
+                                </button>
+                                <button
+                                    (click)="editor.move(widget.id, 1)"
+                                    [attr.aria-label]="'PROFILE.CANVAS.EDITOR.MOVE_DOWN' | translate"
+                                    [disabled]="i === draft.widgets.length - 1"
+                                    class="cursor-pointer border-0 bg-transparent p-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-30"
+                                    type="button"
+                                >
+                                    <i class="pi pi-chevron-down"></i>
+                                </button>
+                                <button
+                                    (click)="remove(widget.id)"
+                                    [attr.aria-label]="'PROFILE.CANVAS.EDITOR.REMOVE' | translate"
+                                    class="cursor-pointer border-0 bg-transparent p-1 text-xs text-offline transition-colors hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    type="button"
+                                >
+                                    <i class="pi pi-trash"></i>
+                                </button>
+                            </li>
+                        } @empty {
+                            <li class="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-text-muted">
+                                {{ 'PROFILE.CANVAS.EMPTY' | translate }}
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                @if (selected(); as widget) {
+                    <app-widget-properties [widget]="widget" class="w-full shrink-0 lg:w-80" />
+                }
+            </div>
+        }
+    }
+
+    <div class="flex items-center gap-2">
+        <button
+            (click)="save()"
+            [disabled]="!editor.dirty() || store.saving()"
+            class="cursor-pointer rounded-lg border-0 bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="save-canvas"
+            type="button"
+        >
+            {{ 'PROFILE.CANVAS.EDITOR.SAVE' | translate }}
+        </button>
+        <button
+            (click)="confirmDiscard()"
+            [disabled]="!editor.dirty()"
+            class="cursor-pointer rounded-lg border-0 bg-transparent px-3 py-2 text-sm text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+            data-testid="discard-canvas"
+            type="button"
+        >
+            {{ 'PROFILE.CANVAS.EDITOR.DISCARD' | translate }}
+        </button>
+    </div>
+</section>
+
+<p-confirmdialog appendTo="body" />

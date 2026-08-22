@@ -1904,6 +1904,7 @@
   "PROFILE.CANVAS.EDITOR.MOVE_DOWN": "Move later",
   "PROFILE.CANVAS.EDITOR.SAVE": "Save canvas",
   "PROFILE.CANVAS.EDITOR.DISCARD": "Discard changes",
+  "PROFILE.CANVAS.EDITOR.DISCARD_CONFIRM": "This throws away every change you have not saved.",
   "PROFILE.CANVAS.EDITOR.SAVED": "Canvas saved",
   "PROFILE.CANVAS.EDITOR.SAVE_FAILED": "The canvas could not be saved",
   "PROFILE.CANVAS.EDITOR.FULL": "You have reached the limit of 20 widgets",
