@@ -179,6 +179,12 @@ describe('normalise', () => {
         expect(out.filter(isSpacer)).toHaveLength(0);
         expect(out.filter(v => !isSpacer(v))).toHaveLength(1);
     });
+
+    it('treats a non-array widgets field as empty instead of throwing', () => {
+        const malformed = {...canvas([]), widgets: null as unknown as CanvasWidgetDto[]};
+        expect(() => normalise(malformed)).not.toThrow();
+        expect(normalise(malformed).widgets).toEqual([]);
+    });
 });
 
 describe('dropAt', () => {

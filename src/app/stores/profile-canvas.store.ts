@@ -114,17 +114,23 @@ export const ProfileCanvasStore = signalStore(
             const realtime = inject(RealtimeConnectionService);
 
             realtime.stream('social.ProfileCanvasUpdated').subscribe((event: WsProfileCanvasUpdated) => {
-                const entry = store.byProfile()[event.profileId];
-                if (!entry?.canvas) return;
-                // Our own save for this profile echoes back as this event, arriving after the optimistic write.
-                if (store.savingProfiles()[event.profileId]) return;
+                // Caught locally, not left to the observable's error channel: an error there would
+                // stop this subscription and end canvas realtime for the rest of the session.
+                try {
+                    const entry = store.byProfile()[event.profileId];
+                    if (!entry?.canvas) return;
+                    // Our own save for this profile echoes back as this event, arriving after the optimistic write.
+                    if (store.savingProfiles()[event.profileId]) return;
 
-                patchState(store, {
-                    byProfile: {
-                        ...store.byProfile(),
-                        [event.profileId]: {...entry, canvas: normalise(event.canvas)},
-                    },
-                });
+                    patchState(store, {
+                        byProfile: {
+                            ...store.byProfile(),
+                            [event.profileId]: {...entry, canvas: normalise(event.canvas)},
+                        },
+                    });
+                } catch {
+                    // A malformed event is dropped; the next good one still applies.
+                }
             });
         },
     }),

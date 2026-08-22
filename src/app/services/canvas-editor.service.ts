@@ -5,10 +5,12 @@ import {
     CANVAS_COLUMNS,
     dropAt as dropAtCell,
     Footprint,
+    isSpacer,
     MAX_CARD_WIDGETS,
     MAX_WIDGETS,
     normalise,
     snapFootprint,
+    trimTrailingSpacers,
 } from '../models/profile-canvas';
 import {CanvasHistoryKind, ProfileEditHistoryService} from './profile-edit-history.service';
 import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
@@ -57,7 +59,7 @@ export class CanvasEditorService {
         const canvas = this.current();
         const definition = definitionFor(type);
         if (!canvas || !definition) return false;
-        if (canvas.widgets.length >= MAX_WIDGETS) return false;
+        if (canvas.widgets.filter(widget => !isSpacer(widget)).length >= MAX_WIDGETS) return false;
         return canvas.widgets.filter(widget => widget.type === type).length < definition.max;
     }
 
@@ -133,7 +135,7 @@ export class CanvasEditorService {
         const widget = canvas?.widgets.find(w => w.id === id);
         if (!canvas || !widget) return;
 
-        const already = canvas.widgets.filter(w => w.card && w.id !== id).length;
+        const already = canvas.widgets.filter(w => w.card).length;
         if (card && already >= MAX_CARD_WIDGETS) return;
         this.write(
             canvas.widgets.map(w => (w.id === id ? {...w, card} : w)),
@@ -207,9 +209,11 @@ export class CanvasEditorService {
         const canvas = this.current();
         if (!canvas) return;
         // reflow's presort keys off y, not array position, so array order only becomes
-        // reading order if y is restamped from the array index first.
-        const ordered = widgets.slice(0, MAX_WIDGETS).map((widget, index) => ({...widget, x: 0, y: index}));
-        const next = normalise({...canvas, widgets: ordered});
+        // reading order if y is restamped from the array index first. Real widgets and spacers
+        // are never sliced together here: normalise caps each of them separately.
+        const ordered = widgets.map((widget, index) => ({...widget, x: 0, y: index}));
+        const packed = normalise({...canvas, widgets: ordered});
+        const next = {...packed, widgets: trimTrailingSpacers(packed.widgets)};
         if (history && JSON.stringify(next.widgets) !== JSON.stringify(canvas.widgets)) {
             this.history.pushCanvas(history.kind, history.widgetType, canvas.widgets, next.widgets);
         }

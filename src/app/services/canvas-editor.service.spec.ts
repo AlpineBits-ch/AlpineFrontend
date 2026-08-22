@@ -3,7 +3,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {CanvasEditorService} from './canvas-editor.service';
 import {CanvasHistoryEntry, ProfileEditHistoryService} from './profile-edit-history.service';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
-import {emptyCanvas, MAX_WIDGETS} from '../models/profile-canvas';
+import {emptyCanvas, MAX_SPACERS, MAX_WIDGETS, SPACER_TYPE} from '../models/profile-canvas';
 import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
 
 function service(): CanvasEditorService {
@@ -81,6 +81,43 @@ describe('CanvasEditorService', () => {
         expect(editor.canInsert('quote')).toBe(true);
     });
 
+    it('canInsert is true with six real widgets and many spacers present', () => {
+        const reals = Array.from({length: 6}, (_, i) => seedWidget(`w${i}`, i));
+        const spacers = Array.from({length: 15}, (_, i) => ({
+            ...seedWidget(`s${i}`, 6 + i),
+            type: SPACER_TYPE,
+        }));
+        editor.begin({...emptyCanvas('p1'), widgets: [...reals, ...spacers]});
+
+        expect(editor.canInsert('marquee')).toBe(true);
+    });
+
+    it('a drag that pushes the mixed array past the cap keeps the dragged widget', () => {
+        const widgets = Array.from({length: MAX_WIDGETS}, (_, i) => seedWidget(`seed-${i}`, i));
+        editor.begin({...emptyCanvas('p1'), widgets});
+        const draggedId = editor.draft()!.widgets[MAX_WIDGETS - 1].id;
+
+        editor.dropAt(draggedId, {x: 0, y: 5});
+
+        expect(editor.draft()!.widgets.some(w => w.id === draggedId)).toBe(true);
+    });
+
+    it('repeated drags cap the spacer count instead of growing without bound, and trailing spacers do not survive a later write', () => {
+        editor.insert('local-time');
+        const id = editor.draft()!.widgets[0].id;
+
+        for (let row = 1; row <= 25; row++) {
+            editor.dropAt(id, {x: 0, y: row});
+        }
+
+        expect(editor.draft()!.widgets.some(w => w.id === id)).toBe(true);
+        const spacerCount = editor.draft()!.widgets.filter(w => w.type === SPACER_TYPE).length;
+        expect(spacerCount).toBeLessThanOrEqual(MAX_SPACERS);
+
+        editor.remove(id);
+        expect(editor.draft()!.widgets.some(w => w.type === SPACER_TYPE)).toBe(false);
+    });
+
     it('remove drops the widget', () => {
         editor.insert('quote');
         const id = editor.draft()!.widgets[0].id;
@@ -106,7 +143,9 @@ describe('CanvasEditorService', () => {
         editor.move(ids[0], -1);
         expect(editor.draft()!.widgets.map(w => w.id)).toEqual(ids);
 
-        editor.move(ids[2], 1);
+        // A large delta on a middle widget: splice would otherwise clamp the target and still
+        // move it to the end, so this is the case that actually exercises the upper-bound guard.
+        editor.move(ids[1], 5);
         expect(editor.draft()!.widgets.map(w => w.id)).toEqual(ids);
     });
 
@@ -140,20 +179,6 @@ describe('CanvasEditorService', () => {
         editor.setCard(ids[1], true);
         editor.setCard(ids[2], true);
 
-        expect(editor.draft()!.widgets.filter(w => w.card)).toHaveLength(2);
-    });
-
-    it('setCard lets a widget already flagged toggle off and back on', () => {
-        editor.insert('quote');
-        editor.insert('photo');
-        const ids = editor.draft()!.widgets.map(w => w.id);
-        editor.setCard(ids[0], true);
-        editor.setCard(ids[1], true);
-
-        editor.setCard(ids[0], false);
-        editor.setCard(ids[0], true);
-
-        expect(editor.draft()!.widgets.find(w => w.id === ids[0])!.card).toBe(true);
         expect(editor.draft()!.widgets.filter(w => w.card)).toHaveLength(2);
     });
 

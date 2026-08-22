@@ -1,7 +1,8 @@
 import {TestBed} from '@angular/core/testing';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {provideTranslateService} from '@ngx-translate/core';
-import {Subject, throwError} from 'rxjs';
+import {MessageService} from 'primeng/api';
+import {of, Subject, throwError} from 'rxjs';
 import {WidgetPropertiesComponent} from './widget-properties.component';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
@@ -12,7 +13,12 @@ import {CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
 
 function setup(type: string, api: Partial<ProfileCanvasApiService> = {}) {
     TestBed.configureTestingModule({
-        providers: [provideTranslateService(), {provide: ProfileCanvasApiService, useValue: api}],
+        providers: [
+            provideTranslateService(),
+            {provide: ProfileCanvasApiService, useValue: api},
+            // ToastService -> MessageService; removeImage reports a failed delete through it.
+            MessageService,
+        ],
     });
     const editor = TestBed.inject(CanvasEditorService);
     editor.begin(emptyCanvas('p1'));
@@ -220,9 +226,12 @@ describe('WidgetPropertiesComponent', () => {
             subjectB.next({imageId: 'new-b', url: ''});
             subjectB.complete();
 
-            const items = (editor.draft()!.widgets.find(w => w.id === widgetId)!.config as {items: unknown[]})
-                .items;
-            expect(items).toHaveLength(8);
+            const items = (
+                editor.draft()!.widgets.find(w => w.id === widgetId)!.config as {items: {imageId: string}[]}
+            ).items;
+            // Length 8 alone cannot tell a held cap from the bug: the bug also lands at 8, by
+            // dropping the first upload instead of correctly refusing the second.
+            expect(items.map(i => i.imageId)).toEqual([...existing.map(i => i.imageId), 'new-a']);
         });
     });
 
@@ -304,6 +313,55 @@ describe('WidgetPropertiesComponent', () => {
 
             toggle.click();
             expect(editor.draft()!.widgets.find(w => w.id === widgets[0].id)!.card).toBe(false);
+        });
+    });
+
+    describe('image removal', () => {
+        it('deletes the image on the server and keeps the local removal even when the request fails', () => {
+            const deleteImage = vi.fn(() => throwError(() => new Error('boom')));
+            const {fixture, editor} = setup('gallery', {
+                imageUrl: (id: string) => `https://images.test/${id}`,
+                deleteImage,
+            });
+            const widgetId = editor.draft()!.widgets[0].id;
+            editor.patchConfig(widgetId, {
+                items: [
+                    {imageId: 'img-1', alt: ''},
+                    {imageId: 'img-2', alt: ''},
+                ],
+            });
+            resync(fixture, editor, widgetId);
+            const messageService = TestBed.inject(MessageService);
+            const addSpy = vi.spyOn(messageService, 'add');
+
+            const button: HTMLButtonElement = fixture.nativeElement.querySelector('.relative button');
+            button.click();
+
+            expect(deleteImage).toHaveBeenCalledWith('img-1');
+            const items = (
+                editor.draft()!.widgets.find(w => w.id === widgetId)!.config as {items: {imageId: string}[]}
+            ).items;
+            expect(items.map(i => i.imageId)).toEqual(['img-2']);
+            expect(addSpy).toHaveBeenCalledWith(expect.objectContaining({severity: 'error'}));
+        });
+
+        it('does not toast when the delete succeeds', () => {
+            const deleteImage = vi.fn(() => of(undefined));
+            const {fixture, editor} = setup('gallery', {
+                imageUrl: (id: string) => `https://images.test/${id}`,
+                deleteImage,
+            });
+            const widgetId = editor.draft()!.widgets[0].id;
+            editor.patchConfig(widgetId, {items: [{imageId: 'img-1', alt: ''}]});
+            resync(fixture, editor, widgetId);
+            const messageService = TestBed.inject(MessageService);
+            const addSpy = vi.spyOn(messageService, 'add');
+
+            const button: HTMLButtonElement = fixture.nativeElement.querySelector('.relative button');
+            button.click();
+
+            expect(deleteImage).toHaveBeenCalledWith('img-1');
+            expect(addSpy).not.toHaveBeenCalled();
         });
     });
 });

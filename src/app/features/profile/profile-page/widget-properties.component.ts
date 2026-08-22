@@ -1,10 +1,11 @@
 import {ChangeDetectionStrategy, Component, computed, inject, input, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Select} from 'primeng/select';
 import {CanvasVisibility, CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
+import {ToastService} from '../../../services/toast.service';
 import {definitionFor, WidgetField} from '../../../components/profile-canvas/widget-registry';
 import {Footprint, MAX_CARD_WIDGETS} from '../../../models/profile-canvas';
 
@@ -38,6 +39,8 @@ export class WidgetPropertiesComponent {
 
     private editorSvc = inject(CanvasEditorService);
     private api = inject(ProfileCanvasApiService);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
 
     private readonly zoneIds = supportedTimeZoneIds();
 
@@ -124,8 +127,18 @@ export class WidgetPropertiesComponent {
     }
 
     protected removeImage(field: WidgetField, index: number): void {
+        const removed = this.imagesOf(field)[index];
         const items = this.imagesOf(field).filter((_, i) => i !== index);
         this.editorSvc.patchConfig(this.widget().id, {[field.key]: items});
+        if (!removed) return;
+
+        this.api.deleteImage(removed.imageId).subscribe({
+            error: err =>
+                this.toast.httpError(
+                    this.translate.instant('PROFILE.CANVAS.EDITOR.REMOVE_IMAGE_FAILED'),
+                    err,
+                ),
+        });
     }
 
     /** Reads the editor's own current draft, not this component's `widget` input: two uploads

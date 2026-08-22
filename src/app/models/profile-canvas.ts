@@ -108,7 +108,9 @@ export function reflow(widgets: CanvasWidgetDto[], columns: number): CanvasWidge
 export function normalise(canvas: ProfileCanvasDto, columns = CANVAS_COLUMNS): ProfileCanvasDto {
     let cardsLeft = MAX_CARD_WIDGETS;
 
-    const clean = canvas.widgets.filter(
+    // A realtime payload is not typed input; a malformed event must not crash the packer.
+    const raw = Array.isArray(canvas.widgets) ? canvas.widgets : [];
+    const clean = raw.filter(
         widget => !!widget?.id && typeof widget.type === 'string' && widget.type.length > 0,
     );
 
