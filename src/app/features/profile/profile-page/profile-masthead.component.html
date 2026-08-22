@@ -26,7 +26,7 @@
             <div
                 (click)="openAvatarEnlarge()"
                 (keydown)="onAvatarWrapperKeydown($event)"
-                [attr.aria-label]="hasAvatar() ? 'View avatar' : null"
+                [attr.aria-label]="hasAvatar() ? ('PROFILE_PAGE.VIEW_AVATAR' | translate) : null"
                 [attr.role]="hasAvatar() ? 'button' : null"
                 [attr.tabindex]="hasAvatar() ? 0 : null"
                 [class.cursor-zoom-in]="hasAvatar()"
@@ -181,7 +181,7 @@
     [resizable]="false"
     [style]="{width: '320px'}"
     appendTo="body"
-    header="View avatar"
+    header="{{ 'PROFILE_PAGE.VIEW_AVATAR' | translate }}"
 >
     @if (avatarEnlargeVisible() && avatarUrl(); as url) {
         <img [src]="url" alt="" class="block h-64 w-64 rounded-full object-cover" data-testid="avatar-enlarge-image" />
