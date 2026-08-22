@@ -1,5 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, input, signal} from '@angular/core';
-import {DestroyRef, inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
 import {ProfileDto} from '../../../dtos/response/profile.dto';

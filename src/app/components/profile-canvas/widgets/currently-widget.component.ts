@@ -23,16 +23,18 @@ function isCurrentlyConfig(value: unknown): value is CurrentlyConfig {
 @Component({
     selector: 'app-currently-widget',
     template: `
-        <div class="flex flex-col gap-2">
-            @for (row of rows(); track row.verb + row.text) {
-                <div class="flex items-center gap-2">
-                    <span class="shrink-0 rounded-full bg-hover px-2 py-0.5 text-xs text-text-secondary">
-                        {{ row.verb }}
-                    </span>
-                    <span class="min-w-0 truncate text-xs text-text-secondary">{{ row.text }}</span>
-                </div>
-            }
-        </div>
+        @if (config()) {
+            <div class="flex flex-col gap-2">
+                @for (row of rows(); track row.verb + row.text) {
+                    <div class="flex items-center gap-2">
+                        <span class="shrink-0 rounded-full bg-hover px-2 py-0.5 text-xs text-text-secondary">
+                            {{ row.verb }}
+                        </span>
+                        <span class="min-w-0 truncate text-xs text-text-secondary">{{ row.text }}</span>
+                    </div>
+                }
+            </div>
+        }
     `,
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -40,8 +42,8 @@ export class CurrentlyWidgetComponent {
     readonly widget = input.required<CanvasWidgetDto>();
     readonly owner = input.required<ProfileDto>();
 
+    protected readonly config = computed(() => parseConfig(this.widget().config, isCurrentlyConfig));
+
     /** An unanswered row reads as a blank, so it is left out rather than drawn empty. */
-    protected readonly rows = computed(
-        () => parseConfig(this.widget().config, isCurrentlyConfig)?.rows.filter(row => row.text.trim()) ?? [],
-    );
+    protected readonly rows = computed(() => this.config()?.rows.filter(row => row.text.trim()) ?? []);
 }

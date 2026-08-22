@@ -6,7 +6,7 @@ import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.serv
 
 interface GalleryItem {
     imageId: string;
-    alt: string;
+    alt?: string;
 }
 
 interface GalleryConfig {

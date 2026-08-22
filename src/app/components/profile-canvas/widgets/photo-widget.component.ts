@@ -6,7 +6,7 @@ import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.serv
 
 interface PhotoConfig {
     imageId: string;
-    alt: string;
+    alt?: string;
     caption?: string;
 }
 
