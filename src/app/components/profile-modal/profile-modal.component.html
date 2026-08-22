@@ -65,6 +65,20 @@
             <!-- What you have in common -->
             <div class="flex min-w-0 flex-1 flex-col">
                 <div class="flex shrink-0 items-center gap-5 border-b border-border-subtle px-5 pt-5">
+                    @if (showCanvasTab()) {
+                        <button
+                            (click)="selectTab('canvas')"
+                            [class.border-white]="effectiveTab() === 'canvas'"
+                            [class.border-transparent]="effectiveTab() !== 'canvas'"
+                            [class.text-white]="effectiveTab() === 'canvas'"
+                            [class.text-text-muted]="effectiveTab() !== 'canvas'"
+                            class="cursor-pointer border-0 border-b-2 bg-transparent px-0 pb-2.5 text-sm font-semibold transition-colors hover:text-text-primary"
+                            type="button"
+                        >
+                            {{ 'PROFILE.CANVAS.TAB' | translate }}
+                        </button>
+                    }
+
                     <button
                         (click)="selectTab('activity')"
                         [class.border-white]="effectiveTab() === 'activity'"
@@ -108,6 +122,14 @@
 
                 <div class="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
                     @switch (effectiveTab()) {
+                        @case ('canvas') {
+                            @if (canvas(); as arranged) {
+                                @if (profile(); as subject) {
+                                    <app-profile-canvas [canvas]="arranged" [columns]="2" [owner]="subject" />
+                                }
+                            }
+                        }
+
                         @case ('activity') {
                             @if (activities().length === 0) {
                                 <p class="px-2 py-6 text-center text-sm text-text-muted">

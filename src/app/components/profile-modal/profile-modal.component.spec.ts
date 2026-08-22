@@ -17,6 +17,9 @@ import {BrokenImageService} from '../../services/broken-image.service';
 import {OsInfo} from '../../platform/ports/os-info.port';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../dtos/response/profile.dto';
 import {signal} from '@angular/core';
+import {ProfileCanvasStore} from '../../stores/profile-canvas.store';
+import {ProfileCanvasApiService} from '../../services/profile-canvas-api.service';
+import {ProfileCanvasDto} from '../../dtos/response/profile-canvas.dto';
 
 const USER_ID = 'user-subject';
 
@@ -43,10 +46,31 @@ describe('ProfileModalComponent', () => {
     let friends: ReturnType<typeof vi.fn>;
     let servers: ReturnType<typeof vi.fn>;
     let cached: ProfileDto;
+    let canvas: ProfileCanvasDto;
 
-    function openOn(tab: 'activity' | 'friends' | 'servers' = 'activity'): void {
+    function openOn(tab: 'canvas' | 'activity' | 'friends' | 'servers' = 'activity'): void {
         popoutSvc.openModal(USER_ID, tab);
         fixture.detectChanges();
+    }
+
+    function canvasWith(widgetCount: number): ProfileCanvasDto {
+        return {
+            profileId: 'prfl_1',
+            updatedAt: '',
+            version: 1,
+            theme: {accent: null, backdrop: null},
+            widgets: Array.from({length: widgetCount}, (_, i) => ({
+                id: `w${i}`,
+                type: 'quote',
+                x: 0,
+                y: i,
+                w: 2,
+                h: 1,
+                visibility: 'everyone' as const,
+                card: false,
+                config: {text: 'a line'},
+            })),
+        };
     }
 
     function tabLabels(): string[] {
@@ -59,12 +83,18 @@ describe('ProfileModalComponent', () => {
 
     beforeEach(() => {
         cached = profile();
+        canvas = canvasWith(0);
         friends = vi.fn().mockReturnValue(of({items: [], nextCursor: null}));
         servers = vi.fn().mockReturnValue(of({items: [], nextCursor: null}));
 
         TestBed.configureTestingModule({
             providers: [
                 provideTranslateService(),
+                {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+                {
+                    provide: ProfileCanvasStore,
+                    useValue: {canvasFor: () => canvas, ensureLoaded: () => undefined},
+                },
                 {
                     provide: ProfileService,
                     useValue: {
@@ -167,5 +197,29 @@ describe('ProfileModalComponent', () => {
 
         expect(tabLabels()).toContain('PROFILE.MUTUAL_FRIENDS');
         expect(fixture.nativeElement.textContent).toContain('PROFILE.MUTUALS_RETRY');
+    });
+
+    it('shows the canvas tab and draws it when the subject has widgets', () => {
+        canvas = canvasWith(1);
+        openOn();
+
+        expect(tabLabels()).toContain('PROFILE.CANVAS.TAB');
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).not.toBeNull();
+    });
+
+    it('offers no canvas tab when the subject has never arranged one', () => {
+        canvas = canvasWith(0);
+        openOn();
+
+        expect(tabLabels()).not.toContain('PROFILE.CANVAS.TAB');
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+    });
+
+    it('falls back to activity when a canvas tab is asked for and there is none', () => {
+        canvas = canvasWith(0);
+        openOn('canvas');
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('PROFILE.NO_ACTIVITY');
     });
 });

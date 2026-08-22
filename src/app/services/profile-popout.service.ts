@@ -1,7 +1,7 @@
 import {Injectable, signal} from '@angular/core';
 
 /** Which panel the full profile modal opens on. */
-export type ProfileModalTab = 'activity' | 'friends' | 'servers';
+export type ProfileModalTab = 'canvas' | 'activity' | 'friends' | 'servers';
 
 export interface PopoutTarget {
     userId: string;
