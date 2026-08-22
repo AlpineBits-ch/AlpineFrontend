@@ -23,23 +23,31 @@
 
     <div class="flex flex-col gap-3 px-6 pt-4 pb-4">
         <div class="flex items-center gap-3">
-            <div class="relative shrink-0">
-                <app-avatar [userId]="profile().userId" size="large" />
-                <input #avatarFileInput (change)="onAvatarFileSelected($event)" accept="image/*" class="hidden" type="file" />
+            <div
+                (click)="openAvatarEnlarge()"
+                (keydown)="onAvatarWrapperKeydown($event)"
+                [attr.aria-label]="hasAvatar() ? 'View avatar' : null"
+                [attr.role]="hasAvatar() ? 'button' : null"
+                [attr.tabindex]="hasAvatar() ? 0 : null"
+                [class.cursor-zoom-in]="hasAvatar()"
+                class="relative shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                data-testid="avatar-enlarge-trigger"
+            >
+                <app-avatar [userId]="profile().userId" size="xlarge" />
                 <button
-                    (click)="pickAvatarFile()"
+                    (click)="$event.stopPropagation(); pickAvatarFile()"
                     [attr.aria-label]="'PROFILE_PAGE.CHANGE_AVATAR' | translate"
-                    class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full border-0 bg-black/0 text-transparent transition-colors hover:bg-black/50 hover:text-white focus-visible:bg-black/50 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    class="absolute -right-1 -bottom-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-black/70 text-white transition-colors hover:bg-black/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     data-testid="change-avatar"
                     type="button"
                 >
-                    <i class="pi pi-camera"></i>
+                    <i class="pi pi-camera text-xs"></i>
                 </button>
                 @if (hasAvatar()) {
                     <button
-                        (click)="removeAvatar()"
+                        (click)="$event.stopPropagation(); removeAvatar()"
                         [attr.aria-label]="'PROFILE_PAGE.REMOVE_AVATAR' | translate"
-                        class="absolute -right-1 -bottom-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-rose-500 text-white transition-colors hover:bg-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                        class="absolute -right-1 -top-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-rose-500 text-white transition-colors hover:bg-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         data-testid="remove-avatar"
                         type="button"
                     >
@@ -52,6 +60,7 @@
                     </div>
                 }
             </div>
+            <input #avatarFileInput (change)="onAvatarFileSelected($event)" accept="image/*" class="hidden" type="file" />
             <h1 [appUserNameStyle]="profile()" class="min-w-0 truncate text-xl font-bold text-text-primary">{{ profile().userName }}</h1>
         </div>
 
@@ -162,5 +171,19 @@
             [outputHeight]="400"
             [outputWidth]="1200"
         />
+    }
+</p-dialog>
+
+<p-dialog
+    [(visible)]="avatarEnlargeVisible"
+    [draggable]="false"
+    [modal]="true"
+    [resizable]="false"
+    [style]="{width: '320px'}"
+    appendTo="body"
+    header="View avatar"
+>
+    @if (avatarEnlargeVisible() && avatarUrl(); as url) {
+        <img [src]="url" alt="" class="block h-64 w-64 rounded-full object-cover" data-testid="avatar-enlarge-image" />
     }
 </p-dialog>

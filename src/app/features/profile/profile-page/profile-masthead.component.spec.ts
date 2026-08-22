@@ -187,6 +187,69 @@ describe('ProfileMastheadComponent', () => {
         expect(avatarRemoveRequested).toHaveBeenCalledOnce();
     });
 
+    it('clicking the avatar opens the enlarge dialog, and Escape closes it', async () => {
+        const fixture = setup({profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}});
+        const instance = fixture.componentInstance as unknown as {avatarEnlargeVisible: () => boolean};
+
+        testId(fixture, 'avatar-enlarge-trigger')!.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(instance.avatarEnlargeVisible()).toBe(true);
+
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(instance.avatarEnlargeVisible()).toBe(false);
+    });
+
+    it('there is nothing to enlarge on the initial-letter placeholder', () => {
+        const fixture = setup({profile: {...OWN, avatarUrl: undefined}});
+        const instance = fixture.componentInstance as unknown as {avatarEnlargeVisible: () => boolean};
+        const trigger = testId(fixture, 'avatar-enlarge-trigger')!;
+
+        expect(trigger.getAttribute('role')).toBeNull();
+        expect(trigger.getAttribute('tabindex')).toBeNull();
+
+        trigger.click();
+        expect(instance.avatarEnlargeVisible()).toBe(false);
+    });
+
+    it('the enlarge trigger opens on Enter', () => {
+        const fixture = setup({profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}});
+        const instance = fixture.componentInstance as unknown as {avatarEnlargeVisible: () => boolean};
+
+        testId(fixture, 'avatar-enlarge-trigger')!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
+
+        expect(instance.avatarEnlargeVisible()).toBe(true);
+    });
+
+    it('the enlarge trigger opens on Space', () => {
+        const fixture = setup({profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}});
+        const instance = fixture.componentInstance as unknown as {avatarEnlargeVisible: () => boolean};
+
+        testId(fixture, 'avatar-enlarge-trigger')!.dispatchEvent(new KeyboardEvent('keydown', {key: ' '}));
+
+        expect(instance.avatarEnlargeVisible()).toBe(true);
+    });
+
+    it('the change-avatar and remove-avatar badges do not also trigger the enlarge dialog', () => {
+        const fixture = setup({profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}});
+        const instance = fixture.componentInstance as unknown as {avatarEnlargeVisible: () => boolean};
+        const avatarRemoveRequested = vi.fn();
+        fixture.componentInstance.avatarRemoveRequested.subscribe(avatarRemoveRequested);
+
+        testId(fixture, 'change-avatar')!.click();
+        expect(instance.avatarEnlargeVisible()).toBe(false);
+
+        testId(fixture, 'remove-avatar')!.click();
+        expect(avatarRemoveRequested).toHaveBeenCalledOnce();
+        expect(instance.avatarEnlargeVisible()).toBe(false);
+
+        // Enter on a badge bubbles a keydown to the wrapper; it must not also open the enlarge dialog.
+        testId(fixture, 'change-avatar')!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        expect(instance.avatarEnlargeVisible()).toBe(false);
+    });
+
     it('avatarCropped and bannerCropped emit the cropped file and close their dialogs', () => {
         const fixture = setup();
         const avatarCropped = vi.fn();

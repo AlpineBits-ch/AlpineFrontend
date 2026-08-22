@@ -54,6 +54,8 @@ export class ProfileMastheadComponent {
     protected readonly avatarCropVisible = signal(false);
     protected readonly avatarCropSrc = signal('');
 
+    protected readonly avatarEnlargeVisible = signal(false);
+
     protected readonly bannerCropVisible = signal(false);
     protected readonly bannerCropSrc = signal('');
 
@@ -68,6 +70,11 @@ export class ProfileMastheadComponent {
     protected readonly bannerFallback = computed(() => safeAccentColor(this.profile().accentColor));
 
     protected readonly hasAvatar = computed(() => !!this.profile().avatarUrl);
+
+    protected readonly avatarUrl = computed((): string | undefined => {
+        const profile = this.profile();
+        return cacheBustedUrl(profile.avatarUrl, profile.updatedAt);
+    });
 
     protected readonly safeAccentColor = safeAccentColor;
 
@@ -109,6 +116,19 @@ export class ProfileMastheadComponent {
 
     protected removeAvatar(): void {
         this.avatarRemoveRequested.emit();
+    }
+
+    protected openAvatarEnlarge(): void {
+        if (!this.hasAvatar()) return;
+        this.avatarEnlargeVisible.set(true);
+    }
+
+    /** Guarded to the wrapper itself: a badge button's own Enter/Space keydown also bubbles here. */
+    protected onAvatarWrapperKeydown(event: KeyboardEvent): void {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        this.openAvatarEnlarge();
     }
 
     protected pickBannerFile(): void {
