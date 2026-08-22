@@ -54,6 +54,7 @@ import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {PersonaDirectoryComponent} from '../guild/personas/persona-directory/persona-directory.component';
 import {CharacterPageComponent} from '../guild/personas/character-page/character-page.component';
 import {SceneBoardComponent} from '../guild/scenes/scene-board/scene-board.component';
+import {DiscoverPageComponent} from '../discovery/discover-page/discover-page.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
 import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
@@ -116,6 +117,7 @@ import {scopeKey} from '../../services/share-watch.service';
         PersonaDirectoryComponent,
         CharacterPageComponent,
         SceneBoardComponent,
+        DiscoverPageComponent,
         OnboardingGateComponent,
         FirstRunComponent,
         EventsPanelComponent,

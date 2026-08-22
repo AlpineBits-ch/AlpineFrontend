@@ -56,6 +56,7 @@ export class ServerTaskbarComponent implements OnInit {
     private readonly ownMembers = signal<Record<string, SelfGuildMemberDto>>({});
     private memberRequests = new Set<string>();
     protected readonly isDMsActive = computed(() => this.navService.workspace().type === 'dms');
+    protected readonly isDiscoverActive = computed(() => this.navService.mainView().type === 'discover');
     private guildService = inject(GuildService);
     protected guilds = this.guildService.guilds;
     private profileService = inject(ProfileService);

@@ -18,6 +18,8 @@ export type MainView =
     | {type: 'wiki'; guildId: string}
     /** The household digest - one guild-scoped view over six modules, not a channel. */
     | {type: 'house'; guildId: string}
+    /** The Discover feed. Global, unlike the guild-scoped views around it: no guildId. */
+    | {type: 'discover'}
     /** The guild's cast list, and the approval queue behind it. */
     | {type: 'personas'; guildId: string}
     | {type: 'character'; guildId: string; personaId: string}
@@ -40,7 +42,8 @@ interface PersistedNav {
         | 'server-wiki'
         | 'server-house'
         | 'server-personas'
-        | 'server-scenes';
+        | 'server-scenes'
+        | 'discover';
     guildId?: string;
     channelId?: string;
     conversationId?: string;
@@ -141,6 +144,12 @@ export class NavigationService {
             const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
             const state = JSON.parse(raw) as PersistedNav;
+            // Global: no guild to resolve and no workspace to set, unlike every kind below it.
+            if (state.kind === 'discover') {
+                this.mainView.set({type: 'discover'});
+                this.pushHistory();
+                return true;
+            }
             if (
                 state.kind !== 'server-channel' &&
                 state.kind !== 'server-wiki' &&
@@ -320,6 +329,15 @@ export class NavigationService {
         const current = this.mainView();
         if (current.type !== 'house' || current.guildId !== guildId) {
             this.mainView.set({type: 'house', guildId});
+            this.saveNav();
+        }
+        this.mobileNavOpen.set(false);
+    }
+
+    /** The Discover feed. Reachable from inside any guild without losing the workspace behind it. */
+    openDiscover(): void {
+        if (this.mainView().type !== 'discover') {
+            this.mainView.set({type: 'discover'});
             this.saveNav();
         }
         this.mobileNavOpen.set(false);
@@ -515,6 +533,8 @@ export class NavigationService {
                 return `${ws}|wiki:${view.guildId}`;
             case 'house':
                 return `${ws}|house:${view.guildId}`;
+            case 'discover':
+                return `${ws}|discover`;
             case 'personas':
                 return `${ws}|personas:${view.guildId}`;
             case 'character':
@@ -565,7 +585,10 @@ export class NavigationService {
         const ws = this.workspace();
         const view = this.mainView();
         let state: PersistedNav;
-        if (ws.type === 'dms') {
+        if (view.type === 'discover') {
+            // Global: goes ahead of the dms/server split below, which every other view needs.
+            state = {kind: 'discover'};
+        } else if (ws.type === 'dms') {
             state =
                 view.type === 'conversation'
                     ? {kind: 'dms-conversation', conversationId: view.conversation.id}

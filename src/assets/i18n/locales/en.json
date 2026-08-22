@@ -4258,5 +4258,21 @@
   "GUILD_SETTINGS.ROLES.STAT_OVERRIDES_ONE": "override",
   "GUILD_SETTINGS.ROLES.STAT_CHANNELS_ONE": "channel",
   "GUILD_SETTINGS.ROLES.STAT_MEMBERS_ONE": "member",
-  "GUILD_SETTINGS.ROLES.STAT_VISIBLE_HINT": "Counts what this role alone grants. A member may see more or fewer once @everyone and their own overrides are applied."
+  "GUILD_SETTINGS.ROLES.STAT_VISIBLE_HINT": "Counts what this role alone grants. A member may see more or fewer once @everyone and their own overrides are applied.",
+  "DISCOVERY.TITLE": "Discover",
+  "DISCOVERY.SEARCH_PLACEHOLDER": "Search communities",
+  "DISCOVERY.TAB.COMMUNITIES": "Communities",
+  "DISCOVERY.TAB.POSTINGS": "Looking for players",
+  "DISCOVERY.FEED.EMPTY": "No communities match yet.",
+  "DISCOVERY.FEED.ERROR": "Could not load the feed.",
+  "DISCOVERY.FEED.LOAD_MORE": "Load more",
+  "DISCOVERY.FEED.MEMBER_COUNT": "{{ count }} members",
+  "DISCOVERY.FEED.MATCHED": "Matches",
+  "DISCOVERY.POSTINGS.EMPTY": "Recruitment postings are coming in a later update.",
+  "DISCOVERY.ONBOARDING.TITLE": "Pick a few interests",
+  "DISCOVERY.ONBOARDING.SUBTITLE": "Your feed matches communities to what you pick here.",
+  "DISCOVERY.ONBOARDING.VISIBLE": "Show these on my profile",
+  "DISCOVERY.ONBOARDING.SKIP": "Skip for now",
+  "DISCOVERY.ONBOARDING.SAVE": "Save",
+  "DISCOVERY.TOPICS.SEARCH_PLACEHOLDER": "Search games and tags"
 }

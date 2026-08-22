@@ -1,0 +1,38 @@
+<div class="flex flex-col gap-2">
+    @if (selected().length > 0) {
+        <div class="flex flex-wrap gap-1.5">
+            @for (topic of selected(); track topic.kind + ':' + topic.id) {
+                <button (click)="remove(topic)" class="cursor-pointer border-0 bg-transparent p-0" type="button">
+                    <app-tag-chip [removable]="true" [selected]="true" [tag]="chipOf(topic)" />
+                </button>
+            }
+        </div>
+    }
+
+    <div class="flex items-center gap-2">
+        <input
+            [(ngModel)]="query"
+            [placeholder]="'DISCOVERY.TOPICS.SEARCH_PLACEHOLDER' | translate"
+            class="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-[0.8125rem] text-text-primary outline-none placeholder:text-text-faint focus:border-white/[0.18]"
+            type="text"
+        />
+        <span [class]="atCap() ? 'text-connecting' : 'text-text-muted'" class="shrink-0 text-[0.625rem] tabular-nums">
+            {{ selected().length }}/{{ cap() }}
+        </span>
+    </div>
+
+    @if (results().length > 0) {
+        <div class="flex flex-wrap gap-1.5">
+            @for (topic of results(); track topic.kind + ':' + topic.id) {
+                <button
+                    (click)="toggle(topic)"
+                    [disabled]="!isSelected(topic) && atCap()"
+                    class="cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-35"
+                    type="button"
+                >
+                    <app-tag-chip [interactive]="true" [selected]="isSelected(topic)" [tag]="chipOf(topic)" />
+                </button>
+            }
+        </div>
+    }
+</div>

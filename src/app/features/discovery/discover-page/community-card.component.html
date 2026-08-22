@@ -1,0 +1,34 @@
+<div class="flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-card/60 p-4">
+    <div class="flex items-center gap-3">
+        <app-avatar [authSrc]="card().guildIconUrl" [label]="initial()" />
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-text-primary">{{ card().guildName }}</p>
+            <p class="text-[0.6875rem] text-text-muted">
+                {{ 'DISCOVERY.FEED.MEMBER_COUNT' | translate: {count: card().memberCount} }}
+            </p>
+        </div>
+    </div>
+
+    <p class="line-clamp-2 text-[0.8125rem] leading-relaxed text-text-secondary">{{ card().pitch }}</p>
+
+    @if (card().matchedTopics.length > 0) {
+        <div class="flex flex-col gap-1">
+            <span class="text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">{{
+                'DISCOVERY.FEED.MATCHED' | translate
+            }}</span>
+            <div class="flex flex-wrap gap-1">
+                @for (topic of card().matchedTopics; track topic.kind + ':' + topic.id) {
+                    <app-tag-chip [selected]="true" [tag]="chipOf(topic)" size="xs" />
+                }
+            </div>
+        </div>
+    }
+
+    @if (otherTopics().length > 0) {
+        <div class="flex flex-wrap gap-1">
+            @for (topic of otherTopics(); track topic.kind + ':' + topic.id) {
+                <app-tag-chip [tag]="chipOf(topic)" size="xs" />
+            }
+        </div>
+    }
+</div>

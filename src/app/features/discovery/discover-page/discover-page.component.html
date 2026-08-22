@@ -1,0 +1,78 @@
+<div class="flex h-full flex-col overflow-hidden">
+    <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
+        <i class="pi pi-compass shrink-0 text-sm text-brand-dim"></i>
+        <span class="shrink-0 text-[0.8125rem] font-semibold text-text-primary">{{ 'DISCOVERY.TITLE' | translate }}</span>
+
+        <nav class="ml-3 flex items-center gap-0.5">
+            <button
+                (click)="activeTab.set('communities')"
+                [class]="activeTab() === 'communities' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+                class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+                type="button"
+            >
+                {{ 'DISCOVERY.TAB.COMMUNITIES' | translate }}
+            </button>
+            @if (showPostingsTab()) {
+                <button
+                    (click)="activeTab.set('postings')"
+                    [class]="activeTab() === 'postings' ? 'bg-white/[0.07] text-text-primary' : 'text-text-muted hover:bg-white/[0.04]'"
+                    class="rounded-lg border-0 bg-transparent px-2.5 py-1 text-[0.75rem] font-medium transition-colors cursor-pointer"
+                    type="button"
+                >
+                    {{ 'DISCOVERY.TAB.POSTINGS' | translate }}
+                </button>
+            }
+        </nav>
+
+        <input
+            [(ngModel)]="searchTerm"
+            [placeholder]="'DISCOVERY.SEARCH_PLACEHOLDER' | translate"
+            class="ml-auto w-56 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[0.75rem] text-text-primary outline-none placeholder:text-text-faint"
+        />
+    </header>
+
+    <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar px-4 py-5 sm:px-6">
+        @switch (activeTab()) {
+            @case ('communities') {
+                @if (showOnboarding()) {
+                    <app-interest-onboarding (skipped)="onOnboardingSkipped()" />
+                } @else if (feedLoading() && !cards().length) {
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+                            <div class="h-32 animate-pulse rounded-2xl bg-white/[0.03]"></div>
+                        }
+                    </div>
+                } @else if (!cards().length) {
+                    <div class="mx-auto max-w-md rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                        <p class="text-sm text-text-secondary">
+                            {{ (feedError() ? 'DISCOVERY.FEED.ERROR' : 'DISCOVERY.FEED.EMPTY') | translate }}
+                        </p>
+                    </div>
+                } @else {
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        @for (card of cards(); track card.listingId) {
+                            <app-discovery-community-card [card]="card" />
+                        }
+                    </div>
+                    @if (feedCursor()) {
+                        <div class="mt-4 flex justify-center">
+                            <button
+                                (click)="loadMore()"
+                                [disabled]="feedLoadingMore()"
+                                class="cursor-pointer rounded-lg border border-white/[0.10] bg-transparent px-3 py-1.5 text-[0.75rem] text-text-secondary hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
+                                type="button"
+                            >
+                                {{ 'DISCOVERY.FEED.LOAD_MORE' | translate }}
+                            </button>
+                        </div>
+                    }
+                }
+            }
+            @case ('postings') {
+                <div class="mx-auto max-w-md rounded-2xl border border-dashed border-white/[0.10] px-6 py-12 text-center">
+                    <p class="text-sm text-text-secondary">{{ 'DISCOVERY.POSTINGS.EMPTY' | translate }}</p>
+                </div>
+            }
+        }
+    </div>
+</div>
