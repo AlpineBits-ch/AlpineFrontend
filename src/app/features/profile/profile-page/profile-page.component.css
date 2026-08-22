@@ -1,0 +1,38 @@
+/* ── Native color picker swatch ───────────────────────────────────────────── */
+.color-swatch-wrap {
+    position: relative;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
+}
+
+.color-swatch-wrap:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.color-swatch-wrap:has(input:focus-visible) {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+}
+
+.color-swatch-wrap input[type='color'] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+}
+
+.color-swatch-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}

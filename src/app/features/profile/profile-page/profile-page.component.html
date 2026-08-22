@@ -19,30 +19,8 @@
                         <img [src]="url" alt="" class="w-full h-full object-cover" />
                     }
 
-                    <div class="absolute top-3 right-3 flex items-center gap-2">
+                    <div class="absolute top-3 right-3 flex flex-wrap items-center justify-end gap-2">
                         @if (editing()) {
-                            <div class="flex items-center gap-2 rounded-lg bg-black/60 px-2 py-1.5">
-                                <label class="sr-only" for="profile-accent">{{ 'PROFILE_PAGE.ACCENT_LABEL' | translate }}</label>
-                                <p-colorpicker
-                                    (ngModelChange)="onAccentChange($event)"
-                                    [ngModel]="accentColorHex()"
-                                    appendTo="body"
-                                    format="hex"
-                                    inputId="profile-accent"
-                                />
-                                <label class="sr-only" for="profile-font">{{ 'PROFILE_PAGE.FONT_LABEL' | translate }}</label>
-                                <select
-                                    (ngModelChange)="textDraft.setFont($event)"
-                                    [ngModel]="textDraft.draft()?.font"
-                                    class="cursor-pointer rounded-md border-0 bg-white/10 px-2 py-1 text-xs text-white outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                                    data-testid="font-select"
-                                    id="profile-font"
-                                >
-                                    @for (option of fontOptions; track option.value) {
-                                        <option [value]="option.value">{{ option.label }}</option>
-                                    }
-                                </select>
-                            </div>
                             <button
                                 (click)="cancel()"
                                 class="cursor-pointer rounded-lg border-0 bg-black/60 px-3 py-1.5 text-sm text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
@@ -131,6 +109,63 @@
                             <p class="text-sm text-text-secondary mt-1">{{ p.bio }}</p>
                         }
                     </div>
+
+                    @if (editing()) {
+                        <div class="flex flex-wrap items-start gap-6 rounded-lg border border-border bg-card px-4 py-3">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-accent">
+                                    {{ 'PROFILE_PAGE.ACCENT_LABEL' | translate }}
+                                </label>
+                                <div class="flex items-center gap-3">
+                                    <div class="color-swatch-wrap">
+                                        <div
+                                            [style.background]="safeAccentColor(textDraft.draft()?.accentColor) || 'transparent'"
+                                            class="color-swatch-bg"
+                                        ></div>
+                                        <input
+                                            (input)="textDraft.setAccentColor($any($event.target).value)"
+                                            [value]="textDraft.draft()?.accentColor || '#4B5BC4'"
+                                            id="profile-accent"
+                                            type="color"
+                                        />
+                                    </div>
+                                    @if (textDraft.draft()?.accentColor) {
+                                        <button
+                                            (click)="textDraft.setAccentColor('')"
+                                            class="cursor-pointer rounded border-0 bg-transparent px-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                            data-testid="accent-reset"
+                                            type="button"
+                                        >
+                                            {{ 'PROFILE_PAGE.ACCENT_RESET' | translate }}
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="flex min-w-48 flex-1 flex-col gap-1.5">
+                                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-font">
+                                    {{ 'PROFILE_PAGE.FONT_LABEL' | translate }}
+                                </label>
+                                <p-select
+                                    (ngModelChange)="textDraft.setFont($event)"
+                                    [ngModel]="textDraft.draft()?.font"
+                                    [options]="fontOptions"
+                                    data-testid="font-select"
+                                    inputId="profile-font"
+                                    optionLabel="label"
+                                    optionValue="value"
+                                    styleClass="w-full"
+                                >
+                                    <ng-template #item let-option>
+                                        <span [style.font-family]="$any(fontStacks)[option.value]">{{ option.label }}</span>
+                                    </ng-template>
+                                </p-select>
+                                <p [style.font-family]="fontPreviewStack()" class="text-sm text-text-secondary">
+                                    {{ 'PROFILE_PAGE.FONT_PREVIEW' | translate }}
+                                </p>
+                            </div>
+                        </div>
+                    }
 
                     @if (canvas(); as arranged) {
                         <app-profile-canvas [canvas]="arranged" [columns]="4" [owner]="p" />

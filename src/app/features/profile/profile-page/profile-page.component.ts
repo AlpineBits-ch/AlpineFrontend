@@ -15,7 +15,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ConfirmationService} from 'primeng/api';
 import {ConfirmDialog} from 'primeng/confirmdialog';
 import {Dialog} from 'primeng/dialog';
-import {ColorPicker} from 'primeng/colorpicker';
+import {Select} from 'primeng/select';
 import {finalize, forkJoin} from 'rxjs';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {ImageCropperComponent} from '../../../components/image-cropper/image-cropper.component';
@@ -25,7 +25,7 @@ import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
 import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
 import {ToastService} from '../../../services/toast.service';
-import {FONT_LABELS, safeAccentColor} from '../../../models/profile-font.model';
+import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../models/profile-image.model';
 import {emptyCanvas} from '../../../models/profile-canvas';
 import {ProfileFont} from '../../../dtos/response/profile.dto';
@@ -41,9 +41,10 @@ import {ProfileFont} from '../../../dtos/response/profile.dto';
         ConfirmDialog,
         Dialog,
         ImageCropperComponent,
-        ColorPicker,
+        Select,
     ],
     templateUrl: './profile-page.component.html',
+    styleUrl: './profile-page.component.css',
     providers: [ConfirmationService],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -85,19 +86,21 @@ export class ProfilePageComponent {
         return profile ? (this.canvasStore.canvasFor(profile.id) ?? emptyCanvas(profile.id)) : undefined;
     });
 
-    /** p-colorpicker's hex format has no leading `#`; the draft and the DTO both do. */
-    protected readonly accentColorHex = computed(() =>
-        (this.textDraft.draft()?.accentColor ?? '').replace('#', ''),
-    );
+    protected readonly safeAccentColor = safeAccentColor;
 
     protected readonly dirty = computed(() => this.canvasEditor.dirty() || this.textDraft.dirty());
 
+    protected readonly fontPreviewStack = computed(() => {
+        const font = this.textDraft.draft()?.font;
+        return font && font !== ProfileFont.Default ? FONT_STACKS[font] : null;
+    });
+
     protected get fontOptions(): {value: ProfileFont; label: string}[] {
-        // A getter, not a field: an imported const read as a class field is undefined under Vite.
-        return (Object.entries(FONT_LABELS) as [ProfileFont, string][]).map(([value, label]) => ({
-            value,
-            label,
-        }));
+        return FONT_OPTIONS;
+    }
+
+    protected get fontStacks(): Record<ProfileFont, string> {
+        return FONT_STACKS;
     }
 
     // ownProfile is a fresh object on every own-profile write (updateProfile, uploadAvatar,
@@ -181,10 +184,6 @@ export class ProfilePageComponent {
             },
             error: err => this.toast.httpError(this.translate.instant('PROFILE_PAGE.SAVE_FAILED'), err),
         });
-    }
-
-    protected onAccentChange(hex: string): void {
-        this.textDraft.setAccentColor(hex ? `#${hex}` : '');
     }
 
     protected pickAvatarFile(): void {

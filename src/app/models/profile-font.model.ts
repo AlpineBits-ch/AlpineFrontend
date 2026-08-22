@@ -9,6 +9,10 @@ export const FONT_LABELS: Record<ProfileFont, string> = {
     [ProfileFont.Handwritten]: 'Handwritten',
 };
 
+export const FONT_OPTIONS: {value: ProfileFont; label: string}[] = (
+    Object.entries(FONT_LABELS) as [ProfileFont, string][]
+).map(([value, label]) => ({value, label}));
+
 export const FONT_STACKS: Record<ProfileFont, string> = {
     [ProfileFont.Default]: 'var(--font-sans)',
     [ProfileFont.Serif]: "'Lora Variable', Georgia, 'Times New Roman', serif",

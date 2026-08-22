@@ -1,8 +1,10 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideZonelessChangeDetection, signal, WritableSignal} from '@angular/core';
+import {By} from '@angular/platform-browser';
 import {Router} from '@angular/router';
 import {provideTranslateService} from '@ngx-translate/core';
 import {ConfirmationService, MessageService} from 'primeng/api';
+import {Select} from 'primeng/select';
 import {of} from 'rxjs';
 import {vi} from 'vitest';
 import {ProfilePageComponent} from './profile-page.component';
@@ -11,6 +13,7 @@ import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
 import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
 import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
+import {FONT_OPTIONS, FONT_STACKS} from '../../../models/profile-font.model';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
 
 const OWN: ProfileDto = {
@@ -100,6 +103,22 @@ function click(fixture: ComponentFixture<unknown>, testId: string): void {
 
 describe('ProfilePageComponent', () => {
     afterEach(() => TestBed.resetTestingModule());
+
+    beforeEach(() => {
+        // jsdom implements no `matchMedia`, and PrimeNG's Overlay reads it when it opens.
+        if (!window.matchMedia) {
+            window.matchMedia = ((query: string) => ({
+                matches: false,
+                media: query,
+                onchange: null,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+                addListener: () => undefined,
+                removeListener: () => undefined,
+                dispatchEvent: () => false,
+            })) as unknown as typeof window.matchMedia;
+        }
+    });
 
     it("renders the own profile's banner, avatar and name", () => {
         const {fixture} = setup(OWN);
@@ -216,10 +235,30 @@ describe('ProfilePageComponent', () => {
         expect(fixture.nativeElement.querySelector('[data-testid="change-banner"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="change-avatar"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="font-select"]')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('p-colorpicker')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('input[type="color"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="save-profile"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="cancel-edit"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).toBeNull();
+    });
+
+    it('renders each font option in its own font stack', () => {
+        const {fixture} = setup(OWN);
+        click(fixture, 'edit-profile');
+
+        const select = fixture.debugElement.query(By.directive(Select)).componentInstance as Select;
+        select.show();
+        fixture.detectChanges();
+
+        const rendered = Array.from(
+            (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.p-select-option'),
+        );
+        expect(rendered).toHaveLength(FONT_OPTIONS.length);
+        for (const {value, label} of FONT_OPTIONS) {
+            const option = rendered.find(el => el.textContent?.trim() === label);
+            const span = document.createElement('span');
+            span.style.fontFamily = FONT_STACKS[value];
+            expect(option?.querySelector('span')?.style.fontFamily).toBe(span.style.fontFamily);
+        }
     });
 
     it('cancelling with nothing changed exits edit mode without asking', () => {

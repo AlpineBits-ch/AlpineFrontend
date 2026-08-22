@@ -25,7 +25,7 @@ import {ToastService} from '../../../../../services/toast.service';
 import {ImageCropperComponent} from '../../../../../components/image-cropper/image-cropper.component';
 import {TranslateModule} from '@ngx-translate/core';
 import {AccountStatus, UserDto} from '../../../../../dtos/response/UserDto';
-import {FONT_LABELS, FONT_STACKS, safeAccentColor} from '../../../../../models/profile-font.model';
+import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../../../models/profile-image.model';
 import {BrokenImageService} from '../../../../../services/broken-image.service';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
@@ -58,9 +58,10 @@ export class ProfileSettingsComponent implements OnInit {
     protected readonly uploadingBanner = signal(false);
     protected readonly bannerCropVisible = signal(false);
     protected readonly bannerCropSrc = signal('');
-    protected readonly fontOptions = (Object.entries(FONT_LABELS) as [ProfileFont, string][]).map(
-        ([value, label]) => ({value, label}),
-    );
+    protected get fontOptions() {
+        return FONT_OPTIONS;
+    }
+
     protected readonly FONT_STACKS = FONT_STACKS;
     protected readonly safeAccentColor = safeAccentColor;
     private readonly brokenImages = inject(BrokenImageService);
