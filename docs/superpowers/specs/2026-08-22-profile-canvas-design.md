@@ -151,6 +151,66 @@ coerces a non-object `config` to `{}`, and runs `reflow`.
 Both the renderer and the editor call it, so a canvas that arrived from a newer client, a stripped
 canvas, and a canvas mid-drag are all the same kind of object.
 
+## 2b. Spacers, and dropping a widget where you want it
+
+The packer above has one expressive cost: it fills every gap, so you cannot place deliberate
+whitespace. Drop a 1x1 below a 2x2 and it is pulled up beside it instead. For a feature about
+self-expression, "I want breathing room here" is a reasonable thing to want to say.
+
+A `spacer` widget closes that. It renders nothing and occupies cells, so the packer flows around it.
+The grid stays packed and gapless by construction, which is what keeps narrow reflow trivially
+correct, and the person still gets to choose where the air is.
+
+Spacers are inserted automatically, not by hand. The editor's drag targets a CELL, not a list
+position, and dropping a widget past the end of the current content inserts exactly enough spacers to
+put it where it was dropped.
+
+```
+drop a 2x1 at cell (2, 2) on a canvas holding one 4x1:
+
+  before            after
+  [ AAAA ]          [ AAAA ]
+                    [ .. .. ]     <- two 1x1 spacers, then
+                    [ .. BB ]     <- one more, then the dropped widget
+```
+
+The algorithm, in `profile-canvas.ts` beside `reflow`:
+
+```ts
+export function dropAt(
+    widgets: CanvasWidgetDto[],
+    id: string,
+    target: {x: number; y: number},
+    columns: number,
+): CanvasWidgetDto[];
+```
+
+1. Lift the dragged widget out of the array.
+2. Reflow the rest, which gives every remaining widget a real position.
+3. Walk reading order to `target`, counting unoccupied cells.
+4. Emit spacers covering exactly those cells, merging runs within a row into the largest legal
+   footprint so three empty cells become a 2x1 and a 1x1 rather than three separate widgets.
+5. Splice the spacers, then the dragged widget, into the array at that point.
+6. Reflow, which is now a no-op because the arrangement is already gapless.
+
+Four rules that fall out of it:
+
+| Rule | Why |
+| --- | --- |
+| Spacers do not count toward `MAX_WIDGETS` | A person who wants air should not spend their widget budget on it. They get their own cap of 20 so the payload stays bounded. |
+| Spacers render only at 4 columns | They are a four-column layout device. At 2 columns and at 1 they are dropped, because a column of empty rows is dead scroll, not composition. |
+| Trailing spacers are trimmed on save | Whitespace after the last real widget is invisible. Interior spacers are kept, because those were the point. |
+| A spacer has no visibility and no config | It is layout, not content. It is not selectable in the properties panel, and it carries no `card` flag. |
+
+One good side effect. Section 7 requires the server to re-pack after stripping a widget the viewer
+may not see, because a hole in the grid would otherwise leak that something was removed. Once gaps
+are a thing people create on purpose, a hole no longer implies a hidden widget. The re-pack rule
+stays, because it is still the cheaper guarantee, but it is no longer the only thing standing between
+a hidden widget and an observer.
+
+Spacers also appear in the insert menu as a normal widget type, for someone who would rather place
+air explicitly than drag for it.
+
 ## 3. The widget registry
 
 `src/app/components/profile-canvas/widget-registry.ts` maps a type to what the renderer needs and
