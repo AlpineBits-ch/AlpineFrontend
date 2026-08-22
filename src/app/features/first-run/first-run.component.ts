@@ -381,7 +381,7 @@ export class FirstRunComponent {
         this.stuck.set(!canRetry);
 
         // The retryable lead promises the code still works, so it must not survive the exit path.
-        // Spelled out rather than picked in the argument: `i18n-keys.spec` only sees literal keys.
+        // `i18n-keys.spec` only sees literal keys, so a key built in the argument ships unguarded.
         const lead = (
             canRetry
                 ? this.translate.instant('FIRST_RUN.CODE.SETUP_FAILED')

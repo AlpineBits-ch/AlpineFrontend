@@ -20,9 +20,8 @@ export class DeviceRegistrationService {
      * @param deviceName the label to register under. Never derived here.
      */
     register(deviceName: string): Observable<string> {
-        // Only the type: the name is the caller's, not a derived label. Must stay the shared
-        // decision, not a form-factor read: the backend picks a push transport off this field,
-        // and `Mobile` is never this client's to send. See `describeCurrentDevice`.
+        // The backend picks a push transport off `deviceType`, and `Mobile` is never this client's
+        // to send. `describeCurrentDevice` is the only place it is decided.
         const {deviceType} = describeCurrentDevice();
 
         const attemptRegistration = () =>

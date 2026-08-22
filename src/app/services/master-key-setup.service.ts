@@ -22,9 +22,8 @@ export function isRetryableFailure(err: unknown): boolean {
  * First-time master-key setup: generate a recovery code, wrap the key under both credentials,
  * write the envelope.
  *
- * The recovery code is held here rather than by a caller. It is shown once, is never retrievable,
- * and an account that loses it loses everything a password reset touches, so the window it exists
- * in belongs to the thing that mints it.
+ * Holds the recovery code for the life of one setup. It is shown once, is never retrievable, and
+ * an account that loses it loses everything a password reset touches.
  */
 @Injectable({providedIn: 'root'})
 export class MasterKeySetupService {

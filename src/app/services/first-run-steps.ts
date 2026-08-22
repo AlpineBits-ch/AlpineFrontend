@@ -13,8 +13,7 @@ export interface FirstRunConditions {
 /**
  * Which first-run steps this account still owes, in the order they are shown.
  *
- * A plain function rather than a computed: `passwordHeld` comes from a non-reactive field, so a
- * computed would cache a stale answer instead of tracking it.
+ * `passwordHeld` comes from a non-reactive field, so the answer has to be recomputed on every read.
  */
 export function owedSteps(conditions: FirstRunConditions): FirstRunStep[] {
     const steps: FirstRunStep[] = [];
