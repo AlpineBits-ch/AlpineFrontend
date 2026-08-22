@@ -5,6 +5,7 @@ import en from '../assets/i18n/locales/en.json';
 import {ENTITLEMENT_KEY_NAME_KEYS, ENTITLEMENT_TRANSLATION_KEYS} from './core/entitlement-message';
 import {VOICE_LIMIT_TRANSLATION_KEYS} from './core/voice-limits';
 import {LISTING_EDITOR_TRANSLATION_KEYS} from './features/discovery/listing-editor/listing-editor.component';
+import {ADMIN_DISCOVERY_TRANSLATION_KEYS} from './features/admin/admin-modal/pages/discovery/discovery.component';
 import {WIKI_PUBLISH_STATUS_KEYS} from './features/guild/components/guild-settings-modal/pages/wiki-settings/wiki-settings.component';
 import {WIKI_PUBLISH_CONSENT_KEYS} from './features/guild/components/wiki/wiki-publish/wiki-publish-consent.component';
 
@@ -109,6 +110,15 @@ describe('translation keys', () => {
 
         expect(LISTING_EDITOR_TRANSLATION_KEYS.length).toBeGreaterThan(3);
         expect(missing, `listing editor keys absent from en.json:\n${missing.join('\n')}`).toEqual([]);
+    });
+
+    /** The same, for the admin discovery console's listing state badge and ban status badge. */
+    it('resolves every admin discovery key', () => {
+        const strings = en as Record<string, string>;
+        const missing = ADMIN_DISCOVERY_TRANSLATION_KEYS.filter(key => !(key in strings));
+
+        expect(ADMIN_DISCOVERY_TRANSLATION_KEYS.length).toBeGreaterThan(3);
+        expect(missing, `admin discovery keys absent from en.json:\n${missing.join('\n')}`).toEqual([]);
     });
 
     /** No two catalogue keys wear the same label, or the plan comparison table draws two rows a reader cannot tell apart. */

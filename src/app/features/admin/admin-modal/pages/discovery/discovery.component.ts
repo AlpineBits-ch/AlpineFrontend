@@ -31,10 +31,22 @@ const BAN_STATUS_KEYS: Record<BanStatus, string> = {
     lifted: 'ADMIN.DISCOVERY.BANS.STATUS.LIFTED',
 };
 
+/** Every literal key the two lookup tables above can produce, for `i18n-keys.spec.ts`. */
+export const ADMIN_DISCOVERY_TRANSLATION_KEYS: readonly string[] = [
+    ...Object.values(STATE_KEYS),
+    ...Object.values(BAN_STATUS_KEYS),
+];
+
 function banStatus(ban: DiscoveryBanDto, now: number): BanStatus {
     if (ban.liftedAt) return 'lifted';
     if (ban.expiresAt && new Date(ban.expiresAt).getTime() <= now) return 'expired';
     return 'active';
+}
+
+/** A `yyyy-MM-dd` date picker value to the UTC instant the chosen day ends, so the ban covers the whole day. */
+function endOfPickedDayUtc(dateOnly: string): string {
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day + 1)).toISOString();
 }
 
 /**
@@ -217,7 +229,7 @@ export class AdminDiscoveryComponent implements OnInit {
         const staffNote = this.formStaffNote().trim();
         if (staffNote) dto.staffNote = staffNote;
         const expiresAt = this.formExpiresAt();
-        if (expiresAt) dto.expiresAt = new Date(expiresAt).toISOString();
+        if (expiresAt) dto.expiresAt = endOfPickedDayUtc(expiresAt);
 
         this.formSubmitting.set(true);
         this.formError.set(null);
