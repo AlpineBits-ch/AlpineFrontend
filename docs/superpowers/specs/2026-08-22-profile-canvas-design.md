@@ -48,6 +48,11 @@ Phase 1, specified here in full:
 - The renderer, the widget registry, and the editor in profile settings
 - Nine widgets that need no new server capability beyond storing the canvas: Quote, Currently,
   Marquee, Photo, Gallery, Infobox, Local Time, Open To, Mutuals
+
+The canvas Infobox holds its own label and value rows. It does not call `renderInfobox`: that takes a
+category template and a values blob as two JSON strings, which is the right shape for a character
+sheet driven by a guild's template and the wrong one for a widget somebody fills in by hand. The
+pattern carries over, not the function.
 - The canvas endpoints and the image endpoint
 
 Out of phase 1, but the extension points are specified so they do not force a rewrite:
@@ -130,7 +135,8 @@ export function parseConfig<T>(config: unknown, guard: (v: unknown) => v is T): 
 ```
 
 `reflow` sorts row-major by `(y, x)`, clamps each `w` to `columns`, then greedily packs into the
-first row with room. Reading order is preserved, so a narrower window never scrambles the
+first cell with room. Array order after `reflow` is therefore reading order, which is what lets the
+editor treat a reorder as an array move and leave `x` and `y` to be derived. Reading order is preserved, so a narrower window never scrambles the
 arrangement: the owner arranges once, at four columns, and every other width is derived.
 
 | Surface                  | Columns |
@@ -140,7 +146,8 @@ arrangement: the owner arranges once, at four columns, and every other width is 
 | Popout, phone            | 1       |
 
 `normalise` is the single gate everything passes through on read and on write. It drops widgets past
-`MAX_WIDGETS`, drops unknown footprints, coerces a non-object `config` to `{}`, and runs `reflow`.
+`MAX_WIDGETS`, snaps an unknown footprint to the nearest legal one rather than dropping the widget,
+coerces a non-object `config` to `{}`, and runs `reflow`.
 Both the renderer and the editor call it, so a canvas that arrived from a newer client, a stripped
 canvas, and a canvas mid-drag are all the same kind of object.
 
@@ -158,12 +165,18 @@ export interface WidgetDefinition {
     /** Label and icon keys for the editor's insert menu. */
     labelKey: string;
     icon: string;
+    /** What the properties panel draws for this type. One panel serves every widget. */
+    fields: readonly WidgetField[];
     /** Answers whether the owner may add another of these. Photo and Quote allow many. */
     max: number;
 }
 
 export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [...];
 ```
+
+`WidgetField` is a small tagged union (`text`, `textarea`, `rows`, `image`, `images`, `timezone`).
+Declaring the fields rather than writing a form per type is what keeps the editor to one properties
+panel instead of nine.
 
 Adding a widget type is one entry here, one component, and three locale keys. No change to the
 renderer, the editor, the store or the DTO. That is the property worth protecting: phases 2 and 3 add
@@ -257,7 +270,9 @@ below them, not a separate page: everything about how you look stays in one plac
 - Drag to reorder. Drop targets are cell boundaries, and the draft is re-packed through `reflow` on
   every drop, so an illegal arrangement is not representable.
 - An insert menu built from the registry, disabled per type at `max` and entirely at `MAX_WIDGETS`.
-- Save is explicit. Leaving with a dirty draft asks first.
+- Save is explicit. Closing settings with a dirty draft does not prompt and does not discard: the
+  draft lives in a root-provided service, so reopening settings returns to it exactly as it was. The
+  only thing that asks first is Discard, which is the one action that loses work.
 
 Keyboard reorder is required, not optional: move selection with the arrow keys, move the selected
 widget with the arrow keys held with a modifier. A drag-only editor is unusable without a mouse and
