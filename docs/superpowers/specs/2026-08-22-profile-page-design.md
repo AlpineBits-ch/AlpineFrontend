@@ -136,6 +136,25 @@ answers it with `openProfileSettings()`. It points at the wrong place, not at no
 So the whole navigation change is repointing that handler at `/profile`. No new menu entry, no new
 string, and the label was already promising a thing the app did not have.
 
+### And getting back out
+
+`/profile` is a sibling of `overview` in the route table, and `overview` is the entire app shell. So
+the page replaces the sidebar, the guild list and the channel list. The custom titlebar survives,
+because it sits outside the router outlet, but that is a window control and not navigation.
+
+The page therefore carries its own header with a back affordance to `/overview`, present in BOTH
+states. An earlier draft of this spec described how to reach the page and never described leaving it,
+and the first build was a dead end you could only escape by closing the window.
+
+Back is a NORMAL exit, not a discard. It never prompts, because both drafts survive navigation: the
+canvas through `CanvasEditorService` and the bio through whatever holds it. Only Cancel discards, and
+only Cancel confirms. If leaving lost work, back would have to prompt, and a page you cannot leave
+without a dialog is barely better than one you cannot leave at all.
+
+Nesting the page inside the shell instead would keep the sidebar and give the exit for free, but
+`MainPageComponent` has no router outlet of its own, so that is a larger change. Worth revisiting if
+the takeover keeps feeling disorienting.
+
 Opening someone else's profile is unchanged: the popout and the full modal, both untouched by this
 spec.
 
