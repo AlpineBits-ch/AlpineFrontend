@@ -230,6 +230,25 @@ describe('ProfileCanvasComponent', () => {
         });
     });
 
+    describe('container query sizing', () => {
+        it('computes grid-auto-rows from the column count and the shared gap', () => {
+            const fixture = render(canvasOf([widget('a')]), {columns: 3});
+            const grid = fixture.nativeElement.querySelector('[style*="grid-auto-rows"]') as HTMLElement;
+
+            expect(grid.style.gridAutoRows).toBe('minmax(calc((100cqw - 16px) / 3), auto)');
+        });
+
+        it('never puts container-type on the same element as grid-auto-rows', () => {
+            const fixture = render(canvasOf([widget('a')]));
+            const container = fixture.nativeElement.querySelector('[style*="container-type"]');
+            const grid = fixture.nativeElement.querySelector('[style*="grid-auto-rows"]');
+
+            expect(container).not.toBeNull();
+            expect(grid).not.toBeNull();
+            expect(container).not.toBe(grid);
+        });
+    });
+
     describe('dimmedIds', () => {
         it('dims a hidden widget without hiding it from the accessibility tree', () => {
             const fixture = render(canvasOf([widget('a')]), {dimmedIds: new Set(['a'])});

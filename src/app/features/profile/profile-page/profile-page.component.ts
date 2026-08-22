@@ -111,8 +111,7 @@ export class ProfilePageComponent {
      * effect from re-firing on the same rejected payload at network-round-trip cadence. */
     private readonly canvasSaveFailedFor = signal<string | null>(null);
     /** Payload of the last canvas save actually sent, win or lose. Lets the destroy flush tell a
-     * genuinely newer edit apart from the one already on the wire, instead of gating on
-     * `saving()` and dropping the newer edit outright. */
+     * genuinely newer edit apart from the one already on the wire. */
     private readonly lastSentCanvasWidgets = signal<string | null>(null);
     /** Same reasoning as `lastSentCanvasWidgets`, for the bio/accent/font save. */
     private readonly lastSentTextFields = signal<string | null>(null);
@@ -127,8 +126,8 @@ export class ProfilePageComponent {
             const id = this.profileId();
             if (!id) return;
             // Tracked: ensureLoaded's response lands in the store asynchronously, after this
-            // effect already ran once with `loaded` undefined. Reading it here, not inside the
-            // untracked block below, is what makes the effect rerun once it fills.
+            // effect already ran with `loaded` undefined; an untracked read here would never
+            // rerun the effect once it fills.
             const loaded = this.canvasStore.canvasFor(id);
 
             untracked(() => {
@@ -142,9 +141,15 @@ export class ProfilePageComponent {
                 const draft = this.canvasEditor.draft();
                 if (draft?.profileId !== id) {
                     this.canvasEditor.begin(loaded ?? emptyCanvas(id));
-                } else if (loaded && !this.canvasEditor.dirty()) {
+                } else if (
+                    loaded &&
+                    !this.canvasEditor.dirty() &&
+                    JSON.stringify(loaded.widgets) !== JSON.stringify(draft.widgets)
+                ) {
                     // loaded arriving after the draft was seeded empty must not clobber an edit
-                    // already in progress.
+                    // already in progress. Skipped when loaded already matches the draft: a
+                    // successful save re-begins directly, and the store's echo of that same save
+                    // must not repeat it.
                     this.canvasEditor.begin(loaded);
                 }
                 if (this.textDraft.draft()?.profileId !== id) {
@@ -174,8 +179,7 @@ export class ProfilePageComponent {
 
         // The debounce above never fires for the last edit before navigating away, and Back is
         // this page's primary exit. Both branches compare against the last payload actually
-        // sent rather than gating on an in-flight flag: gating on the flag drops a genuinely
-        // newer edit made while the previous save is still on the wire.
+        // sent, which catches an edit made while the previous save is still on the wire.
         inject(DestroyRef).onDestroy(() => {
             // history.reset() below wipes both stacks a few lines down, so committing here would
             // only push an entry it immediately discards.

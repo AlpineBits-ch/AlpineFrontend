@@ -347,6 +347,36 @@ describe('CanvasEditorService', () => {
             expect(history.canUndo()).toBe(false);
         });
 
+        it('a same-profile re-begin during a pending burst commits it instead of discarding it', () => {
+            vi.useFakeTimers();
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo();
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.patchConfigText(id, 'text', {text: 'a'});
+            // The save's echo lands well inside the debounce window and re-baselines the draft.
+            editor.begin(editor.draft()!);
+
+            expect(history.canUndo()).toBe(true);
+            const entry = history.undo() as CanvasHistoryEntry;
+            expect((entry.before[0].config as {text: string}).text).toBe('');
+            expect((entry.after[0].config as {text: string}).text).toBe('a');
+        });
+
+        it('a genuinely different profile still discards a pending burst', () => {
+            vi.useFakeTimers();
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo();
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.patchConfigText(id, 'text', {text: 'a'});
+            editor.begin(emptyCanvas('p2'));
+
+            expect(history.canUndo()).toBe(false);
+        });
+
         it('keys the burst per field: a second field on the same widget commits a separate entry', () => {
             vi.useFakeTimers();
             const history = TestBed.inject(ProfileEditHistoryService);

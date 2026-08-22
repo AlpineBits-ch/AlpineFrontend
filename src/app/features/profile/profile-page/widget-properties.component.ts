@@ -126,10 +126,15 @@ export class WidgetPropertiesComponent {
         this.editorSvc.patchConfigText(this.widget().id, field.key, {[field.key]: rows});
     }
 
+    /** Undo is not offered for this: `patchConfigSilently` pushes no history entry, because the
+     * DELETE below cannot itself be undone. Reads `currentImages`, the live draft, not this
+     * component's `widget` input, for the same reason `upload` does: a second removal fired
+     * before the input resyncs must not overwrite the first one's result. */
     protected removeImage(field: WidgetField, index: number): void {
-        const removed = this.imagesOf(field)[index];
-        const items = this.imagesOf(field).filter((_, i) => i !== index);
-        this.editorSvc.patchConfig(this.widget().id, {[field.key]: items});
+        const images = this.currentImages(field);
+        const removed = images[index];
+        const items = images.filter((_, i) => i !== index);
+        this.editorSvc.patchConfigSilently(this.widget().id, {[field.key]: items});
         if (!removed) return;
 
         this.api.deleteImage(removed.imageId).subscribe({

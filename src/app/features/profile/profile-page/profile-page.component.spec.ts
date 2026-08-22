@@ -272,6 +272,23 @@ describe('ProfilePageComponent', () => {
         expect(editor.draft()!.widgets).toHaveLength(3);
     });
 
+    it('a successful save re-begins the draft once, not twice, for the store echoing that same save', () => {
+        // The real store updates its own canvasFor() signal from the save response, the way
+        // ProfileCanvasStore.save() does; the mock reproduces that so the C1 effect reruns too.
+        const {fixture, editor, storeCanvas} = setup(OWN, {
+            saveCanvas: canvas => {
+                storeCanvas.set(canvas as ProfileCanvasDto);
+                return of(canvas);
+            },
+        });
+        editor.insert('marquee');
+        const beginSpy = vi.spyOn(editor, 'begin');
+
+        fixture.detectChanges();
+
+        expect(beginSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('a dirty draft is not re-begun when the store catches up behind it', () => {
         // Hold the autosave response open: a synchronous save would re-baseline the draft on
         // its own and the dirty() check below would prove nothing.

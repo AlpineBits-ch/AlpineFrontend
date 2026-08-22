@@ -363,5 +363,52 @@ describe('WidgetPropertiesComponent', () => {
             expect(deleteImage).toHaveBeenCalledWith('img-1');
             expect(addSpy).not.toHaveBeenCalled();
         });
+
+        it('does not push a history entry, so undo cannot bring back an image already deleted from the server', () => {
+            const deleteImage = vi.fn(() => of(undefined));
+            const {fixture, editor} = setup('gallery', {
+                imageUrl: (id: string) => `https://images.test/${id}`,
+                deleteImage,
+            });
+            const history = TestBed.inject(ProfileEditHistoryService);
+            const widgetId = editor.draft()!.widgets[0].id;
+            editor.patchConfig(widgetId, {items: [{imageId: 'img-1', alt: ''}]});
+            resync(fixture, editor, widgetId);
+            history.reset();
+
+            const button: HTMLButtonElement = fixture.nativeElement.querySelector('.relative button');
+            button.click();
+
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('two removals fired before the input resyncs both read the live draft, not the stale input', () => {
+            const deleteImage = vi.fn(() => of(undefined));
+            const {fixture, editor} = setup('gallery', {
+                imageUrl: (id: string) => `https://images.test/${id}`,
+                deleteImage,
+            });
+            const widgetId = editor.draft()!.widgets[0].id;
+            editor.patchConfig(widgetId, {
+                items: [
+                    {imageId: 'img-1', alt: ''},
+                    {imageId: 'img-2', alt: ''},
+                    {imageId: 'img-3', alt: ''},
+                ],
+            });
+            resync(fixture, editor, widgetId);
+
+            const buttons: HTMLButtonElement[] = Array.from(fixture.nativeElement.querySelectorAll('.relative button'));
+            buttons[0].click(); // removes img-1 against the live draft
+            buttons[1].click(); // still reading the pre-removal render: must still remove img-3, not re-add img-1
+
+            const items = (
+                editor.draft()!.widgets.find(w => w.id === widgetId)!.config as {items: {imageId: string}[]}
+            ).items;
+            expect(items.map(i => i.imageId)).toEqual(['img-2']);
+            expect(deleteImage).toHaveBeenCalledWith('img-1');
+            expect(deleteImage).toHaveBeenCalledWith('img-3');
+            expect(deleteImage).not.toHaveBeenCalledWith('img-2');
+        });
     });
 });

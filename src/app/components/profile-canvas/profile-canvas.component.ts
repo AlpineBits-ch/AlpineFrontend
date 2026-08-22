@@ -58,8 +58,8 @@ export class ProfileCanvasComponent {
     });
 
     /** `minmax(CELL, auto)`: a 1x1 row is a square at the current column width, and content taller
-     * than that still grows the row instead of clipping. `cqw` needs `container-type` on this same
-     * element; that's fine here because only the inline axis is contained. */
+     * than that still grows the row instead of clipping. `cqw` resolves against the nearest ancestor
+     * query container, set in the template on the wrapper around this grid. */
     protected readonly gridAutoRows = computed(() => {
         const columns = this.columns();
         const gap = GRID_GAP_PX * (columns - 1);

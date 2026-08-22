@@ -40,13 +40,24 @@ export class CanvasEditorService {
         return !!canvas && JSON.stringify(canvas.widgets) !== this.baseline();
     });
 
+    /** A same-profile call is a re-baseline (a save's success echo, a store echo catching up),
+     * not a profile switch, and must not silently drop a text burst still in its debounce
+     * window: commit it first, the same entry the debounce timer would have pushed. */
     begin(canvas: ProfileCanvasDto): void {
         const packed = normalise(canvas);
+        if (this.current()?.profileId === packed.profileId) {
+            for (const key of [...this.pendingConfigText.keys()]) {
+                clearTimeout(this.configTextTimers.get(key));
+                this.configTextTimers.delete(key);
+                this.commitConfigText(key);
+            }
+        } else {
+            for (const timer of this.configTextTimers.values()) clearTimeout(timer);
+            this.configTextTimers.clear();
+            this.pendingConfigText.clear();
+        }
         this.current.set(packed);
         this.baseline.set(JSON.stringify(packed.widgets));
-        for (const timer of this.configTextTimers.values()) clearTimeout(timer);
-        this.configTextTimers.clear();
-        this.pendingConfigText.clear();
     }
 
     /** Lands a widgets array from a history entry. Unlike every method below, this never
@@ -147,6 +158,20 @@ export class CanvasEditorService {
         this.patch(id, 'config', widget => ({
             config: {...(widget.config as Record<string, unknown>), ...patch},
         }));
+    }
+
+    /** Same write as `patchConfig`, without the history push. For a config change tied to a
+     * side effect that already happened server-side and cannot itself be undone, such as an
+     * image delete: undo must never put the reference back once the file is gone. */
+    patchConfigSilently(id: string, patch: Record<string, unknown>): void {
+        const canvas = this.current();
+        const widget = canvas?.widgets.find(w => w.id === id);
+        if (!canvas || !widget) return;
+        this.write(
+            canvas.widgets.map(w =>
+                w.id === id ? {...w, config: {...(w.config as Record<string, unknown>), ...patch}} : w,
+            ),
+        );
     }
 
     /** For a config field driven by typing rather than a discrete choice. Applies every
