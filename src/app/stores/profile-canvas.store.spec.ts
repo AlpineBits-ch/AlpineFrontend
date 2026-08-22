@@ -92,11 +92,14 @@ describe('ProfileCanvasStore', () => {
         expect(store.canvasFor('p1')?.widgets[0].w).toBe(4);
     });
 
-    it('leaves the cache alone when the fetch fails', () => {
+    it('leaves the cache alone when the fetch fails, and a later ensureLoaded retries', () => {
         const {api, store} = setup();
         store.ensureLoaded('p1');
         api.gets[0].error(new Error('boom'));
         expect(store.canvasFor('p1')).toBeUndefined();
+
+        store.ensureLoaded('p1');
+        expect(api.gets).toHaveLength(2);
     });
 
     it('applies a save optimistically and keeps the server answer', () => {
@@ -121,5 +124,41 @@ describe('ProfileCanvasStore', () => {
         store.save(canvas('p1', 3)).subscribe({error: () => undefined});
 
         expect(store.canvasFor('p1')?.widgets).toHaveLength(1);
+    });
+
+    it('drops the entry, rather than stranding the optimistic write, when a save fails on a profile never loaded', () => {
+        const {api, store} = setup();
+        api.saveFails = true;
+
+        store.save(canvas('p1', 3)).subscribe({error: () => undefined});
+        expect(store.canvasFor('p1')).toBeUndefined();
+
+        store.ensureLoaded('p1');
+        expect(api.gets).toHaveLength(1);
+    });
+
+    it('recovers ensureLoaded after a save fails while a load was still in flight', () => {
+        const {api, store} = setup();
+        store.ensureLoaded('p1');
+
+        api.saveFails = true;
+        store.save(canvas('p1', 3)).subscribe({error: () => undefined});
+
+        store.ensureLoaded('p1');
+        expect(api.gets).toHaveLength(2);
+    });
+
+    it('keeps a later save when an earlier one resolves after it', () => {
+        const {api, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        store.save(canvas('p1', 2)).subscribe();
+        store.save(canvas('p1', 5)).subscribe();
+
+        api.saves[0].next(canvas('p1', 2));
+        api.saves[0].complete();
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
     });
 });

@@ -25,6 +25,12 @@ export const ProfileCanvasStore = signalStore(
             patchState(store, {byProfile: {...store.byProfile(), [profileId]: entry}});
         }
 
+        // Undoes an optimistic write that had no prior entry to restore to.
+        function remove(profileId: string): void {
+            const {[profileId]: _dropped, ...rest} = store.byProfile();
+            patchState(store, {byProfile: rest});
+        }
+
         return {
             /** Cache read. The popout relies on this never reaching the wire. */
             canvasFor(profileId: string): ProfileCanvasDto | undefined {
@@ -62,11 +68,18 @@ export const ProfileCanvasStore = signalStore(
                 return api.save({theme: canvas.theme, widgets: canvas.widgets}).pipe(
                     tap(saved => {
                         patchState(store, {saving: false});
+                        // A newer save or load has since taken this profile; leave its entry alone.
+                        if (store.byProfile()[profileId]?.requestId !== requestId) return;
                         put(profileId, {canvas: normalise(saved), loading: false, requestId});
                     }),
                     catchError((err: unknown) => {
                         patchState(store, {saving: false});
-                        if (previous) put(profileId, previous);
+                        if (store.byProfile()[profileId]?.requestId === requestId) {
+                            // loading: false always, even when previous was a load still in flight:
+                            // that request already dropped itself once this save superseded it.
+                            if (previous) put(profileId, {...previous, loading: false});
+                            else remove(profileId);
+                        }
                         return throwError(() => err);
                     }),
                 );
