@@ -18,6 +18,7 @@ import {provideFakePlatform} from '../../../platform/testing/provide-fake-platfo
 import {FONT_OPTIONS, FONT_STACKS} from '../../../models/profile-font.model';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
 import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
+import {ProfileCanvasDto} from '../../../dtos/response/profile-canvas.dto';
 
 const OWN: ProfileDto = {
     id: 'prfl_own',
@@ -36,6 +37,27 @@ const OWN: ProfileDto = {
 interface Overrides {
     updateProfile?: (patch: unknown) => Observable<ProfileDto>;
     saveCanvas?: (canvas: unknown) => Observable<unknown>;
+    removeAvatar?: () => Observable<ProfileDto>;
+}
+
+function canvasWithWidgets(profileId: string, count: number): ProfileCanvasDto {
+    return {
+        profileId,
+        updatedAt: '2026-01-01T00:00:00Z',
+        version: 1,
+        theme: {accent: null, backdrop: null},
+        widgets: Array.from({length: count}, (_, i) => ({
+            id: `widget-${i}`,
+            type: 'quote',
+            x: 0,
+            y: i,
+            w: 1,
+            h: 1,
+            visibility: 'everyone' as const,
+            card: false,
+            config: {},
+        })),
+    };
 }
 
 function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
@@ -48,6 +70,9 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
     // A real signal, toggled by the mocked save() itself, so the single-flight guard
     // (`!canvasStore.saving()`) is exercised for real rather than always reading false.
     const canvasSaving = signal(false);
+    // A real signal so a test can simulate ensureLoaded's response landing after the initial
+    // render, the way the real store's async GET does.
+    const storeCanvas: WritableSignal<ProfileCanvasDto | undefined> = signal(undefined);
 
     TestBed.configureTestingModule({
         imports: [ProfilePageComponent],
@@ -74,14 +99,15 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
                     uploadBanner: () => of(ownProfile()),
                     removeAvatar: () => {
                         removeAvatarCalls.push(undefined);
-                        return of({...ownProfile(), avatarUrl: undefined});
+                        if (overrides.removeAvatar) return overrides.removeAvatar();
+                        return of({...ownProfile(), avatarUrl: undefined} as ProfileDto);
                     },
                 },
             },
             {
                 provide: ProfileCanvasStore,
                 useValue: {
-                    canvasFor: () => undefined,
+                    canvasFor: () => storeCanvas(),
                     ensureLoaded: (id: string) => ensureLoadedCalls.push(id),
                     saving: canvasSaving,
                     save: (canvas: unknown) => {
@@ -109,6 +135,7 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
         saveCanvasCalls,
         navigateCalls,
         removeAvatarCalls,
+        storeCanvas,
     };
 }
 
@@ -231,6 +258,38 @@ describe('ProfilePageComponent', () => {
         expect(editor.dirty()).toBe(false);
     });
 
+    it("renders the saved canvas once ensureLoaded's response lands, not the empty one it was seeded with", () => {
+        const {fixture, editor, storeCanvas} = setup(OWN);
+
+        // First render: canvasFor(id) is still undefined, exactly like a first visit before the
+        // GET resolves.
+        expect(editor.draft()?.widgets).toHaveLength(0);
+
+        // The store's async GET resolves.
+        storeCanvas.set(canvasWithWidgets(OWN.id, 3));
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(3);
+    });
+
+    it('a dirty draft is not re-begun when the store catches up behind it', () => {
+        // Hold the autosave response open: a synchronous save would re-baseline the draft on
+        // its own and the dirty() check below would prove nothing.
+        const saveResponse = new Subject<unknown>();
+        const {fixture, editor, storeCanvas} = setup(OWN, {saveCanvas: () => saveResponse});
+
+        editor.insert('marquee');
+        fixture.detectChanges();
+        expect(editor.dirty()).toBe(true);
+
+        // The store's async GET resolves after the user already started editing.
+        storeCanvas.set(canvasWithWidgets(OWN.id, 3));
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(1);
+        expect(editor.dirty()).toBe(true);
+    });
+
     // ── Back affordance ──────────────────────────────────────────────────────
 
     it('the back button navigates to /overview', () => {
@@ -322,6 +381,23 @@ describe('ProfilePageComponent', () => {
         expect(removeAvatarCalls).toHaveLength(1);
     });
 
+    it('a failed avatar removal toasts rather than failing silently', () => {
+        const addSpy = vi.spyOn(MessageService.prototype, 'add');
+        addSpy.mockClear();
+        const {fixture} = setup(
+            {...OWN, avatarUrl: 'https://cdn.test.example/a.png'},
+            {removeAvatar: () => throwError(() => new Error('refused'))},
+        );
+
+        const confirmSpy = vi.spyOn(ConfirmationService.prototype, 'confirm');
+        confirmSpy.mockClear();
+        click(fixture, 'remove-avatar');
+        confirmSpy.mock.calls[0][0].accept?.();
+
+        expect(addSpy).toHaveBeenCalledOnce();
+        expect(addSpy.mock.calls[0][0]).toMatchObject({severity: 'error'});
+    });
+
     // ── Autosave ──────────────────────────────────────────────────────────────
 
     describe('autosave', () => {
@@ -400,6 +476,62 @@ describe('ProfilePageComponent', () => {
 
             expect(addSpy).toHaveBeenCalledOnce();
             expect(addSpy.mock.calls[0][0]).toMatchObject({severity: 'error'});
+        });
+
+        it('a successful text save does not clear a latched canvas error', async () => {
+            vi.useFakeTimers();
+            const {fixture, editor} = setup(OWN, {saveCanvas: () => throwError(() => new Error('refused'))});
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+            expect(status(fixture)).toBe('error');
+
+            typeBio(fixture, 'x');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            expect(status(fixture)).toBe('error');
+        });
+
+        it('the error pill offers a way back: Try again re-sends a latched canvas failure', () => {
+            let fail = true;
+            const {fixture, editor, saveCanvasCalls} = setup(OWN, {
+                saveCanvas: (canvas: unknown) => (fail ? throwError(() => new Error('refused')) : of(canvas)),
+            });
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+            expect(status(fixture)).toBe('error');
+            expect(saveCanvasCalls).toHaveLength(1);
+
+            fail = false;
+            click(fixture, 'retry-save');
+
+            expect(saveCanvasCalls).toHaveLength(2);
+            expect(status(fixture)).toBe('saved');
+        });
+
+        it('Try again re-sends a latched text save failure', async () => {
+            vi.useFakeTimers();
+            let fail = true;
+            const {fixture, updateProfileCalls} = setup(OWN, {
+                updateProfile: (patch: unknown) =>
+                    fail
+                        ? throwError(() => new Error('refused'))
+                        : of({...OWN, ...(patch as object)} as ProfileDto),
+            });
+
+            typeBio(fixture, 'x');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+            expect(status(fixture)).toBe('error');
+            expect(updateProfileCalls).toHaveLength(1);
+
+            fail = false;
+            click(fixture, 'retry-save');
+
+            expect(updateProfileCalls).toHaveLength(2);
+            expect(status(fixture)).toBe('saved');
         });
 
         // C1: ProfileCanvasStore.save() calls stopSaving() on every exit path, failure included,
@@ -488,6 +620,22 @@ describe('ProfilePageComponent', () => {
             expect(updateProfileCalls).toHaveLength(1);
         });
 
+        it('destroying the page sends a text edit made while an earlier save is still in flight', async () => {
+            vi.useFakeTimers();
+            const response = new Subject<ProfileDto>();
+            const {fixture, updateProfileCalls} = setup(OWN, {updateProfile: () => response});
+
+            typeBio(fixture, 'first');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            expect(updateProfileCalls).toHaveLength(1);
+
+            typeBio(fixture, 'second');
+            fixture.destroy();
+
+            expect(updateProfileCalls).toHaveLength(2);
+            expect(updateProfileCalls[1]).toEqual({bio: 'second', accentColor: OWN.accentColor, font: OWN.font});
+        });
+
         // C3: with a synchronously-resolving mock, the reactive effect's own save already
         // re-baselines the draft before destroy runs, so the destroy-side flush never has
         // anything to do and the test proved nothing. Holding the response open, and never
@@ -504,6 +652,25 @@ describe('ProfilePageComponent', () => {
             fixture.destroy();
 
             expect(saveCanvasCalls).toHaveLength(1);
+        });
+
+        it('destroying the page sends a canvas edit made while an earlier save is still in flight', () => {
+            const saveResponse = new Subject<unknown>();
+            const {fixture, editor, saveCanvasCalls} = setup(OWN, {saveCanvas: () => saveResponse});
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+            expect(saveCanvasCalls).toHaveLength(1);
+
+            editor.insert('quote');
+            fixture.detectChanges();
+            // saving() is still true: the autosave effect itself does not send a second request.
+            expect(saveCanvasCalls).toHaveLength(1);
+
+            fixture.destroy();
+
+            expect(saveCanvasCalls).toHaveLength(2);
+            expect(saveCanvasCalls[1]).not.toEqual(saveCanvasCalls[0]);
         });
 
         // Section 5's trap, autosave edition: updateProfile() re-baselines textDraft on success,
@@ -702,6 +869,26 @@ describe('ProfilePageComponent', () => {
             fixture.detectChanges();
 
             expect(component.undoLabel()).not.toBe('');
+        });
+
+        it('the visible Undo label stays fixed while the specific action moves to aria-label and title', async () => {
+            vi.useFakeTimers();
+            const {fixture} = setup(OWN);
+            const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+                '[data-testid="undo-button"]',
+            )!;
+
+            const visibleLabel = button.textContent?.trim();
+            expect(button.getAttribute('aria-label')).toBeNull();
+
+            typeBio(fixture, 'oops');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            // Same visible text before and after: only aria-label and title carry the action.
+            expect(button.textContent?.trim()).toBe(visibleLabel);
+            expect(button.getAttribute('aria-label')).not.toBeNull();
+            expect(button.getAttribute('aria-label')).toBe(button.getAttribute('title'));
         });
 
         it('Ctrl+Z while a text field is focused does not trigger undo, so the browser keeps its own text undo', async () => {

@@ -40,6 +40,12 @@ const TEXT_ACTION_KEYS: Record<'bio' | 'accentColor' | 'font', string> = {
     font: 'PROFILE_PAGE.UNDO_ACTION.FONT',
 };
 
+type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error';
+
+/** Worst first: an error on either save path outranks the other path being merely unsaved,
+ * which outranks it being in flight, which outranks both being saved. */
+const SAVE_STATUS_RANK: Record<SaveStatus, number> = {error: 0, unsaved: 1, saving: 2, saved: 3};
+
 /** Keyed on `CanvasHistoryKind`; takes `{type}`, the widget's translated label. */
 const CANVAS_ACTION_KEYS: Record<CanvasHistoryKind, string> = {
     add: 'PROFILE_PAGE.UNDO_ACTION.ADD',
@@ -74,8 +80,16 @@ export class ProfilePageComponent {
     protected readonly uploadingAvatar = signal(false);
     protected readonly uploadingBanner = signal(false);
 
-    /** Reflects both the bio/accent/font autosave and the canvas autosave; whichever last moved. */
-    protected readonly saveStatus = signal<'saved' | 'unsaved' | 'saving' | 'error'>('saved');
+    private readonly textSaveStatus = signal<SaveStatus>('saved');
+    private readonly canvasSaveStatus = signal<SaveStatus>('saved');
+
+    /** The worse of the two save paths, so a success on one can never hide a failure latched on
+     * the other. */
+    protected readonly saveStatus = computed(() => {
+        const text = this.textSaveStatus();
+        const canvas = this.canvasSaveStatus();
+        return SAVE_STATUS_RANK[text] <= SAVE_STATUS_RANK[canvas] ? text : canvas;
+    });
 
     protected readonly profile = computed(() => this.profileService.ownProfile());
 
@@ -96,6 +110,12 @@ export class ProfilePageComponent {
      * genuinely different state, whether that is a fresh edit or an undo. Prevents the autosave
      * effect from re-firing on the same rejected payload at network-round-trip cadence. */
     private readonly canvasSaveFailedFor = signal<string | null>(null);
+    /** Payload of the last canvas save actually sent, win or lose. Lets the destroy flush tell a
+     * genuinely newer edit apart from the one already on the wire, instead of gating on
+     * `saving()` and dropping the newer edit outright. */
+    private readonly lastSentCanvasWidgets = signal<string | null>(null);
+    /** Same reasoning as `lastSentCanvasWidgets`, for the bio/accent/font save. */
+    private readonly lastSentTextFields = signal<string | null>(null);
 
     protected readonly canUndo = computed(() => this.history.canUndo());
     protected readonly canRedo = computed(() => this.history.canRedo());
@@ -106,6 +126,10 @@ export class ProfilePageComponent {
         effect(() => {
             const id = this.profileId();
             if (!id) return;
+            // Tracked: ensureLoaded's response lands in the store asynchronously, after this
+            // effect already ran once with `loaded` undefined. Reading it here, not inside the
+            // untracked block below, is what makes the effect rerun once it fills.
+            const loaded = this.canvasStore.canvasFor(id);
 
             untracked(() => {
                 const profile = this.profile();
@@ -115,8 +139,13 @@ export class ProfilePageComponent {
                 // Both drafts are root-provided and outlive this component, so a remount (leaving
                 // the page and coming back) must not clobber a draft already in progress for the
                 // same profile - only a genuinely different profile re-begins.
-                if (this.canvasEditor.draft()?.profileId !== id) {
-                    this.canvasEditor.begin(this.canvasStore.canvasFor(id) ?? emptyCanvas(id));
+                const draft = this.canvasEditor.draft();
+                if (draft?.profileId !== id) {
+                    this.canvasEditor.begin(loaded ?? emptyCanvas(id));
+                } else if (loaded && !this.canvasEditor.dirty()) {
+                    // loaded arriving after the draft was seeded empty must not clobber an edit
+                    // already in progress.
+                    this.canvasEditor.begin(loaded);
                 }
                 if (this.textDraft.draft()?.profileId !== id) {
                     this.textDraft.begin(profile);
@@ -144,14 +173,24 @@ export class ProfilePageComponent {
         });
 
         // The debounce above never fires for the last edit before navigating away, and Back is
-        // this page's primary exit. Both branches guard on their own in-flight flag, or a
-        // request already sent but not yet answered would go out a second time.
+        // this page's primary exit. Both branches compare against the last payload actually
+        // sent rather than gating on an in-flight flag: gating on the flag drops a genuinely
+        // newer edit made while the previous save is still on the wire.
         inject(DestroyRef).onDestroy(() => {
             // history.reset() below wipes both stacks a few lines down, so committing here would
             // only push an entry it immediately discards.
-            if (this.textDraft.dirty() && !this.textSaving()) this.flushText();
+            const fields = this.textDraft.draft();
+            if (fields && this.textDraft.dirty() && JSON.stringify(fields) !== this.lastSentTextFields()) {
+                this.flushText();
+            }
             const canvas = this.canvasEditor.draft();
-            if (canvas && this.canvasEditor.dirty() && !this.canvasStore.saving()) this.saveCanvasNow(canvas);
+            if (
+                canvas &&
+                this.canvasEditor.dirty() &&
+                JSON.stringify(canvas.widgets) !== this.lastSentCanvasWidgets()
+            ) {
+                this.saveCanvasNow(canvas);
+            }
             // Undo does not survive leaving the page.
             this.history.reset();
         });
@@ -159,6 +198,16 @@ export class ProfilePageComponent {
 
     protected goBack(): void {
         void this.router.navigate(['/overview']);
+    }
+
+    /** Re-runs whichever save path is latched on error. There is no Save button, so this is the
+     * only way back from "Not saved" short of making another edit. */
+    protected retrySave(): void {
+        if (this.textSaveStatus() === 'error') this.flushText();
+        if (this.canvasSaveStatus() === 'error') {
+            const canvas = this.canvasEditor.draft();
+            if (canvas) this.saveCanvasNow(canvas);
+        }
     }
 
     protected setBio(bio: string): void {
@@ -227,7 +276,7 @@ export class ProfilePageComponent {
     }
 
     private queueTextAutosave(): void {
-        this.saveStatus.set('unsaved');
+        this.textSaveStatus.set('unsaved');
         this.textAutosave$.next();
     }
 
@@ -240,8 +289,9 @@ export class ProfilePageComponent {
         const fields = this.textDraft.draft();
         if (!fields) return;
 
-        this.saveStatus.set('saving');
+        this.textSaveStatus.set('saving');
         this.textSaving.set(true);
+        this.lastSentTextFields.set(JSON.stringify(fields));
         this.profileService
             .updateProfile({bio: fields.bio, accentColor: fields.accentColor, font: fields.font})
             .subscribe({
@@ -249,11 +299,11 @@ export class ProfilePageComponent {
                     // A newer edit may have landed while this was in flight; only re-baseline
                     // when nothing has, or begin() would silently discard it.
                     if (this.textDraft.draft() === fields) this.textDraft.begin(profile);
-                    this.saveStatus.set('saved');
+                    this.textSaveStatus.set('saved');
                     this.textSaving.set(false);
                 },
                 error: err => {
-                    this.saveStatus.set('error');
+                    this.textSaveStatus.set('error');
                     this.textSaving.set(false);
                     this.toast.httpError(this.translate.instant('PROFILE_PAGE.SAVE_ERROR'), err);
                 },
@@ -261,17 +311,18 @@ export class ProfilePageComponent {
     }
 
     private saveCanvasNow(canvas: ProfileCanvasDto): void {
-        this.saveStatus.set('saving');
+        this.canvasSaveStatus.set('saving');
+        this.lastSentCanvasWidgets.set(JSON.stringify(canvas.widgets));
         this.canvasStore.save(canvas).subscribe({
             next: saved => {
                 // Same race as flushText(): a later edit may already have moved the draft on.
                 if (this.canvasEditor.draft() === canvas) this.canvasEditor.begin(saved);
                 this.canvasSaveFailedFor.set(null);
-                this.saveStatus.set('saved');
+                this.canvasSaveStatus.set('saved');
             },
             error: err => {
                 this.canvasSaveFailedFor.set(JSON.stringify(canvas.widgets));
-                this.saveStatus.set('error');
+                this.canvasSaveStatus.set('error');
                 this.toast.httpError(this.translate.instant('PROFILE_PAGE.SAVE_ERROR'), err);
             },
         });
@@ -307,7 +358,11 @@ export class ProfilePageComponent {
             rejectLabel: this.translate.instant('PROFILE_PAGE.REMOVE_AVATAR_CONFIRM_REJECT'),
             acceptButtonProps: {severity: 'danger', size: 'small'},
             rejectButtonProps: {severity: 'secondary', outlined: true, size: 'small'},
-            accept: () => this.profileService.removeAvatar().subscribe(),
+            accept: () =>
+                this.profileService.removeAvatar().subscribe({
+                    error: err =>
+                        this.toast.httpError(this.translate.instant('PROFILE_PAGE.AVATAR_REMOVE_FAILED'), err),
+                }),
         });
     }
 }

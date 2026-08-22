@@ -10,7 +10,13 @@
             {{ 'COMMON.BACK' | translate }}
         </button>
 
-        <span class="text-[0.6875rem] text-text-muted" data-testid="save-status">
+        <span
+            class="flex items-center gap-1.5 text-[0.6875rem]"
+            [class.text-text-secondary]="saveStatus() === 'saving'"
+            [class.text-offline]="saveStatus() === 'error'"
+            [class.text-text-muted]="saveStatus() !== 'saving' && saveStatus() !== 'error'"
+            data-testid="save-status"
+        >
             @switch (saveStatus()) {
                 @case ('saving') {
                     {{ 'PROFILE_PAGE.SAVE_STATUS.SAVING' | translate }}
@@ -19,7 +25,16 @@
                     {{ 'PROFILE_PAGE.SAVE_STATUS.UNSAVED' | translate }}
                 }
                 @case ('error') {
+                    <i class="pi pi-exclamation-triangle text-xs" aria-hidden="true"></i>
                     {{ 'PROFILE_PAGE.SAVE_STATUS.ERROR' | translate }}
+                    <button
+                        (click)="retrySave()"
+                        class="cursor-pointer rounded border-0 bg-transparent p-0 text-[0.6875rem] font-medium text-offline underline decoration-dotted underline-offset-2 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        data-testid="retry-save"
+                        type="button"
+                    >
+                        {{ 'COMMON.RETRY' | translate }}
+                    </button>
                 }
                 @default {
                     {{ 'PROFILE_PAGE.SAVE_STATUS.SAVED' | translate }}
@@ -30,31 +45,31 @@
         <div class="ml-auto flex items-center gap-1">
             <button
                 (click)="undo()"
+                [attr.aria-label]="
+                    undoLabel() ? ('PROFILE_PAGE.UNDO_WITH_ACTION' | translate: {action: undoLabel()}) : null
+                "
                 [disabled]="!canUndo()"
+                [title]="undoLabel() ? ('PROFILE_PAGE.UNDO_WITH_ACTION' | translate: {action: undoLabel()}) : ''"
                 class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
                 data-testid="undo-button"
                 type="button"
             >
                 <i class="pi pi-undo text-xs" aria-hidden="true"></i>
-                @if (undoLabel(); as action) {
-                    {{ 'PROFILE_PAGE.UNDO_WITH_ACTION' | translate: {action} }}
-                } @else {
-                    {{ 'PROFILE_PAGE.UNDO' | translate }}
-                }
+                {{ 'PROFILE_PAGE.UNDO' | translate }}
             </button>
             <button
                 (click)="redo()"
+                [attr.aria-label]="
+                    redoLabel() ? ('PROFILE_PAGE.REDO_WITH_ACTION' | translate: {action: redoLabel()}) : null
+                "
                 [disabled]="!canRedo()"
+                [title]="redoLabel() ? ('PROFILE_PAGE.REDO_WITH_ACTION' | translate: {action: redoLabel()}) : ''"
                 class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
                 data-testid="redo-button"
                 type="button"
             >
                 <i class="pi pi-replay text-xs" aria-hidden="true"></i>
-                @if (redoLabel(); as action) {
-                    {{ 'PROFILE_PAGE.REDO_WITH_ACTION' | translate: {action} }}
-                } @else {
-                    {{ 'PROFILE_PAGE.REDO' | translate }}
-                }
+                {{ 'PROFILE_PAGE.REDO' | translate }}
             </button>
         </div>
     </header>
