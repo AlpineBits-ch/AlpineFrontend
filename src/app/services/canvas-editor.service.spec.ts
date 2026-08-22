@@ -4,7 +4,7 @@ import {CanvasEditorService} from './canvas-editor.service';
 import {CanvasHistoryEntry, ProfileEditHistoryService} from './profile-edit-history.service';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {emptyCanvas, MAX_SPACERS, MAX_WIDGETS, SPACER_TYPE} from '../models/profile-canvas';
-import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
+import {AUTOSAVE_DEBOUNCE_MS} from '../core/autosave';
 
 function service(): CanvasEditorService {
     TestBed.configureTestingModule({});

@@ -8,7 +8,7 @@ import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {ProfileEditHistoryService} from '../../../services/profile-edit-history.service';
 import {emptyCanvas} from '../../../models/profile-canvas';
-import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../../core/autosave';
 import {CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
 
 function setup(type: string, api: Partial<ProfileCanvasApiService> = {}) {

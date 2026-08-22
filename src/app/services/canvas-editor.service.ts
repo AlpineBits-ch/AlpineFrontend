@@ -13,7 +13,7 @@ import {
     trimTrailingSpacers,
 } from '../models/profile-canvas';
 import {CanvasHistoryKind, ProfileEditHistoryService} from './profile-edit-history.service';
-import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
+import {AUTOSAVE_DEBOUNCE_MS} from '../core/autosave';
 
 /** Unique enough for a draft; the server assigns the real id on save. */
 function draftId(): string {
@@ -28,9 +28,8 @@ export class CanvasEditorService {
     private readonly baseline = signal<string>('');
     private readonly current = signal<ProfileCanvasDto | null>(null);
 
-    /** Keyed on `${widgetId}:${fieldKey}`; the widgets array as it stood before the first
-     * keystroke of the burst still in progress for that field. */
-    private readonly pendingConfigText = new Map<string, {widgetType: string; before: CanvasWidgetDto[]}>();
+    /** Keyed on `${widgetId}:${fieldKey}`; a burst's own commit timer, live only while that
+     * burst is open in `history`. */
     private readonly configTextTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     readonly draft = this.current.asReadonly();
@@ -45,16 +44,19 @@ export class CanvasEditorService {
      * window: commit it first, the same entry the debounce timer would have pushed. */
     begin(canvas: ProfileCanvasDto): void {
         const packed = normalise(canvas);
+        const pendingKeys = [...this.configTextTimers.keys()];
         if (this.current()?.profileId === packed.profileId) {
-            for (const key of [...this.pendingConfigText.keys()]) {
+            for (const key of pendingKeys) {
                 clearTimeout(this.configTextTimers.get(key));
                 this.configTextTimers.delete(key);
                 this.commitConfigText(key);
             }
         } else {
-            for (const timer of this.configTextTimers.values()) clearTimeout(timer);
+            for (const key of pendingKeys) {
+                clearTimeout(this.configTextTimers.get(key));
+                this.history.discardBurst(key);
+            }
             this.configTextTimers.clear();
-            this.pendingConfigText.clear();
         }
         this.current.set(packed);
         this.baseline.set(JSON.stringify(packed.widgets));
@@ -175,19 +177,15 @@ export class CanvasEditorService {
     }
 
     /** For a config field driven by typing rather than a discrete choice. Applies every
-     * keystroke to the draft immediately, same as `patchConfig`, but defers the history push:
-     * the widgets array from before the burst's first keystroke is the `before` a later,
-     * unrelated pause commits against, the same first-write-wins latch `ProfileEditHistoryService`
-     * uses for the bio. */
+     * keystroke to the draft immediately, same as `patchConfig`, but defers the history push to
+     * `history`'s burst latch, keyed per widget and field so unrelated bursts never coalesce. */
     patchConfigText(id: string, fieldKey: string, patch: Record<string, unknown>): void {
         const canvas = this.current();
         const widget = canvas?.widgets.find(w => w.id === id);
         if (!canvas || !widget) return;
 
         const key = `${id}:${fieldKey}`;
-        if (!this.pendingConfigText.has(key)) {
-            this.pendingConfigText.set(key, {widgetType: widget.type, before: canvas.widgets});
-        }
+        this.history.noteBurst(key, {widgetType: widget.type, before: canvas.widgets});
         this.write(
             canvas.widgets.map(w =>
                 w.id === id ? {...w, config: {...(w.config as Record<string, unknown>), ...patch}} : w,
@@ -203,14 +201,21 @@ export class CanvasEditorService {
 
     private commitConfigText(key: string): void {
         this.configTextTimers.delete(key);
-        const pending = this.pendingConfigText.get(key);
-        this.pendingConfigText.delete(key);
-        if (!pending) return;
-
         const canvas = this.current();
-        if (canvas && JSON.stringify(canvas.widgets) !== JSON.stringify(pending.before)) {
-            this.history.pushCanvas('config', pending.widgetType, pending.before, canvas.widgets);
-        }
+        this.history.commitBurst<{widgetType: string; before: CanvasWidgetDto[]}, CanvasWidgetDto[] | undefined>(
+            key,
+            canvas?.widgets,
+            (pending, after) => {
+                if (!after || JSON.stringify(after) === JSON.stringify(pending.before)) return null;
+                return {
+                    domain: 'canvas',
+                    kind: 'config',
+                    widgetType: pending.widgetType,
+                    before: pending.before,
+                    after,
+                };
+            },
+        );
     }
 
     private patch(

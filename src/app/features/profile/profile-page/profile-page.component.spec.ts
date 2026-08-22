@@ -17,7 +17,7 @@ import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.serv
 import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
 import {FONT_OPTIONS, FONT_STACKS} from '../../../models/profile-font.model';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
-import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../../core/autosave';
 import {ProfileCanvasDto} from '../../../dtos/response/profile-canvas.dto';
 
 const OWN: ProfileDto = {

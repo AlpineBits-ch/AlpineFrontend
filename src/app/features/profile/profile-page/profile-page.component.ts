@@ -29,7 +29,7 @@ import {emptyCanvas} from '../../../models/profile-canvas';
 import {definitionFor} from '../../../components/profile-canvas/widget-registry';
 import {ProfileCanvasDto} from '../../../dtos/response/profile-canvas.dto';
 import {ProfileFont} from '../../../dtos/response/profile.dto';
-import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../../core/autosave';
 import {ProfileMastheadComponent} from './profile-masthead.component';
 import {ProfileCanvasEditorComponent} from './profile-canvas-editor.component';
 

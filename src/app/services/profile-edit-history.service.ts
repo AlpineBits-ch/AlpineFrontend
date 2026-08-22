@@ -44,7 +44,7 @@ const TEXT_KINDS: readonly TextHistoryKind[] = ['bio', 'accentColor', 'font'];
 export class ProfileEditHistoryService {
     private readonly undoStack = signal<ProfileHistoryEntry[]>([]);
     private readonly redoStack = signal<ProfileHistoryEntry[]>([]);
-    private readonly pendingText = new Map<TextHistoryKind, string | ProfileFont>();
+    private readonly pendingBursts = new Map<string, unknown>();
 
     readonly canUndo = computed(() => this.undoStack().length > 0);
     readonly canRedo = computed(() => this.redoStack().length > 0);
@@ -55,22 +55,48 @@ export class ProfileEditHistoryService {
     reset(): void {
         this.undoStack.set([]);
         this.redoStack.set([]);
-        this.pendingText.clear();
+        this.pendingBursts.clear();
     }
 
-    /** Captures the value a field held before the first edit in the current pause. A later call
-     * for the same field before the pause commits is a no-op: the burst's start is what matters. */
+    /** Captures the value a key held before the first edit in the burst still in progress for it.
+     * A later call for the same key before the burst commits is a no-op: the burst's start is
+     * what matters. */
+    noteBurst(key: string, before: unknown): void {
+        if (!this.pendingBursts.has(key)) this.pendingBursts.set(key, before);
+    }
+
+    /** Drops a burst without pushing an entry for it: for a profile switch that discards
+     * whatever was mid-pause rather than committing it. */
+    discardBurst(key: string): void {
+        this.pendingBursts.delete(key);
+    }
+
+    /** Closes the burst for `key` and, when one was open, pushes whatever `toEntry` builds from
+     * its noted `before` and `current`. A no-op when no burst is open for `key`, and `toEntry`
+     * returning null pushes nothing, either of which the caller uses to mean "no real change". */
+    commitBurst<TBefore, TCurrent = TBefore>(
+        key: string,
+        current: TCurrent,
+        toEntry: (before: TBefore, current: TCurrent) => ProfileHistoryEntry | null,
+    ): void {
+        const before = this.pendingBursts.get(key);
+        this.pendingBursts.delete(key);
+        if (before === undefined) return;
+        const entry = toEntry(before as TBefore, current);
+        if (entry) this.push(entry);
+    }
+
     noteTextField(kind: TextHistoryKind, before: string | ProfileFont): void {
-        if (!this.pendingText.has(kind)) this.pendingText.set(kind, before);
+        this.noteBurst(kind, before);
     }
 
     /** Closes the current pause: one entry per field that actually changed since its `noteTextField`. */
     commitText(current: TextFieldValues): void {
         for (const kind of TEXT_KINDS) {
-            const before = this.pendingText.get(kind);
-            if (before !== undefined) this.pushText(kind, before, current[kind]);
+            this.commitBurst<string | ProfileFont>(kind, current[kind], (before, after) =>
+                before === after ? null : {domain: 'text', kind, before, after},
+            );
         }
-        this.pendingText.clear();
     }
 
     pushCanvas(
@@ -99,11 +125,6 @@ export class ProfileEditHistoryService {
         this.redoStack.set(stack.slice(0, -1));
         this.undoStack.update(u => [...u, entry].slice(-PROFILE_HISTORY_DEPTH));
         return entry;
-    }
-
-    private pushText(kind: TextHistoryKind, before: string | ProfileFont, after: string | ProfileFont): void {
-        if (before === after) return;
-        this.push({domain: 'text', kind, before, after});
     }
 
     private push(entry: ProfileHistoryEntry): void {

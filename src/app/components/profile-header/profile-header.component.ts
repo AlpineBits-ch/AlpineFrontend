@@ -18,7 +18,6 @@ export class ProfileHeaderComponent {
     readonly profile = input<ProfileDto | undefined>(undefined);
     readonly avatarError = input(false);
 
-    avatarClick = output<void>();
     avatarErrorChange = output<void>();
 
     protected readonly safeAccentColor = safeAccentColor;
@@ -33,12 +32,6 @@ export class ProfileHeaderComponent {
     });
 
     protected readonly avatarLabel = computed(() => this.profile()?.userName?.[0]?.toUpperCase() ?? '?');
-
-    protected onAvatarClick(): void {
-        if (this.profile()?.avatarUrl && !this.avatarError()) {
-            this.avatarClick.emit();
-        }
-    }
 
     protected onAvatarError(): void {
         this.avatarErrorChange.emit();

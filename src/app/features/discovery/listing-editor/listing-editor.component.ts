@@ -39,15 +39,13 @@ import {ApiConfigService} from '../../../services/api-config.service';
 import {RelativeTimePipe} from '../../../pipes/relative-time.pipe';
 import {injectGuildRoster} from '../../guild/shared/guild-roster';
 import {CONTENT_LANGUAGES} from '../../../models/language.model';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../../core/autosave';
 
 /** A listing carries 1 to 8 topics. Spec section 3.3. */
 const TOPIC_CAP = 8;
 const HEADLINE_LIMIT = 80;
 const PITCH_LIMIT = 600;
 const LINKS_CAP = 3;
-
-/** Matches `draft.service.ts`'s server-autosave cadence. Reused by `profile-page.component.ts`. */
-export const AUTOSAVE_DEBOUNCE_MS = 1_200;
 
 /** Under a minute left, `relativeTime` would render "this minute", which reads as broken on a 72h cooldown. */
 const BUMP_SOON_MS = 60_000;
