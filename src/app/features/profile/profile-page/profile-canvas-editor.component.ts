@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {
+    GRID_GAP_PX,
     ProfileCanvasComponent,
     WidgetSelectedEvent,
 } from '../../../components/profile-canvas/profile-canvas.component';
@@ -49,8 +50,8 @@ interface DropTarget {
 /**
  * What geometry is known about the rendered grid, in pixels relative to `canvasHost`'s own rect.
  * `columnWidth`/`columnGap` are analytic (the columns really are equal `minmax(0,1fr)` tracks).
- * `rowTops`/`rowHeights` are not: `ProfileCanvasComponent` sets no `grid-auto-rows`, so a row is as
- * tall as its content, and the only way to know that is to measure a tile that starts there.
+ * `rowTops`/`rowHeights` are not: a row can grow past its `minmax` floor to fit tall content, and
+ * the only way to know that is to measure a tile that starts there.
  */
 export interface MeasuredGrid {
     left: number;
@@ -59,11 +60,6 @@ export interface MeasuredGrid {
     rowTops: readonly number[];
     rowHeights: readonly number[];
 }
-
-/** Tailwind's `gap-2`, matching the gap `ProfileCanvasComponent`'s and `CanvasLatticeComponent`'s
- * own `.grid` both use. A fixed design constant rather than something read back off the DOM: jsdom
- * cannot resolve it either way, since it never lays a grid out. */
-export const GRID_GAP_PX = 8;
 
 /** ArrowRight/ArrowDown move forward in reading order, ArrowLeft/ArrowUp move back. */
 function arrowDelta(key: string): number {
@@ -134,11 +130,11 @@ export function rowGeometryAt(
     return {top: rect.top + (r - source.y) * height, height};
 }
 
-/**
- * The canvas, the lattice, tile selection and the visitor preview. Inserting a widget and picking
- * types both go through CanvasEditorService directly, the same way WidgetPropertiesComponent and
- * WidgetEditorPopoverComponent already reach it for the widgets they edit and delete.
- */
+/** Suggested first widgets for a blank canvas, offered as one-click chips. */
+const EMPTY_STATE_SUGGESTIONS: readonly string[] = ['quote', 'photo', 'currently'];
+
+/** The canvas, the lattice, tile selection and the visitor preview. Owner-only: this always renders
+ * the account's own canvas, never a visitor's. */
 @Component({
     selector: 'app-profile-canvas-editor',
     imports: [
@@ -154,9 +150,6 @@ export function rowGeometryAt(
 export class ProfileCanvasEditorComponent {
     readonly canvas = input<ProfileCanvasDto>();
     readonly owner = input.required<ProfileDto>();
-    /** External override, for a future caller that wants the lattice on for a reason other than
-     * this component's own drag. The grid drag below drives it the rest of the time. */
-    readonly dragging = input(false);
 
     private readonly editor = inject(CanvasEditorService);
     private readonly translate = inject(TranslateService);
@@ -197,8 +190,20 @@ export class ProfileCanvasEditorComponent {
         })),
     );
 
-    // Own-profile check: 'me' always sees every visibility, so this stays a pure read over the
-    // canvas already loaded. Nothing here ever calls into CanvasEditorService.
+    protected get emptyStateSuggestions(): readonly string[] {
+        return EMPTY_STATE_SUGGESTIONS;
+    }
+
+    protected suggestionLabelKey(type: string): string {
+        return definitionFor(type)?.labelKey ?? '';
+    }
+
+    protected suggestionIcon(type: string): string {
+        return definitionFor(type)?.icon ?? '';
+    }
+
+    // 'me' always sees every visibility: a pure read over the canvas already loaded, never a call
+    // into CanvasEditorService.
     protected readonly previewAs = signal<PreviewViewer>('me');
 
     protected get previewViewers(): readonly PreviewViewer[] {
@@ -224,30 +229,20 @@ export class ProfileCanvasEditorComponent {
     private readonly draggingId = signal<string | null>(null);
     protected readonly dropTarget = signal<DropTarget | null>(null);
 
-    protected readonly showLattice = computed(() => this.dragging() || this.draggingId() !== null);
+    protected readonly showLattice = computed(() => this.draggingId() !== null);
+
+    // One row beyond the last occupied row while dragging, so moving a tile past the end of the
+    // content still has a target to land on.
+    private readonly latticeRowCount = computed(() => this.canvasRowCount() + (this.showLattice() ? 1 : 0));
 
     // Per-row pixel heights for the lattice, measured off the real grid so its guides land on the
     // same row boundaries the drop math computes rather than an independent square-cell guess.
     protected readonly latticeRowHeights = signal<readonly number[]>([]);
 
     constructor() {
-        // Reaches into ProfileCanvasComponent's own tiles by the data-widget-id contract, since
-        // that component takes no dimming input. Every widget stays mounted; only opacity and
-        // aria-hidden change, so nothing disappears from the layout or the accessibility tree.
-        effect(() => {
-            this.syncDimming(this.hiddenWidgetIds());
-        });
-
-        // Same contract, for `draggable`: a spacer holds nothing to drag, matching tileSelectable's gate.
-        effect(() => {
-            this.syncDraggable(this.canvas()?.widgets ?? []);
-        });
-
-        // Same contract again, for the lattice: measures the real grid so its guides land on the
-        // same row boundaries the drop math computes, not an independent square-cell guess.
         effect(() => {
             this.canvas();
-            const rows = this.canvasRowCount();
+            const rows = this.latticeRowCount();
             const grid = this.measureGrid();
             this.latticeRowHeights.set(
                 grid
@@ -273,19 +268,6 @@ export class ProfileCanvasEditorComponent {
     protected hiddenWidgetAnnouncement(widget: CanvasWidgetDto): string {
         const type = this.translate.instant(definitionFor(widget.type)?.labelKey ?? '');
         return this.translate.instant('PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_WIDGET', {type});
-    }
-
-    private syncDimming(hidden: ReadonlySet<string>): void {
-        const host = this.canvasHost()?.nativeElement;
-        if (!host) return;
-
-        host.querySelectorAll<HTMLElement>('[data-widget-id]').forEach(tile => {
-            const id = tile.dataset['widgetId'];
-            const dim = !!id && hidden.has(id);
-            tile.style.opacity = dim ? '0.4' : '';
-            if (dim) tile.setAttribute('aria-hidden', 'false');
-            else tile.removeAttribute('aria-hidden');
-        });
     }
 
     protected openWidgetMenu(event: MouseEvent): void {
@@ -399,8 +381,8 @@ export class ProfileCanvasEditorComponent {
 
     /**
      * Measures the real grid whenever it can, row by row via `rowGeometryAt`. Falls back to evenly
-     * spaced square cells (same as before this measurement existed) only when a row is unmeasurable,
-     * e.g. an empty canvas, or a host with no real layout.
+     * spaced square cells when a row is unmeasurable, e.g. an empty canvas or a host with no real
+     * layout.
      */
     private measureGrid(): MeasuredGrid | null {
         const host = this.canvasHost()?.nativeElement;
@@ -464,22 +446,14 @@ export class ProfileCanvasEditorComponent {
         };
     }
 
-    private syncDraggable(widgets: readonly CanvasWidgetDto[]): void {
-        const host = this.canvasHost()?.nativeElement;
-        if (!host) return;
-
-        const byId = new Map(widgets.map(widget => [widget.id, widget]));
-        host.querySelectorAll<HTMLElement>('[data-widget-id]').forEach(tile => {
-            const widget = byId.get(tile.dataset['widgetId'] ?? '');
-            tile.draggable = !!widget && !isSpacer(widget);
-        });
-    }
-
     // ── Keyboard parity: everything the drag does, an arrow key does too ────────────────────────
 
     protected onGridKeydown(event: KeyboardEvent): void {
         const delta = arrowDelta(event.key);
         if (delta === 0) return;
+        // Otherwise every arrow key inside the host is eaten, dead for scrolling the page,
+        // regardless of whether a tile actually owns the keystroke.
+        if (!(event.target as HTMLElement).closest('[data-widget-id]')) return;
 
         const widgets = (this.canvas()?.widgets ?? []).filter(w => !isSpacer(w));
         if (widgets.length === 0) return;
@@ -509,7 +483,7 @@ export class ProfileCanvasEditorComponent {
 
     // A spacer never becomes a selectable tile (ProfileCanvasComponent.tileSelectable agrees), so
     // inserting one leaves the selection alone instead of anchoring a popover nothing can open.
-    private insertWidget(type: string): void {
+    protected insertWidget(type: string): void {
         const inserted = this.editor.insert(type);
         if (!inserted || isSpacer(inserted)) return;
 

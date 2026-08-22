@@ -21,7 +21,7 @@
         }
     </div>
 
-    <div class="flex flex-col gap-3 px-6 pt-4 pb-4">
+    <div class="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-4 pb-4">
         <div class="flex items-center gap-3">
             <div
                 (click)="openAvatarEnlarge()"
@@ -61,7 +61,12 @@
                 }
             </div>
             <input #avatarFileInput (change)="onAvatarFileSelected($event)" accept="image/*" class="hidden" type="file" />
-            <h1 [appUserNameStyle]="profile()" class="min-w-0 truncate text-xl font-bold text-text-primary">{{ profile().userName }}</h1>
+            <h1
+                [appUserNameStyle]="{accentColor: accentColor(), font: font()}"
+                class="min-w-0 truncate text-xl font-bold text-text-primary"
+            >
+                {{ profile().userName }}
+            </h1>
         </div>
 
         <p class="text-xs text-text-muted" data-testid="member-since">
@@ -78,57 +83,12 @@
             rows="2"
         ></textarea>
 
-        <div class="flex flex-wrap items-start gap-6 rounded-lg border border-border bg-card px-4 py-3">
-            <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-accent">
-                    {{ 'PROFILE_PAGE.ACCENT_LABEL' | translate }}
-                </label>
-                <div class="flex items-center gap-3">
-                    <div class="color-swatch-wrap">
-                        <div [style.background]="safeAccentColor(accentColor()) || 'transparent'" class="color-swatch-bg"></div>
-                        <input
-                            (input)="accentColorChanged.emit($any($event.target).value)"
-                            [value]="accentColor() || '#4B5BC4'"
-                            id="profile-accent"
-                            type="color"
-                        />
-                    </div>
-                    @if (accentColor()) {
-                        <button
-                            (click)="accentColorChanged.emit('')"
-                            class="cursor-pointer rounded border-0 bg-transparent px-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                            data-testid="accent-reset"
-                            type="button"
-                        >
-                            {{ 'PROFILE_PAGE.ACCENT_RESET' | translate }}
-                        </button>
-                    }
-                </div>
-            </div>
-
-            <div class="flex min-w-48 flex-1 flex-col gap-1.5">
-                <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-font">
-                    {{ 'PROFILE_PAGE.FONT_LABEL' | translate }}
-                </label>
-                <p-select
-                    (ngModelChange)="fontChanged.emit($event)"
-                    [ngModel]="font()"
-                    [options]="fontOptions"
-                    data-testid="font-select"
-                    inputId="profile-font"
-                    optionLabel="label"
-                    optionValue="value"
-                    styleClass="w-full"
-                >
-                    <ng-template #item let-option>
-                        <span [style.font-family]="$any(fontStacks)[option.value]">{{ option.label }}</span>
-                    </ng-template>
-                </p-select>
-                <p [style.font-family]="fontPreviewStack()" class="text-sm text-text-secondary">
-                    {{ 'PROFILE_PAGE.FONT_PREVIEW' | translate }}
-                </p>
-            </div>
-        </div>
+        <app-profile-appearance-bar
+            (accentColorChanged)="accentColorChanged.emit($event)"
+            (fontChanged)="fontChanged.emit($event)"
+            [accentColor]="accentColor()"
+            [font]="font()"
+        />
     </div>
 </div>
 

@@ -96,11 +96,20 @@ describe('ProfileMastheadComponent', () => {
         expect(el(fixture).querySelector('img[alt=""]')?.getAttribute('src')).toContain('banner.png');
     });
 
-    it('falls back to the accent colour when there is no banner', () => {
-        const fixture = setup({profile: {...OWN, bannerUrl: undefined}});
+    it('falls back to the draft accent colour when there is no banner', () => {
+        const fixture = setup({profile: {...OWN, bannerUrl: undefined}, accentColor: OWN.accentColor!});
         const banner = el(fixture).querySelector('.h-32') as HTMLElement;
 
         expect(el(fixture).querySelector('img[alt=""]')).toBeNull();
+        expect(banner.style.background).not.toBe('');
+    });
+
+    it('the banner fallback tracks the draft accent, not the saved profile', () => {
+        // Regression for the bug where the fallback read profile().accentColor: a colour picked but
+        // not yet saved must show up here immediately, not after a debounce and a round trip.
+        const fixture = setup({profile: {...OWN, bannerUrl: undefined, accentColor: null}, accentColor: '#00ff00'});
+        const banner = el(fixture).querySelector('.h-32') as HTMLElement;
+
         expect(banner.style.background).not.toBe('');
     });
 

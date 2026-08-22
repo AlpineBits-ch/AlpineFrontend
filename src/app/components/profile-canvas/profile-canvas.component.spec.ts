@@ -181,4 +181,67 @@ describe('ProfileCanvasComponent', () => {
             expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('false');
         });
     });
+
+    describe('spacer chrome', () => {
+        it('paints a real widget with the card chrome', () => {
+            const fixture = render(canvasOf([widget('a')]));
+            const el = tile(fixture, 'a');
+
+            expect(el.classList.contains('bg-card')).toBe(true);
+            expect(el.classList.contains('border')).toBe(true);
+            expect(el.classList.contains('rounded-xl')).toBe(true);
+            expect(el.classList.contains('p-3')).toBe(true);
+        });
+
+        it('renders a spacer as layout only, with no chrome', () => {
+            const fixture = render(canvasOf([widget('a', {type: 'spacer', w: 1, h: 1})]));
+            const el = tile(fixture, 'a');
+
+            expect(el.classList.contains('bg-card')).toBe(false);
+            expect(el.classList.contains('border')).toBe(false);
+            expect(el.classList.contains('rounded-xl')).toBe(false);
+            expect(el.classList.contains('p-3')).toBe(false);
+        });
+    });
+
+    describe('dragging', () => {
+        it('is off by default', () => {
+            const fixture = render(canvasOf([widget('a')]));
+            expect(tile(fixture, 'a').draggable).toBe(false);
+        });
+
+        it('makes a real widget draggable, with a grip glyph and a grab cursor', () => {
+            const fixture = render(canvasOf([widget('a')]), {draggable: true});
+            const el = tile(fixture, 'a');
+
+            expect(el.draggable).toBe(true);
+            expect(el.classList.contains('cursor-grab')).toBe(true);
+            expect(el.querySelector('.pi-ellipsis-v')).not.toBeNull();
+        });
+
+        it('never makes a spacer draggable, or gives it a grip glyph', () => {
+            const fixture = render(canvasOf([widget('a', {type: 'spacer', w: 1, h: 1})]), {
+                draggable: true,
+            });
+            const el = tile(fixture, 'a');
+
+            expect(el.draggable).toBe(false);
+            expect(el.querySelector('.pi-ellipsis-v')).toBeNull();
+        });
+    });
+
+    describe('dimmedIds', () => {
+        it('dims a hidden widget without hiding it from the accessibility tree', () => {
+            const fixture = render(canvasOf([widget('a')]), {dimmedIds: new Set(['a'])});
+            const el = tile(fixture, 'a');
+
+            expect(el.style.opacity).toBe('0.4');
+            expect(el.getAttribute('aria-hidden')).not.toBe('true');
+        });
+
+        it('leaves a widget not in the set at full opacity', () => {
+            const fixture = render(canvasOf([widget('a')]), {dimmedIds: new Set(['b'])});
+            expect(tile(fixture, 'a').style.opacity).toBe('');
+        });
+    });
 });

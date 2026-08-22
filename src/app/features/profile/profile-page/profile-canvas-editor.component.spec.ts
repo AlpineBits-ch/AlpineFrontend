@@ -1,6 +1,7 @@
 import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
+import {MessageService} from 'primeng/api';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {
     columnAt,
@@ -159,6 +160,8 @@ function setup(canvas: ProfileCanvasDto = emptyCanvas('p1')) {
         providers: [
             provideTranslateService(),
             {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+            // ToastService -> MessageService; WidgetPropertiesComponent reports a failed upload through it.
+            MessageService,
         ],
     });
     const fixture: ComponentFixture<HostComponent> = TestBed.createComponent(HostComponent);
@@ -280,14 +283,85 @@ describe('ProfileCanvasEditorComponent', () => {
         expect(tile(fixture, 'w2')).not.toBeNull();
     });
 
+    describe('empty state', () => {
+        it('invites the owner to add a widget instead of drawing an empty grid', () => {
+            const {fixture} = setup(emptyCanvas('p1'));
+
+            expect(testId(fixture, 'canvas-empty-state')).not.toBeNull();
+            expect(testId(fixture, 'canvas-host')).toBeNull();
+            expect(testId(fixture, 'canvas-lattice')).toBeNull();
+        });
+
+        it('gives each chip the icon its own registry entry declares, with no double prefix', () => {
+            const {fixture} = setup(emptyCanvas('p1'));
+
+            for (const chip of Array.from(
+                el(fixture).querySelectorAll<HTMLElement>('[data-testid="empty-state-suggestion"]'),
+            )) {
+                const definition = WIDGET_REGISTRY.find(d => chip.textContent?.includes(d.labelKey));
+                expect(chip.querySelector(`.${definition!.icon}`)).not.toBeNull();
+                expect(chip.querySelector('[class*="pi-pi-"]')).toBeNull();
+            }
+        });
+
+        it('offers suggestion chips that each insert their widget type and select it', async () => {
+            const {fixture, editor} = setup(emptyCanvas('p1'));
+
+            const chips = Array.from(
+                el(fixture).querySelectorAll<HTMLElement>('[data-testid="empty-state-suggestion"]'),
+            );
+            expect(chips.length).toBeGreaterThanOrEqual(2);
+
+            chips[0].click();
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            expect(editor.draft()!.widgets).toHaveLength(1);
+            expect(testId(fixture, 'canvas-empty-state')).toBeNull();
+            expect(testId(fixture, 'widget-editor-popover')).not.toBeNull();
+        });
+
+        it('goes away once the canvas has a widget, and the toolbar stays put throughout', () => {
+            const {fixture} = setup(emptyCanvas('p1'));
+            expect(testId(fixture, 'add-widget')).not.toBeNull();
+            expect(testId(fixture, 'canvas-empty-state')).not.toBeNull();
+
+            openWidgetMenu(fixture);
+            const quote = menuRows(fixture).find(
+                row => row.querySelector('.cm-label')?.textContent?.trim() === 'PROFILE.CANVAS.WIDGET.QUOTE',
+            )!;
+            quote.click();
+            fixture.detectChanges();
+
+            expect(testId(fixture, 'canvas-empty-state')).toBeNull();
+            expect(testId(fixture, 'canvas-host')).not.toBeNull();
+            expect(testId(fixture, 'add-widget')).not.toBeNull();
+        });
+    });
+
     // Catches the lattice being wired to a column count other than the shared CANVAS_COLUMNS
-    // constant, hardcoded or otherwise: this canvas is empty, so canvasRowCount() is 1 and the
-    // cell total is columns alone.
-    it('draws exactly CANVAS_COLUMNS lattice cells for an empty canvas', () => {
-        const {fixture} = setup(emptyCanvas('p1'));
+    // constant, hardcoded or otherwise: this canvas is one row deep, so the cell total is columns
+    // alone.
+    it('draws exactly CANVAS_COLUMNS lattice cells for a single-row canvas', () => {
+        const {fixture} = setup(canvasOf([widget('a')]));
 
         const cells = lattice(fixture).querySelectorAll(':scope > div');
         expect(cells.length).toBe(CANVAS_COLUMNS);
+    });
+
+    // The lattice extends one row past the last occupied row while dragging, so moving a tile past
+    // the end of the content still has somewhere to land.
+    it('extends the lattice one row past the content while a tile is dragging', () => {
+        const {fixture} = setup(canvasOf([widget('a')]));
+        stubGrid(fixture);
+
+        const atRest = lattice(fixture).querySelectorAll(':scope > div').length;
+        startDrag(fixture, 'a');
+        const whileDragging = lattice(fixture).querySelectorAll(':scope > div').length;
+
+        expect(atRest).toBe(CANVAS_COLUMNS);
+        expect(whileDragging).toBe(CANVAS_COLUMNS * 2);
     });
 
     // Catches an off-by-one in canvasRowCount: a 2-high widget at y=0 must read as 2 rows, not 1
@@ -553,22 +627,19 @@ describe('ProfileCanvasEditorComponent', () => {
         it('arrow keys move the selection between tiles in reading order', () => {
             const {fixture} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
 
-            canvasHost(fixture).dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
-            );
+            // The first press targets tile 'a' directly, standing in for reaching it by Tab: every
+            // selectable tile carries tabindex="0", so a keyboard user never needs the host itself
+            // focused to start navigating.
+            tile(fixture, 'a').dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
             fixture.detectChanges();
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
 
-            canvasHost(fixture).dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
-            );
+            tile(fixture, 'a').dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
             fixture.detectChanges();
             expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('false');
 
-            canvasHost(fixture).dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}),
-            );
+            tile(fixture, 'b').dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
             fixture.detectChanges();
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
         });
@@ -578,7 +649,7 @@ describe('ProfileCanvasEditorComponent', () => {
             tile(fixture, 'a').click();
             fixture.detectChanges();
 
-            canvasHost(fixture).dispatchEvent(
+            tile(fixture, 'a').dispatchEvent(
                 new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, shiftKey: true}),
             );
             fixture.detectChanges();
@@ -591,16 +662,27 @@ describe('ProfileCanvasEditorComponent', () => {
                 canvasOf([widget('a'), widget('sp', {type: 'spacer', x: 1}), widget('b', {x: 2})]),
             );
 
-            canvasHost(fixture).dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
-            );
+            tile(fixture, 'a').dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
             fixture.detectChanges();
-            canvasHost(fixture).dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
-            );
+            tile(fixture, 'a').dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
             fixture.detectChanges();
 
             expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
+        });
+
+        // The bug this guards: preventDefault() fired for every arrow key anywhere in the canvas
+        // host, so a stray click on the host's own background (it carries tabindex="-1") killed
+        // page arrow-scrolling for good. Dispatching straight on the host, with no tile focused,
+        // reproduces that click.
+        it('leaves an arrow key alone when no tile is focused, so page scrolling still works', () => {
+            const {fixture} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
+            const event = new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true});
+
+            canvasHost(fixture).dispatchEvent(event);
+            fixture.detectChanges();
+
+            expect(event.defaultPrevented).toBe(false);
+            expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('false');
         });
     });
 });

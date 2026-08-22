@@ -18,6 +18,9 @@ export interface WidgetSelectedEvent {
     element: HTMLElement;
 }
 
+/** Tailwind's `gap-2`, shared by this grid and `CanvasLatticeComponent`'s own `.grid`. */
+export const GRID_GAP_PX = 8;
+
 /** Somebody's arranged profile. Read only: the editor renders this too, from its draft. */
 @Component({
     selector: 'app-profile-canvas',
@@ -36,6 +39,10 @@ export class ProfileCanvasComponent {
     /** Off by default: the popout and the modal render someone else's canvas, read only. */
     readonly selectable = input(false);
     readonly selectedId = input<string | null>(null);
+    /** Widgets hidden from the previewed viewer: dimmed, never removed from the layout. */
+    readonly dimmedIds = input<ReadonlySet<string>>(new Set());
+    /** Off by default: only the editor's own tiles can be picked up. */
+    readonly draggable = input(false);
 
     readonly widgetSelected = output<WidgetSelectedEvent>();
 
@@ -50,9 +57,35 @@ export class ProfileCanvasComponent {
         });
     });
 
+    /** `minmax(CELL, auto)`: a 1x1 row is a square at the current column width, and content taller
+     * than that still grows the row instead of clipping. `cqw` needs `container-type` on this same
+     * element; that's fine here because only the inline axis is contained. */
+    protected readonly gridAutoRows = computed(() => {
+        const columns = this.columns();
+        const gap = GRID_GAP_PX * (columns - 1);
+        return `minmax(calc((100cqw - ${gap}px) / ${columns}), auto)`;
+    });
+
     /** A spacer holds nothing a properties panel could edit, so it never becomes a tile you can pick. */
     protected tileSelectable(widget: CanvasWidgetDto): boolean {
         return this.selectable() && !isSpacer(widget);
+    }
+
+    protected tileDraggable(widget: CanvasWidgetDto): boolean {
+        return this.draggable() && !isSpacer(widget);
+    }
+
+    protected isDimmed(widget: CanvasWidgetDto): boolean {
+        return this.dimmedIds().has(widget.id);
+    }
+
+    protected isSpacerWidget(widget: CanvasWidgetDto): boolean {
+        return isSpacer(widget);
+    }
+
+    protected tileCursorClass(widget: CanvasWidgetDto): string {
+        if (this.tileDraggable(widget)) return 'cursor-grab active:cursor-grabbing';
+        return this.tileSelectable(widget) ? 'cursor-pointer' : '';
     }
 
     protected tileLabel(widget: CanvasWidgetDto): string {

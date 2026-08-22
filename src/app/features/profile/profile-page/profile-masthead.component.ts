@@ -12,13 +12,13 @@ import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
-import {Select} from 'primeng/select';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {ImageCropperComponent} from '../../../components/image-cropper/image-cropper.component';
 import {UserNameStyleDirective} from '../../../directives/user-name-style.directive';
-import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profile-font.model';
+import {safeAccentColor} from '../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../models/profile-image.model';
 import {ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
+import {ProfileAppearanceBarComponent} from './profile-appearance-bar.component';
 
 /** Banner, avatar, name and the appearance controls. Purely controlled: everything is always editable. */
 @Component({
@@ -29,7 +29,7 @@ import {ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
         FormsModule,
         Dialog,
         ImageCropperComponent,
-        Select,
+        ProfileAppearanceBarComponent,
         UserNameStyleDirective,
         DatePipe,
     ],
@@ -67,7 +67,9 @@ export class ProfileMastheadComponent {
         return cacheBustedUrl(profile.bannerUrl, profile.updatedAt);
     });
 
-    protected readonly bannerFallback = computed(() => safeAccentColor(this.profile().accentColor));
+    // The draft accent, not the saved profile: otherwise the banner fallback lags a debounce plus a
+    // round trip behind the colour the person just picked.
+    protected readonly bannerFallback = computed(() => safeAccentColor(this.accentColor()));
 
     protected readonly hasAvatar = computed(() => !!this.profile().avatarUrl);
 
@@ -75,21 +77,6 @@ export class ProfileMastheadComponent {
         const profile = this.profile();
         return cacheBustedUrl(profile.avatarUrl, profile.updatedAt);
     });
-
-    protected readonly safeAccentColor = safeAccentColor;
-
-    protected readonly fontPreviewStack = computed(() => {
-        const font = this.font();
-        return font !== ProfileFont.Default ? FONT_STACKS[font] : null;
-    });
-
-    protected get fontOptions(): {value: ProfileFont; label: string}[] {
-        return FONT_OPTIONS;
-    }
-
-    protected get fontStacks(): Record<ProfileFont, string> {
-        return FONT_STACKS;
-    }
 
     protected pickAvatarFile(): void {
         this.avatarFileInputRef()?.nativeElement.click();

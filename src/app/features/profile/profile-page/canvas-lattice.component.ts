@@ -3,8 +3,8 @@ import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core
 /**
  * The snap grid, shown only while arranging. Same column formula and gap as the widget grid, so its
  * tracks land on the same column boundaries rather than an independent approximation of them.
- * `rowHeights` carries one measured pixel height per row rather than a row count: the widget grid
- * sets no `grid-auto-rows`, so a row is as tall as its content, never a square guess.
+ * `rowHeights` carries one measured pixel height per row rather than a row count: a row can grow
+ * past its square floor to fit tall content, so a guide's height is measured, never assumed.
  */
 @Component({
     selector: 'app-canvas-lattice',
@@ -20,7 +20,7 @@ import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core
             @for (height of cells(); track $index) {
                 <div
                     [style.height.px]="height"
-                    class="rounded-md border border-brand/20 bg-brand/[0.04]"
+                    class="rounded-md border border-brand/40 bg-brand/15"
                 ></div>
             }
         </div>

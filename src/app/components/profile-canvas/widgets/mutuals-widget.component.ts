@@ -15,11 +15,7 @@ const SHOWN = 4;
                 <div class="flex items-center">
                     @for (friend of shown(); track friend.userId) {
                         <div class="-ml-2 first:ml-0 ring-2 ring-card rounded-full">
-                            <app-avatar
-                                [label]="initialOf(friend.userName)"
-                                [userId]="friend.userId"
-                                size="normal"
-                            />
+                            <app-avatar [userId]="friend.userId" size="normal" />
                         </div>
                     }
                     @if (extra() > 0) {
@@ -46,8 +42,4 @@ export class MutualsWidgetComponent {
     protected readonly countLabel = computed(() =>
         this.total() === 1 ? 'PROFILE.CANVAS.MUTUALS_COUNT_ONE' : 'PROFILE.CANVAS.MUTUALS_COUNT',
     );
-
-    protected initialOf(name: string): string {
-        return name.charAt(0).toUpperCase();
-    }
 }

@@ -1,0 +1,51 @@
+<div class="flex flex-wrap items-start gap-6 rounded-lg border border-border bg-card px-4 py-3">
+    <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-accent">
+            {{ 'PROFILE_PAGE.ACCENT_LABEL' | translate }}
+        </label>
+        <div class="flex items-center gap-3">
+            <div class="color-swatch-wrap">
+                <div [style.background]="accentSwatchColor()" class="color-swatch-bg"></div>
+                <input
+                    (input)="accentColorChanged.emit($any($event.target).value)"
+                    [value]="accentColor() || '#4B5BC4'"
+                    id="profile-accent"
+                    type="color"
+                />
+            </div>
+            @if (accentColor()) {
+                <button
+                    (click)="accentColorChanged.emit('')"
+                    class="cursor-pointer rounded border-0 bg-transparent px-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    data-testid="accent-reset"
+                    type="button"
+                >
+                    {{ 'PROFILE_PAGE.ACCENT_RESET' | translate }}
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="flex min-w-48 flex-1 flex-col gap-1.5">
+        <label class="text-xs font-medium text-text-secondary uppercase tracking-wide" for="profile-font">
+            {{ 'PROFILE_PAGE.FONT_LABEL' | translate }}
+        </label>
+        <p-select
+            (ngModelChange)="fontChanged.emit($event)"
+            [ngModel]="font()"
+            [options]="fontOptions"
+            data-testid="font-select"
+            inputId="profile-font"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+        >
+            <ng-template #item let-option>
+                <span [style.font-family]="$any(fontStacks)[option.value]">{{ option.label }}</span>
+            </ng-template>
+        </p-select>
+        <p [style.font-family]="fontPreviewStack()" class="text-sm text-text-secondary">
+            {{ 'PROFILE_PAGE.FONT_PREVIEW' | translate }}
+        </p>
+    </div>
+</div>

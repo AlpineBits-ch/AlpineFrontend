@@ -6,8 +6,11 @@
                     <button
                         (click)="setPreviewAs(viewer)"
                         [attr.aria-pressed]="previewAs() === viewer"
+                        [class.bg-brand/15]="previewAs() === viewer"
                         [class.border-brand]="previewAs() === viewer"
-                        class="cursor-pointer rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        [class.text-brand-dim]="previewAs() === viewer"
+                        [class.text-text-secondary]="previewAs() !== viewer"
+                        class="cursor-pointer rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
                         data-testid="preview-viewer"
                         type="button"
                     >
@@ -19,7 +22,7 @@
             <div class="relative">
                 <button
                     (click)="openWidgetMenu($event)"
-                    class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-2.5 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
                     data-testid="add-widget"
                     type="button"
                 >
@@ -30,59 +33,89 @@
             </div>
         </div>
 
-        <div
-            #canvasHost
-            (dragend)="onGridDragEnd()"
-            (dragover)="onGridDragOver($event)"
-            (dragstart)="onGridDragStart($event)"
-            (drop)="onGridDrop($event)"
-            (keydown)="onGridKeydown($event)"
-            class="relative"
-            data-testid="canvas-host"
-            tabindex="-1"
-        >
-            <app-canvas-lattice
-                [active]="showLattice()"
-                [columns]="canvasColumns"
-                [rowHeights]="latticeRowHeights()"
-                class="pointer-events-none absolute inset-x-0 top-0 block"
-            />
-            @if (dropTarget(); as target) {
-                <div
-                    [style.height.px]="target.height"
-                    [style.left.px]="target.left"
-                    [style.top.px]="target.top"
-                    [style.width.px]="target.width"
-                    aria-hidden="true"
-                    class="pointer-events-none absolute z-20 rounded-md border-2 border-brand bg-brand/20"
-                    data-testid="drop-indicator"
-                ></div>
-            }
-            <app-profile-canvas
-                (widgetSelected)="onWidgetSelected($event)"
-                [canvas]="arranged"
-                [columns]="canvasColumns"
-                [owner]="owner()"
-                [selectable]="true"
-                [selectedId]="selectedWidgetId()"
-                class="relative z-10 block"
-            />
-        </div>
+        @if (arranged.widgets.length === 0) {
+            <div
+                class="flex flex-col items-center gap-5 rounded-2xl border border-border bg-card px-8 py-16 text-center"
+                data-testid="canvas-empty-state"
+            >
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-brand/15">
+                    <i class="pi pi-palette text-lg text-brand-dim" aria-hidden="true"></i>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <p class="text-sm font-medium text-text-primary">{{ 'PROFILE.CANVAS.EMPTY' | translate }}</p>
+                    <p class="max-w-sm text-xs text-text-muted">{{ 'PROFILE.CANVAS.EMPTY_HINT' | translate }}</p>
+                </div>
+                <div class="flex flex-wrap justify-center gap-2">
+                    @for (type of emptyStateSuggestions; track type) {
+                        <button
+                            (click)="insertWidget(type)"
+                            class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-app-bg px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:border-brand hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                            data-testid="empty-state-suggestion"
+                            type="button"
+                        >
+                            <i class="pi text-xs" [class]="suggestionIcon(type)" aria-hidden="true"></i>
+                            {{ suggestionLabelKey(type) | translate }}
+                        </button>
+                    }
+                </div>
+            </div>
+        } @else {
+            <div
+                #canvasHost
+                (dragend)="onGridDragEnd()"
+                (dragover)="onGridDragOver($event)"
+                (dragstart)="onGridDragStart($event)"
+                (drop)="onGridDrop($event)"
+                (keydown)="onGridKeydown($event)"
+                class="relative"
+                data-testid="canvas-host"
+                tabindex="-1"
+            >
+                <app-canvas-lattice
+                    [active]="showLattice()"
+                    [columns]="canvasColumns"
+                    [rowHeights]="latticeRowHeights()"
+                    class="pointer-events-none absolute inset-x-0 top-0 z-20 block"
+                />
+                @if (dropTarget(); as target) {
+                    <div
+                        [style.height.px]="target.height"
+                        [style.left.px]="target.left"
+                        [style.top.px]="target.top"
+                        [style.width.px]="target.width"
+                        aria-hidden="true"
+                        class="pointer-events-none absolute z-20 rounded-md border-2 border-brand bg-brand/20"
+                        data-testid="drop-indicator"
+                    ></div>
+                }
+                <app-profile-canvas
+                    (widgetSelected)="onWidgetSelected($event)"
+                    [canvas]="arranged"
+                    [columns]="canvasColumns"
+                    [dimmedIds]="hiddenWidgetIds()"
+                    [draggable]="true"
+                    [owner]="owner()"
+                    [selectable]="true"
+                    [selectedId]="selectedWidgetId()"
+                    class="relative z-10 block"
+                />
+            </div>
 
-        @if (hiddenCount(); as count) {
-            <p [attr.data-hidden-count]="count" class="mt-2 text-xs text-text-muted" data-testid="preview-hidden-count">
-                {{
-                    (count === 1 ? 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT_ONE' : 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT')
-                        | translate: {count}
-                }}
-            </p>
+            @if (hiddenCount(); as count) {
+                <p [attr.data-hidden-count]="count" class="mt-2 text-xs text-text-muted" data-testid="preview-hidden-count">
+                    {{
+                        (count === 1 ? 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT_ONE' : 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT')
+                            | translate: {count}
+                    }}
+                </p>
+            }
+
+            <div class="sr-only">
+                @for (widget of hiddenWidgets(); track widget.id) {
+                    <p data-testid="preview-hidden-widget">{{ hiddenWidgetAnnouncement(widget) }}</p>
+                }
+            </div>
         }
-
-        <div class="sr-only">
-            @for (widget of hiddenWidgets(); track widget.id) {
-                <p data-testid="preview-hidden-widget">{{ hiddenWidgetAnnouncement(widget) }}</p>
-            }
-        </div>
     </div>
 }
 
