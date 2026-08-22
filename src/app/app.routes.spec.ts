@@ -24,13 +24,20 @@ class OverviewStub {
     }
 }
 
-/** The production table with the two screens stood in for. */
+@Component({selector: 'app-profile-stub', template: '', changeDetection: ChangeDetectionStrategy.OnPush})
+class ProfileStub {
+    constructor() {
+        painted.push('profile');
+    }
+}
+
+/** The production table with the three screens stood in for. */
 function setup(isLoggedIn: () => Promise<boolean>): Router {
     painted.length = 0;
     TestBed.configureTestingModule({
         providers: [
             provideLocationMocks(),
-            provideRouter(appRoutes(LoginStub, OverviewStub)),
+            provideRouter(appRoutes(LoginStub, OverviewStub, ProfileStub)),
             {provide: AuthService, useValue: {isLoggedIn}},
         ],
     });
@@ -88,6 +95,26 @@ it('sends /overview without a session to the login screen', async () => {
     const harness = await RouterTestingHarness.create();
 
     await harness.navigateByUrl('/overview');
+
+    expect(router.url).toBe('/authentication');
+    expect(painted).toEqual(['login']);
+});
+
+it('reaches the profile page with a valid session', async () => {
+    const router = setup(async () => true);
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/profile');
+
+    expect(router.url).toBe('/profile');
+    expect(painted).toEqual(['profile']);
+});
+
+it('sends /profile without a session to the login screen', async () => {
+    const router = setup(async () => false);
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/profile');
 
     expect(router.url).toBe('/authentication');
     expect(painted).toEqual(['login']);

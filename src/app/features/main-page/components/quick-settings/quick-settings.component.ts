@@ -1,4 +1,5 @@
 ﻿import {ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild} from '@angular/core';
+import {Router} from '@angular/router';
 import {ProfileService} from '../../../../services/profile.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {Button} from 'primeng/button';
@@ -49,6 +50,7 @@ export class QuickSettingsComponent {
     protected voiceControls = inject(VoiceControlsService);
     protected catalog = inject(MediaDeviceCatalogService);
     protected audio = inject(AudioSettingsService);
+    private router = inject(Router);
 
     /** What to call the status the user has put themselves in. */
     protected readonly statusLabelKey = computed(() =>
@@ -91,6 +93,11 @@ export class QuickSettingsComponent {
     public openProfileSettings(): void {
         this.settingsModal()?.selectPage('profile');
         this.isSettingsOpen.set(true);
+    }
+
+    /** Where `PROFILE_MENU.EDIT_PROFILE` goes: the profile page, not the settings modal. */
+    public openProfilePage(): void {
+        void this.router.navigate(['/profile']);
     }
 
     /** The escape hatch at the bottom of both device menus, for everything a chevron cannot hold. */

@@ -1,0 +1,27 @@
+@if (profile(); as p) {
+    <div class="flex flex-col w-full h-full overflow-y-auto bg-app-bg">
+        <div [style.background]="!bannerUrl() ? bannerFallback() : null" class="relative h-48 sm:h-60 bg-card shrink-0">
+            @if (bannerUrl(); as url) {
+                <img [src]="url" alt="" class="w-full h-full object-cover" />
+            }
+        </div>
+
+        <div class="relative px-6">
+            <div class="absolute -top-12 left-6">
+                <app-avatar [userId]="p.userId" size="xlarge" />
+            </div>
+        </div>
+
+        <div class="px-6 pt-14 pb-6">
+            <h1 class="text-xl font-bold text-text-primary">{{ p.userName }}</h1>
+        </div>
+    </div>
+} @else {
+    <div class="flex flex-col w-full h-full overflow-y-auto bg-app-bg" role="status">
+        <span class="sr-only">{{ 'COMMON.LOADING' | translate }}</span>
+        <div class="h-48 sm:h-60 bg-card shrink-0 animate-pulse"></div>
+        <div class="px-6 pt-14 pb-6">
+            <div class="h-5 w-40 rounded-md bg-white/[0.08] animate-pulse"></div>
+        </div>
+    </div>
+}
