@@ -213,10 +213,9 @@ describe('ProfilePopoutComponent', () => {
         expect(popoutSvc.modal()).toEqual({userId: USER_ID, tab: 'servers'});
     });
 
-    // Each case below reopens the popout (beforeEach already opened it once): ProfileService's
-    // cache returns the same profile object every time, so profile() only changes reference
-    // across two open() calls, which is what makes cardCanvas recompute. Removing the second
-    // open() would silently stop testing that.
+    // Each case below reopens the popout (beforeEach already opened it once): open() always
+    // constructs a fresh target object, so popoutSvc.popout() is what changes reference and
+    // makes cardCanvas recompute. Removing the second open() would silently stop testing that.
     it('draws card widgets the store already holds', () => {
         canvas = canvasWith(true);
         popoutSvc.open(USER_ID);
