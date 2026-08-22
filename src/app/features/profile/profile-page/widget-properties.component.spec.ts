@@ -3,9 +3,9 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {provideTranslateService} from '@ngx-translate/core';
 import {Subject, throwError} from 'rxjs';
 import {WidgetPropertiesComponent} from './widget-properties.component';
-import {CanvasEditorService} from '../../../../../../services/canvas-editor.service';
-import {ProfileCanvasApiService} from '../../../../../../services/profile-canvas-api.service';
-import {emptyCanvas} from '../../../../../../models/profile-canvas';
+import {CanvasEditorService} from '../../../services/canvas-editor.service';
+import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
+import {emptyCanvas} from '../../../models/profile-canvas';
 
 function setup(type: string, api: Partial<ProfileCanvasApiService> = {}) {
     TestBed.configureTestingModule({

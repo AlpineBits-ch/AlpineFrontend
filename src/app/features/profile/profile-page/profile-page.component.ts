@@ -19,7 +19,10 @@ import {Select} from 'primeng/select';
 import {finalize, forkJoin} from 'rxjs';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {ImageCropperComponent} from '../../../components/image-cropper/image-cropper.component';
-import {ProfileCanvasComponent} from '../../../components/profile-canvas/profile-canvas.component';
+import {
+    ProfileCanvasComponent,
+    WidgetSelectedEvent,
+} from '../../../components/profile-canvas/profile-canvas.component';
 import {ProfileService} from '../../../services/profile.service';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
@@ -29,6 +32,7 @@ import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profil
 import {cacheBustedUrl} from '../../../models/profile-image.model';
 import {emptyCanvas} from '../../../models/profile-canvas';
 import {ProfileFont} from '../../../dtos/response/profile.dto';
+import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
 
 /** Own-profile page: identity strip above the canvas, with an in-place edit mode. */
 @Component({
@@ -42,6 +46,7 @@ import {ProfileFont} from '../../../dtos/response/profile.dto';
         Dialog,
         ImageCropperComponent,
         Select,
+        WidgetEditorPopoverComponent,
     ],
     templateUrl: './profile-page.component.html',
     styleUrl: './profile-page.component.css',
@@ -81,12 +86,28 @@ export class ProfilePageComponent {
 
     protected readonly bannerFallback = computed(() => safeAccentColor(this.profile()?.accentColor));
 
+    // Editing shows the arrangement being worked on, not the last saved one: a resize or a
+    // property edit only mutates the draft, and the grid would look inert without this.
     protected readonly canvas = computed(() => {
         const profile = this.profile();
-        return profile ? (this.canvasStore.canvasFor(profile.id) ?? emptyCanvas(profile.id)) : undefined;
+        if (!profile) return undefined;
+        if (this.editing()) return this.canvasEditor.draft() ?? emptyCanvas(profile.id);
+        return this.canvasStore.canvasFor(profile.id) ?? emptyCanvas(profile.id);
     });
 
     protected readonly safeAccentColor = safeAccentColor;
+
+    protected readonly selectedWidgetId = signal<string | null>(null);
+    protected readonly selectedTileEl = signal<HTMLElement | null>(null);
+    // Escape hides the popover but leaves selectedWidgetId alone, so the tile stays visibly
+    // selected for a keyboard user; only clearSelection() actually deselects.
+    private readonly editorHidden = signal(false);
+
+    protected readonly popoverWidget = computed(() => {
+        const id = this.selectedWidgetId();
+        if (!id || this.editorHidden()) return null;
+        return this.canvas()?.widgets.find(widget => widget.id === id) ?? null;
+    });
 
     protected readonly dirty = computed(() => this.canvasEditor.dirty() || this.textDraft.dirty());
 
@@ -142,6 +163,7 @@ export class ProfilePageComponent {
     protected cancel(): void {
         if (!this.dirty()) {
             this.editing.set(false);
+            this.clearSelection();
             return;
         }
 
@@ -156,8 +178,38 @@ export class ProfilePageComponent {
                 this.canvasEditor.discard();
                 this.textDraft.discard();
                 this.editing.set(false);
+                this.clearSelection();
             },
         });
+    }
+
+    protected onWidgetSelected(event: WidgetSelectedEvent): void {
+        if (this.selectedWidgetId() === event.id && !this.editorHidden()) {
+            this.clearSelection();
+            return;
+        }
+        this.selectedWidgetId.set(event.id);
+        this.selectedTileEl.set(event.element);
+        this.editorHidden.set(false);
+    }
+
+    protected onEditorEscaped(): void {
+        this.editorHidden.set(true);
+        this.selectedTileEl()?.focus();
+    }
+
+    protected onEditorDismissed(): void {
+        this.clearSelection();
+    }
+
+    protected onEditorDeleted(): void {
+        this.clearSelection();
+    }
+
+    private clearSelection(): void {
+        this.selectedWidgetId.set(null);
+        this.selectedTileEl.set(null);
+        this.editorHidden.set(false);
     }
 
     protected save(): void {
@@ -180,6 +232,7 @@ export class ProfilePageComponent {
                 this.canvasEditor.begin(savedCanvas);
                 this.textDraft.begin(profile);
                 this.editing.set(false);
+                this.clearSelection();
                 this.toast.success(this.translate.instant('PROFILE_PAGE.SAVED'));
             },
             error: err => this.toast.httpError(this.translate.instant('PROFILE_PAGE.SAVE_FAILED'), err),

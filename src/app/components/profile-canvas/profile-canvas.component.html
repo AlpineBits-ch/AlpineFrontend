@@ -1,9 +1,20 @@
 <div [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'" class="grid gap-2">
     @for (entry of placed(); track entry.widget.id) {
         <div
+            (click)="onTileClick(entry.widget, $event)"
+            (keydown)="onTileKeydown(entry.widget, $event)"
+            [attr.aria-label]="tileSelectable(entry.widget) ? tileLabel(entry.widget) : null"
+            [attr.aria-pressed]="tileSelectable(entry.widget) ? selectedId() === entry.widget.id : null"
+            [attr.data-widget-id]="entry.widget.id"
+            [attr.role]="tileSelectable(entry.widget) ? 'button' : null"
+            [attr.tabindex]="tileSelectable(entry.widget) ? 0 : null"
+            [class.cursor-pointer]="tileSelectable(entry.widget)"
+            [class.outline]="tileSelectable(entry.widget) && selectedId() === entry.widget.id"
+            [class.outline-2]="tileSelectable(entry.widget) && selectedId() === entry.widget.id"
+            [class.outline-brand]="tileSelectable(entry.widget) && selectedId() === entry.widget.id"
             [style.grid-column]="'span ' + entry.widget.w"
             [style.grid-row]="'span ' + entry.widget.h"
-            class="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3"
+            class="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
         >
             <ng-container [ngComponentOutlet]="entry.component" [ngComponentOutletInputs]="entry.inputs" />
         </div>

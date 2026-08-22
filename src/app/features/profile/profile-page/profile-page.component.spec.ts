@@ -12,6 +12,7 @@ import {ProfileService} from '../../../services/profile.service';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
 import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
+import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
 import {FONT_OPTIONS, FONT_STACKS} from '../../../models/profile-font.model';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
@@ -73,6 +74,7 @@ function setup(initial: ProfileDto | undefined) {
                     },
                 },
             },
+            {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
         ],
     });
 
@@ -99,6 +101,14 @@ function click(fixture: ComponentFixture<unknown>, testId: string): void {
         .querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)!
         .click();
     fixture.detectChanges();
+}
+
+function tile(fixture: ComponentFixture<unknown>, widgetId: string): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(`[data-widget-id="${widgetId}"]`)!;
+}
+
+function popover(fixture: ComponentFixture<unknown>): HTMLElement | null {
+    return (fixture.nativeElement as HTMLElement).querySelector('[data-testid="widget-editor-popover"]');
 }
 
 describe('ProfilePageComponent', () => {
@@ -323,5 +333,87 @@ describe('ProfilePageComponent', () => {
         expect(editor.draft()!.widgets).toHaveLength(1);
         expect(textDraft.draft()?.bio).toBe('a saved bio');
         expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
+    });
+
+    // ── Widget editor popover ────────────────────────────────────────────────
+
+    function selectFirstWidget(fixture: ComponentFixture<ProfilePageComponent>, editor: CanvasEditorService) {
+        click(fixture, 'edit-profile');
+        editor.insert('quote');
+        fixture.detectChanges();
+        const id = editor.draft()!.widgets[0].id;
+        tile(fixture, id).click();
+        fixture.detectChanges();
+        return id;
+    }
+
+    it('clicking a tile selects it and anchors the editor to it', () => {
+        const {fixture, editor} = setup(OWN);
+        const id = selectFirstWidget(fixture, editor);
+
+        expect(popover(fixture)).not.toBeNull();
+        expect(tile(fixture, id).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('clicking the selected tile again deselects and hides the editor', () => {
+        const {fixture, editor} = setup(OWN);
+        const id = selectFirstWidget(fixture, editor);
+
+        tile(fixture, id).click();
+        fixture.detectChanges();
+
+        expect(popover(fixture)).toBeNull();
+        expect(tile(fixture, id).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('clicking elsewhere deselects and hides the editor', () => {
+        const {fixture, editor} = setup(OWN);
+        const id = selectFirstWidget(fixture, editor);
+
+        (fixture.nativeElement as HTMLElement)
+            .querySelector('h1')!
+            .dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+        fixture.detectChanges();
+
+        expect(popover(fixture)).toBeNull();
+        expect(tile(fixture, id).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('Escape closes the editor and keeps the tile selected', () => {
+        const {fixture, editor} = setup(OWN);
+        const id = selectFirstWidget(fixture, editor);
+
+        popover(fixture)!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        fixture.detectChanges();
+
+        expect(popover(fixture)).toBeNull();
+        expect(tile(fixture, id).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('is reachable and dismissible by keyboard alone', () => {
+        const {fixture, editor} = setup(OWN);
+        click(fixture, 'edit-profile');
+        editor.insert('quote');
+        fixture.detectChanges();
+        const id = editor.draft()!.widgets[0].id;
+
+        tile(fixture, id).dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        fixture.detectChanges();
+        expect(popover(fixture)).not.toBeNull();
+
+        popover(fixture)!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        fixture.detectChanges();
+        expect(popover(fixture)).toBeNull();
+    });
+
+    it('deleting the selected widget removes it and clears the selection', () => {
+        const {fixture, editor} = setup(OWN);
+        selectFirstWidget(fixture, editor);
+
+        popover(fixture)!.querySelector<HTMLButtonElement>('[data-testid="delete-widget"]')!.click();
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(0);
+        expect(popover(fixture)).toBeNull();
     });
 });

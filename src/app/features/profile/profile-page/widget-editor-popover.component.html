@@ -1,0 +1,31 @@
+<div
+    #card
+    (click)="$event.stopPropagation()"
+    (keydown)="onKeydown($event)"
+    [attr.aria-label]="titleKey() | translate"
+    [class.invisible]="!placement()"
+    [style.left.px]="placement()?.left ?? 0"
+    [style.max-height.px]="maxHeight()"
+    [style.top.px]="placement()?.top ?? 0"
+    class="thin-scrollbar fixed z-[9991] w-80 overflow-y-auto rounded-2xl border border-border bg-card shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)] focus-visible:outline-none"
+    data-testid="widget-editor-popover"
+    role="dialog"
+    tabindex="-1"
+>
+    <div class="flex items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
+        <h2 class="text-sm font-semibold text-text-primary">{{ titleKey() | translate }}</h2>
+        <button
+            (click)="removeWidget()"
+            [attr.aria-label]="'PROFILE.CANVAS.EDITOR.REMOVE' | translate"
+            class="cursor-pointer rounded-lg border-0 bg-transparent p-1.5 text-sm text-offline transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+            data-testid="delete-widget"
+            type="button"
+        >
+            <i class="pi pi-trash"></i>
+        </button>
+    </div>
+
+    <div class="p-3">
+        <app-widget-properties [widget]="widget()" />
+    </div>
+</div>

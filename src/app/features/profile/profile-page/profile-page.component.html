@@ -168,10 +168,27 @@
                     }
 
                     @if (canvas(); as arranged) {
-                        <app-profile-canvas [canvas]="arranged" [columns]="4" [owner]="p" />
+                        <app-profile-canvas
+                            (widgetSelected)="onWidgetSelected($event)"
+                            [canvas]="arranged"
+                            [columns]="4"
+                            [owner]="p"
+                            [selectable]="editing()"
+                            [selectedId]="selectedWidgetId()"
+                        />
                     }
                 </div>
             </div>
+
+            @if (popoverWidget(); as widget) {
+                <app-widget-editor-popover
+                    (deleted)="onEditorDeleted()"
+                    (dismissed)="onEditorDismissed()"
+                    (escaped)="onEditorEscaped()"
+                    [anchor]="selectedTileEl()!"
+                    [widget]="widget"
+                />
+            }
 
             <p-dialog
                 [(visible)]="avatarCropVisible"

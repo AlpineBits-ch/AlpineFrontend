@@ -2,11 +2,11 @@ import {ChangeDetectionStrategy, Component, computed, inject, input, signal} fro
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {Select} from 'primeng/select';
-import {CanvasVisibility, CanvasWidgetDto} from '../../../../../../dtos/response/profile-canvas.dto';
-import {CanvasEditorService} from '../../../../../../services/canvas-editor.service';
-import {ProfileCanvasApiService} from '../../../../../../services/profile-canvas-api.service';
-import {definitionFor, WidgetField} from '../../../../../../components/profile-canvas/widget-registry';
-import {Footprint, MAX_CARD_WIDGETS} from '../../../../../../models/profile-canvas';
+import {CanvasVisibility, CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
+import {CanvasEditorService} from '../../../services/canvas-editor.service';
+import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
+import {definitionFor, WidgetField} from '../../../components/profile-canvas/widget-registry';
+import {Footprint, MAX_CARD_WIDGETS} from '../../../models/profile-canvas';
 
 const VISIBILITIES: readonly CanvasVisibility[] = ['everyone', 'friends', 'mutuals'];
 

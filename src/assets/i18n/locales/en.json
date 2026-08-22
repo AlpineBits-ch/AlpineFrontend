@@ -1959,6 +1959,7 @@
   "PROFILE_PAGE.CROP_BANNER": "Crop Banner",
   "PROFILE_PAGE.AVATAR_UPLOAD_FAILED": "Could not upload avatar",
   "PROFILE_PAGE.BANNER_UPLOAD_FAILED": "Could not upload banner",
+  "PROFILE_PAGE.EDIT_WIDGET": "Edit {{type}} widget",
   "MESSAGING.REFUSED_DM_POLICY": "This person does not accept messages from you",
   "MESSAGING.REFUSED_BLOCKED": "You cannot message this person",
   "MESSAGING.REFUSED_FRIEND_REQUEST": "This person is not accepting friend requests",
