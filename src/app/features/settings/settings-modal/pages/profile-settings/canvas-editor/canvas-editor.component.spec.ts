@@ -35,14 +35,15 @@ class FakeCanvasApi {
     }
 }
 
-function setup() {
+function setup(initial: ProfileDto = profile()) {
     const saved: unknown[] = [];
+    const ownProfile = signal<ProfileDto | undefined>(initial);
     TestBed.configureTestingModule({
         providers: [
             provideTranslateService(),
             MessageService,
             ConfirmationService,
-            {provide: ProfileService, useValue: {ownProfile: signal(profile())}},
+            {provide: ProfileService, useValue: {ownProfile}},
             {provide: ProfileCanvasApiService, useValue: new FakeCanvasApi()},
             {
                 provide: ProfileCanvasStore,
@@ -60,7 +61,7 @@ function setup() {
     });
     const fixture = TestBed.createComponent(CanvasEditorComponent);
     fixture.detectChanges();
-    return {fixture, saved, editor: TestBed.inject(CanvasEditorService)};
+    return {fixture, saved, editor: TestBed.inject(CanvasEditorService), ownProfile};
 }
 
 describe('CanvasEditorComponent', () => {
@@ -166,6 +167,34 @@ describe('CanvasEditorComponent', () => {
         // The service call only happens after PrimeNG's confirm dialog accepts, which this test
         // never does, so the widget the user just inserted must still be there.
         expect(editor.draft()!.widgets).toHaveLength(1);
+    });
+
+    it('does not discard an in-progress draft when the profile object changes but its id does not', () => {
+        const {fixture, editor, ownProfile} = setup();
+        editor.insert('quote');
+        fixture.detectChanges();
+        expect(editor.dirty()).toBe(true);
+
+        // Same id, a fresh object: exactly what ProfileService.ownProfile hands out after
+        // updateProfile() / uploadAvatar() / uploadBanner() / setSelfStatus().
+        ownProfile.set({...profile(), bio: 'a new bio'});
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(1);
+        expect(editor.dirty()).toBe(true);
+    });
+
+    it('re-begins the draft when the profile id actually changes', () => {
+        const {fixture, editor, ownProfile} = setup();
+        editor.insert('quote');
+        fixture.detectChanges();
+        expect(editor.draft()!.widgets).toHaveLength(1);
+
+        ownProfile.set({...profile(), id: 'p2'});
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(0);
+        expect(editor.dirty()).toBe(false);
     });
 
     it('inserts every registered widget type and renders it without throwing', () => {

@@ -1,8 +1,9 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked} from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {ConfirmationService, MessageService} from 'primeng/api';
+import {ConfirmationService} from 'primeng/api';
 import {ConfirmDialog} from 'primeng/confirmdialog';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {ToastService} from '../../../../../../services/toast.service';
 import {CanvasEditorService} from '../../../../../../services/canvas-editor.service';
 import {ProfileCanvasStore} from '../../../../../../stores/profile-canvas.store';
 import {ProfileCanvasComponent} from '../../../../../../components/profile-canvas/profile-canvas.component';
@@ -29,11 +30,18 @@ export class CanvasEditorComponent {
     protected readonly overIndex = signal<number | null>(null);
 
     private profiles = inject(ProfileService);
-    private toast = inject(MessageService);
+    private toast = inject(ToastService);
     private confirm = inject(ConfirmationService);
     private translate = inject(TranslateService);
 
     protected readonly owner = this.profiles.ownProfile;
+
+    // ownProfile is set to a fresh object on every own-profile write (updateProfile,
+    // uploadAvatar, ...), not just when the signed-in profile actually changes. Keying the
+    // begin effect on the object would re-begin, and silently drop, an in-progress draft on
+    // every one of those writes. Keying on the id computed makes it re-fire only when the
+    // profile being edited actually changes.
+    private readonly ownerId = computed(() => this.owner()?.id);
 
     protected readonly selected = computed(
         () => this.editor.draft()?.widgets.find(widget => widget.id === this.selectedId()) ?? null,
@@ -46,12 +54,12 @@ export class CanvasEditorComponent {
 
     constructor() {
         effect(() => {
-            const profile = this.owner();
-            if (!profile) return;
+            const id = this.ownerId();
+            if (!id) return;
 
             untracked(() => {
-                this.store.ensureLoaded(profile.id);
-                this.editor.begin(this.store.canvasFor(profile.id) ?? emptyCanvas(profile.id));
+                this.store.ensureLoaded(id);
+                this.editor.begin(this.store.canvasFor(id) ?? emptyCanvas(id));
             });
         });
     }
@@ -63,7 +71,9 @@ export class CanvasEditorComponent {
     }
 
     protected labelFor(type: string): string {
-        return definitionFor(type)?.labelKey ?? type;
+        // Only reachable with draft data from an unregistered widget type; never fall through
+        // to the raw type string, which would render literally through the translate pipe.
+        return definitionFor(type)?.labelKey ?? '';
     }
 
     protected onDragOver(event: DragEvent, index: number): void {
@@ -95,16 +105,9 @@ export class CanvasEditorComponent {
         this.store.save(draft).subscribe({
             next: saved => {
                 this.editor.begin(saved);
-                this.toast.add({
-                    severity: 'success',
-                    summary: this.translate.instant('PROFILE.CANVAS.EDITOR.SAVED'),
-                });
+                this.toast.success(this.translate.instant('PROFILE.CANVAS.EDITOR.SAVED'));
             },
-            error: () =>
-                this.toast.add({
-                    severity: 'error',
-                    summary: this.translate.instant('PROFILE.CANVAS.EDITOR.SAVE_FAILED'),
-                }),
+            error: () => this.toast.error(this.translate.instant('PROFILE.CANVAS.EDITOR.SAVE_FAILED')),
         });
     }
 
@@ -113,6 +116,8 @@ export class CanvasEditorComponent {
         this.confirm.confirm({
             header: this.translate.instant('PROFILE.CANVAS.EDITOR.DISCARD'),
             message: this.translate.instant('PROFILE.CANVAS.EDITOR.DISCARD_CONFIRM'),
+            acceptLabel: this.translate.instant('PROFILE.CANVAS.EDITOR.DISCARD_CONFIRM_ACCEPT'),
+            rejectLabel: this.translate.instant('COMMON.CANCEL'),
             acceptButtonProps: {severity: 'danger', size: 'small'},
             rejectButtonProps: {severity: 'secondary', outlined: true, size: 'small'},
             accept: () => {

@@ -52,6 +52,29 @@ describe('WIDGET_REGISTRY', () => {
         }
     });
 
+    it('gives every declared field a matching key in the default config', () => {
+        for (const definition of WIDGET_REGISTRY) {
+            const config = definition.defaultConfig() as Record<string, unknown>;
+            for (const field of definition.fields) {
+                expect(config, `${definition.type}.${field.key}`).toHaveProperty(field.key);
+                const value = config[field.key];
+
+                switch (field.kind) {
+                    case 'text':
+                    case 'textarea':
+                    case 'timezone':
+                    case 'image':
+                        expect(typeof value, `${definition.type}.${field.key}`).toBe('string');
+                        break;
+                    case 'images':
+                    case 'rows':
+                        expect(Array.isArray(value), `${definition.type}.${field.key}`).toBe(true);
+                        break;
+                }
+            }
+        }
+    });
+
     it('definitionFor resolves a known type and answers undefined for an unknown one', () => {
         expect(definitionFor('quote')?.type).toBe('quote');
         expect(definitionFor('from-the-future')).toBeUndefined();
