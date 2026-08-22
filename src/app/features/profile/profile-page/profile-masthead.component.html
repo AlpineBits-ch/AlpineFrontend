@@ -69,6 +69,17 @@
                     >
                         <i class="pi pi-camera"></i>
                     </button>
+                    @if (hasAvatar()) {
+                        <button
+                            (click)="removeAvatar()"
+                            [attr.aria-label]="'PROFILE_PAGE.REMOVE_AVATAR' | translate"
+                            class="absolute -right-1 -bottom-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-rose-500 text-white transition-colors hover:bg-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                            data-testid="remove-avatar"
+                            type="button"
+                        >
+                            <i class="pi pi-trash text-xs"></i>
+                        </button>
+                    }
                     @if (uploadingAvatar()) {
                         <div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/60">
                             <i class="pi pi-spin pi-spinner text-white"></i>

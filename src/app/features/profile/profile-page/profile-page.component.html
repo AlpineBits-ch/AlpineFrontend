@@ -16,6 +16,7 @@
             <app-profile-masthead
                 (accentColorChanged)="textDraft.setAccentColor($event)"
                 (avatarCropped)="onAvatarCropped($event)"
+                (avatarRemoveRequested)="onAvatarRemoveRequested()"
                 (bannerCropped)="onBannerCropped($event)"
                 (bioChanged)="textDraft.setBio($event)"
                 (cancelled)="cancel()"

@@ -14,10 +14,8 @@ import {OnlineStatus, ProfileDto, ProfileFont} from '../../../../../dtos/respons
 const BASE = 'https://api.test.example';
 const SELF_URL = `${BASE}/api/v1/identity/users/self`;
 
-// The page ends up with six sections once Avatar is unhitched from the page migration - see the
-// TODO on it in the template.
-const REMAINING_SECTIONS = ['Avatar', 'Account', 'Connections', 'Sessions', 'Change Password', 'Danger Zone'];
-const REMOVED_SECTIONS = ['Profile Overview', 'Banner', 'Display'];
+const REMAINING_SECTIONS = ['Account', 'Connections', 'Sessions', 'Change Password', 'Danger Zone'];
+const REMOVED_SECTIONS = ['Profile Overview', 'Banner', 'Display', 'Avatar'];
 
 function makeUser(overrides: Partial<UserDto> = {}): UserDto {
     return {
@@ -108,11 +106,5 @@ describe('ProfileSettingsComponent', () => {
         for (const removed of REMOVED_SECTIONS) {
             expect(text).not.toContain(removed);
         }
-    });
-
-    it('keeps the avatar remove control working, since removeAvatar() has no home on the page yet', () => {
-        const {fixture} = render(makeProfile({avatarUrl: 'https://cdn.test/avatar.png'}));
-        const buttons = [...fixture.nativeElement.querySelectorAll('p-button')] as HTMLElement[];
-        expect(buttons.some(b => b.textContent?.includes('Remove'))).toBe(true);
     });
 });

@@ -1,8 +1,8 @@
-import {ChangeDetectionStrategy, Component, computed, ElementRef, inject, OnInit, signal, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, OnInit, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
-import {finalize, take} from 'rxjs';
+import {take} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {DatePipe} from '@angular/common';
 import {HttpErrorResponse} from '@angular/common/http';
@@ -11,25 +11,19 @@ import {UserService} from '../../../../../services/user.service';
 import {SteamService} from '../../../../../services/steam.service';
 import {ExternalLinkService} from '../../../../../services/external-link.service';
 import {ToastService} from '../../../../../services/toast.service';
-import {ImageCropperComponent} from '../../../../../components/image-cropper/image-cropper.component';
 import {TranslateModule} from '@ngx-translate/core';
 import {AccountStatus, UserDto} from '../../../../../dtos/response/UserDto';
 import {AccountPhoneComponent} from '../../../components/account-phone.component';
 
 @Component({
     selector: 'app-profile-settings',
-    imports: [Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe, AccountPhoneComponent],
+    imports: [Button, Dialog, TranslateModule, FormsModule, DatePipe, AccountPhoneComponent],
     templateUrl: './profile-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileSettingsComponent implements OnInit {
     protected readonly user = signal<UserDto | undefined>(undefined);
     protected readonly userLoading = signal(true);
-    protected readonly uploading = signal(false);
-    protected readonly avatarExpanded = signal(false);
-    protected readonly avatarError = signal(false);
-    protected readonly cropVisible = signal(false);
-    protected readonly cropSrc = signal('');
     protected readonly confirmDeleteVisible = signal(false);
     protected readonly deleting = signal(false);
     protected readonly cancelDeleteVisible = signal(false);
@@ -47,7 +41,6 @@ export class ProfileSettingsComponent implements OnInit {
     protected readonly signOutAllVisible = signal(false);
     protected readonly signingOutAll = signal(false);
     protected readonly signOutSuccess = signal(false);
-    protected readonly avatarLabel = computed(() => (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase());
     protected readonly usernameDisplay = computed(() => this.ownProfile()?.userName ?? '-');
     // Steam link
     protected readonly linkingSteam = signal(false);
@@ -64,7 +57,6 @@ export class ProfileSettingsComponent implements OnInit {
     private steamService = inject(SteamService);
     private externalLink = inject(ExternalLinkService);
     private toast = inject(ToastService);
-    private readonly fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
 
     constructor() {
         // The link flow completes asynchronously via the venta://steam-auth deep link.
@@ -150,44 +142,6 @@ export class ProfileSettingsComponent implements OnInit {
             .subscribe({
                 next: user => this.user.set(user),
             });
-    }
-
-    protected pickFile(): void {
-        this.fileInputRef().nativeElement.click();
-    }
-
-    protected onFileSelected(event: Event): void {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0];
-        input.value = '';
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            this.cropSrc.set(reader.result as string);
-            this.cropVisible.set(true);
-        };
-        reader.readAsDataURL(file);
-    }
-
-    protected onCropConfirmed(file: File): void {
-        this.cropVisible.set(false);
-        this.uploading.set(true);
-        this.profileService
-            .uploadAvatar(file)
-            .pipe(finalize(() => this.uploading.set(false)))
-            .subscribe({
-                next: () => this.avatarError.set(false),
-                error: err => this.toast.httpError('Could not upload avatar', err),
-            });
-    }
-
-    protected onAvatarError(): void {
-        this.avatarError.set(true);
-    }
-
-    protected removeAvatar(): void {
-        this.profileService.removeAvatar().subscribe();
     }
 
     protected submitPasswordChange(): void {

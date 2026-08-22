@@ -154,4 +154,16 @@ export class ProfilePageComponent {
                     this.toast.httpError(this.translate.instant('PROFILE_PAGE.BANNER_UPLOAD_FAILED'), err),
             });
     }
+
+    protected onAvatarRemoveRequested(): void {
+        this.confirmation.confirm({
+            header: this.translate.instant('PROFILE_PAGE.REMOVE_AVATAR_CONFIRM_HEADER'),
+            message: this.translate.instant('PROFILE_PAGE.REMOVE_AVATAR_CONFIRM_MESSAGE'),
+            acceptLabel: this.translate.instant('PROFILE_PAGE.REMOVE_AVATAR_CONFIRM_ACCEPT'),
+            rejectLabel: this.translate.instant('PROFILE_PAGE.REMOVE_AVATAR_CONFIRM_REJECT'),
+            acceptButtonProps: {severity: 'danger', size: 'small'},
+            rejectButtonProps: {severity: 'secondary', outlined: true, size: 'small'},
+            accept: () => this.profileService.removeAvatar().subscribe(),
+        });
+    }
 }

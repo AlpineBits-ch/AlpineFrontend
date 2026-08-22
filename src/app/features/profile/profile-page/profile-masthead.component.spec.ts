@@ -181,6 +181,37 @@ describe('ProfileMastheadComponent', () => {
         expect(accentColorChanged).toHaveBeenCalledWith('');
     });
 
+    it('the remove-avatar control only shows in edit mode with an avatar set', () => {
+        expect(
+            testId(
+                setup({editing: false, profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}}),
+                'remove-avatar',
+            ),
+        ).toBeNull();
+        expect(
+            testId(setup({editing: true, profile: {...OWN, avatarUrl: undefined}}), 'remove-avatar'),
+        ).toBeNull();
+        expect(
+            testId(
+                setup({editing: true, profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'}}),
+                'remove-avatar',
+            ),
+        ).not.toBeNull();
+    });
+
+    it('avatarRemoveRequested fires from the remove-avatar control', () => {
+        const fixture = setup({
+            editing: true,
+            profile: {...OWN, avatarUrl: 'https://cdn.test.example/a.png'},
+        });
+        const avatarRemoveRequested = vi.fn();
+        fixture.componentInstance.avatarRemoveRequested.subscribe(avatarRemoveRequested);
+
+        testId(fixture, 'remove-avatar')!.click();
+
+        expect(avatarRemoveRequested).toHaveBeenCalledOnce();
+    });
+
     it('avatarCropped and bannerCropped emit the cropped file and close their dialogs', () => {
         const fixture = setup({editing: true});
         const avatarCropped = vi.fn();

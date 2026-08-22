@@ -37,6 +37,7 @@ function setup(initial: ProfileDto | undefined) {
     const updateProfileCalls: unknown[] = [];
     const saveCanvasCalls: unknown[] = [];
     const navigateCalls: unknown[] = [];
+    const removeAvatarCalls: unknown[] = [];
 
     TestBed.configureTestingModule({
         imports: [ProfilePageComponent],
@@ -60,6 +61,10 @@ function setup(initial: ProfileDto | undefined) {
                     },
                     uploadAvatar: () => of(ownProfile()),
                     uploadBanner: () => of(ownProfile()),
+                    removeAvatar: () => {
+                        removeAvatarCalls.push(undefined);
+                        return of({...ownProfile(), avatarUrl: undefined});
+                    },
                 },
             },
             {
@@ -89,6 +94,7 @@ function setup(initial: ProfileDto | undefined) {
         updateProfileCalls,
         saveCanvasCalls,
         navigateCalls,
+        removeAvatarCalls,
     };
 }
 
@@ -356,6 +362,25 @@ describe('ProfilePageComponent', () => {
         expect(editor.draft()!.widgets).toHaveLength(1);
         expect(textDraft.draft()?.bio).toBe('a saved bio');
         expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
+    });
+
+    it('removing the avatar asks first, and only calls removeAvatar on confirm', () => {
+        const {fixture, removeAvatarCalls} = setup({...OWN, avatarUrl: 'https://cdn.test.example/a.png'});
+        click(fixture, 'edit-profile');
+
+        // vi.spyOn returns the same mock across tests in this file since nothing restores it,
+        // so clear it first rather than asserting against calls other tests already made.
+        const confirmSpy = vi.spyOn(ConfirmationService.prototype, 'confirm');
+        confirmSpy.mockClear();
+        click(fixture, 'remove-avatar');
+
+        expect(confirmSpy).toHaveBeenCalledOnce();
+        expect(removeAvatarCalls).toHaveLength(0);
+
+        const config = confirmSpy.mock.calls[0][0];
+        config.accept?.();
+
+        expect(removeAvatarCalls).toHaveLength(1);
     });
 
     // ── Widget editor popover ────────────────────────────────────────────────

@@ -34,7 +34,6 @@ import {ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
         DatePipe,
     ],
     templateUrl: './profile-masthead.component.html',
-    styleUrl: './profile-masthead.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileMastheadComponent {
@@ -55,6 +54,7 @@ export class ProfileMastheadComponent {
     readonly fontChanged = output<ProfileFont>();
     readonly avatarCropped = output<File>();
     readonly bannerCropped = output<File>();
+    readonly avatarRemoveRequested = output<void>();
 
     protected readonly avatarCropVisible = signal(false);
     protected readonly avatarCropSrc = signal('');
@@ -71,6 +71,8 @@ export class ProfileMastheadComponent {
     });
 
     protected readonly bannerFallback = computed(() => safeAccentColor(this.profile().accentColor));
+
+    protected readonly hasAvatar = computed(() => !!this.profile().avatarUrl);
 
     protected readonly safeAccentColor = safeAccentColor;
 
@@ -108,6 +110,10 @@ export class ProfileMastheadComponent {
     protected onAvatarCropConfirmed(file: File): void {
         this.avatarCropVisible.set(false);
         this.avatarCropped.emit(file);
+    }
+
+    protected removeAvatar(): void {
+        this.avatarRemoveRequested.emit();
     }
 
     protected pickBannerFile(): void {
