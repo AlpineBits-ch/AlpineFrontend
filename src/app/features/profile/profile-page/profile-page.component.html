@@ -12,8 +12,17 @@
             </div>
         </div>
 
-        <div class="px-6 pt-14 pb-6">
-            <h1 class="text-xl font-bold text-text-primary">{{ p.userName }}</h1>
+        <div class="px-6 pt-14 pb-6 flex flex-col gap-3">
+            <div>
+                <h1 class="text-xl font-bold text-text-primary">{{ p.userName }}</h1>
+                @if (p.bio) {
+                    <p class="text-sm text-text-secondary mt-1">{{ p.bio }}</p>
+                }
+            </div>
+
+            @if (canvas(); as arranged) {
+                <app-profile-canvas [canvas]="arranged" [columns]="4" [owner]="p" />
+            }
         </div>
     </div>
 } @else {
