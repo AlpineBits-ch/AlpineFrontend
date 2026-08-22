@@ -82,6 +82,7 @@ export class AdminDiscoveryComponent implements OnInit {
     protected readonly formOpen = signal(false);
     protected readonly formGuildId = signal('');
     protected readonly formGuildName = signal<string | null>(null);
+    protected readonly formGuildIdLocked = signal(false);
     protected readonly formReason = signal('');
     protected readonly formStaffNote = signal('');
     protected readonly formExpiresAt = signal('');
@@ -208,6 +209,7 @@ export class AdminDiscoveryComponent implements OnInit {
     protected openBanForm(row?: AdminListingRowDto): void {
         this.formGuildId.set(row?.guildId ?? '');
         this.formGuildName.set(row?.guildName ?? null);
+        this.formGuildIdLocked.set(!!row);
         this.formReason.set('');
         this.formStaffNote.set('');
         this.formExpiresAt.set('');

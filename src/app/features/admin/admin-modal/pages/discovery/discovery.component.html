@@ -92,6 +92,8 @@
                     [ngModel]="formGuildId()"
                     (ngModelChange)="formGuildId.set($event)"
                     [placeholder]="'ADMIN.DISCOVERY.FORM.GUILD_ID_PLACEHOLDER' | translate"
+                    [readonly]="formGuildIdLocked()"
+                    [ngClass]="formGuildIdLocked() ? 'opacity-70 cursor-not-allowed' : ''"
                     class="w-full"
                     id="ban-guild-id"
                     pInputText
@@ -113,8 +115,12 @@
                 ></textarea>
             </div>
 
-            <div>
-                <label class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted" for="ban-staff-note">
+            <div class="rounded-lg border border-amber-500/25 bg-amber-500/[0.05] p-3">
+                <label
+                    class="mb-1.5 flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-widest text-amber-300"
+                    for="ban-staff-note"
+                >
+                    <i class="pi pi-lock text-[0.625rem]"></i>
                     {{ 'ADMIN.DISCOVERY.FORM.STAFF_NOTE_LABEL' | translate }}
                 </label>
                 <textarea
@@ -141,6 +147,7 @@
                     type="date"
                 />
                 <p class="mt-1 text-[0.6875rem] text-text-faint">{{ 'ADMIN.DISCOVERY.FORM.EXPIRES_HINT' | translate }}</p>
+                <p class="mt-0.5 text-[0.6875rem] text-text-faint">{{ 'ADMIN.DISCOVERY.FORM.EXPIRES_HINT_EMPTY' | translate }}</p>
             </div>
 
             @if (formError()) {
@@ -214,7 +221,7 @@
 
         @if (bans().length > 0) {
             <div class="flex flex-col gap-2">
-                @for (ban of bans(); track ban.guildId + ban.bannedAt) {
+                @for (ban of bans(); track ban.guildId) {
                     <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
                         <div class="flex items-center gap-2">
                             <p class="text-sm font-medium text-text-primary truncate flex-1">{{ ban.guildName }}</p>
