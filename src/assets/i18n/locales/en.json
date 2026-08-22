@@ -4260,6 +4260,7 @@
   "GUILD_SETTINGS.ROLES.STAT_MEMBERS_ONE": "member",
   "GUILD_SETTINGS.ROLES.STAT_VISIBLE_HINT": "Counts what this role alone grants. A member may see more or fewer once @everyone and their own overrides are applied.",
   "DISCOVERY.TITLE": "Discover",
+  "DISCOVERY.LISTING.MENU": "Public Listing",
   "DISCOVERY.SEARCH_PLACEHOLDER": "Search communities",
   "DISCOVERY.TAB.COMMUNITIES": "Communities",
   "DISCOVERY.TAB.POSTINGS": "Looking for players",

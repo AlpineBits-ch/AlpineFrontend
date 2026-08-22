@@ -237,6 +237,11 @@ export class ChannelListComponent {
                       icon: 'pi pi-eye',
                       command: () => this.showViewAsPicker.set(true),
                   },
+                  {
+                      label: this.translate.instant('DISCOVERY.LISTING.MENU'),
+                      icon: 'pi pi-megaphone',
+                      command: () => this.navService.openListingEditor(this.guild().id),
+                  },
               ]
             : []),
         {
