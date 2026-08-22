@@ -1,5 +1,6 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
+import {MessageService} from 'primeng/api';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
@@ -33,7 +34,13 @@ describe('WidgetEditorPopoverComponent', () => {
     function render(rect: Partial<DOMRect> = {left: 100, right: 300, top: 100}) {
         TestBed.configureTestingModule({
             imports: [WidgetEditorPopoverComponent],
-            providers: [provideTranslateService(), {provide: ProfileCanvasApiService, useValue: {}}],
+            providers: [
+                provideTranslateService(),
+                {provide: ProfileCanvasApiService, useValue: {}},
+                // ToastService -> MessageService; the hosted properties panel reports a failed
+                // image delete through it.
+                MessageService,
+            ],
         });
 
         const editor = TestBed.inject(CanvasEditorService);

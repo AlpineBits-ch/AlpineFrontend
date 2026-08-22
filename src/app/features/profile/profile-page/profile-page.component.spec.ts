@@ -354,7 +354,12 @@ describe('ProfilePageComponent', () => {
     });
 
     it('the canvas lattice stays quiet: nothing drags it on yet', () => {
-        const {fixture} = setup(OWN);
+        const {fixture, storeCanvas} = setup(OWN);
+        // An empty canvas renders the invitation instead of the grid, so the lattice needs a
+        // widget to hang off before "is it hidden" means anything.
+        storeCanvas.set(canvasWithWidgets(OWN.id, 1));
+        fixture.detectChanges();
+
         const lattice = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
             '[data-testid="canvas-lattice"]',
         )!;
