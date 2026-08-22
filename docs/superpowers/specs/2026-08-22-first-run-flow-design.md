@@ -72,6 +72,34 @@ wizard the user is not in.
 | Isle account opens its first DM       | no   | yes      | yes           | 2       |
 | Silent setup failed                   | no   | yes      | yes           | 2       |
 
+### Composition
+
+Four components collapse into one flow, which is exactly how a god object gets built. It does not
+become one file. The split follows `onboarding-gate`, which is a 172-line shell plus a 140-line
+`onboarding-prompt-step` that owns no state of its own.
+
+| File                                | Holds                                              |
+| ----------------------------------- | -------------------------------------------------- |
+| `first-run.component.ts`            | Shell, drag region, progress rail, which step shows |
+| `first-run-pick-step.component.ts`  | The two interest cards                              |
+| `first-run-password-step.component.ts` | One password field and its error                 |
+| `first-run-code-step.component.ts`  | The code, copy, and the one-word check              |
+| `first-run.service.ts`              | What is owed, and the run's lifecycle               |
+| `signup-password-holder.ts`         | One field, three clear triggers                     |
+| `device-registration.service.ts`    | Register, retry once, name                          |
+| `master-key-setup.service.ts`       | Generate, dual-wrap, upload                         |
+
+Two rules make it extendable rather than merely split:
+
+Step components are purely controlled. They take `input()`, emit `output()`, and hold no step
+state. Adding a fourth step later is a new component and one entry in the owed list, with nothing
+in the shell to rewrite.
+
+No network or crypto call lives in a component. `key-setup-dialog` currently holds
+`verifyPassword`, `generateRecoveryCode`, `setupDualWrapped`, `putRecoveryKey` and
+`normalizeRecoveryCode` inline across 208 lines. That is what has to move into
+`MasterKeySetupService`, or the new shell inherits all of it and is worse than what it replaced.
+
 ### `FirstRunService`
 
 Owns `owedSteps()`, derived from three reads that already exist:
@@ -208,7 +236,8 @@ Settings, Devices.
 
 - `features/onboarding/account-onboarding.component.{ts,html}`
 - `features/device-registration/device-registration-modal/` (component, template, css, spec)
-- `features/key-setup/key-setup-dialog/` (component, template, css)
+- `features/key-setup/key-setup-dialog/` (component, template, css), its crypto and network calls
+  moving to `master-key-setup.service.ts` rather than into the new shell
 - `features/key-setup/entropy-modal/` (component, template, css)
 - `OnboardingService.visible`, `show()`, `pickerCompleted`, and the `pickerAnswered` Subject
 - `MainPageComponent.showDeviceRegistration` and `onDeviceRegistered`
