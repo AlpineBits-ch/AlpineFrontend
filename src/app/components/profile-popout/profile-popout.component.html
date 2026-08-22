@@ -49,5 +49,13 @@
                 </div>
             </div>
         }
+
+        @if (cardCanvas(); as arranged) {
+            @if (profile(); as subject) {
+                <div class="px-3 pb-3">
+                    <app-profile-canvas [canvas]="arranged" [cardOnly]="true" [columns]="1" [owner]="subject" />
+                </div>
+            }
+        }
     </div>
 }

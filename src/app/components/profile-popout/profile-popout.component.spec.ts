@@ -17,6 +17,9 @@ import {OsInfo} from '../../platform/ports/os-info.port';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../dtos/response/profile.dto';
+import {ProfileCanvasStore} from '../../stores/profile-canvas.store';
+import {ProfileCanvasApiService} from '../../services/profile-canvas-api.service';
+import {ProfileCanvasDto} from '../../dtos/response/profile-canvas.dto';
 
 const USER_ID = 'user-subject';
 
@@ -50,6 +53,30 @@ describe('ProfilePopoutComponent', () => {
     let createMessage: ReturnType<typeof vi.fn>;
     let openConversation: ReturnType<typeof vi.fn>;
     let reportFailure: ReturnType<typeof vi.fn>;
+    let canvas: ProfileCanvasDto | undefined;
+    let ensureLoaded: ReturnType<typeof vi.fn>;
+
+    function canvasWith(card: boolean): ProfileCanvasDto {
+        return {
+            profileId: 'prfl_1',
+            updatedAt: '',
+            version: 1,
+            theme: {accent: null, backdrop: null},
+            widgets: [
+                {
+                    id: 'w0',
+                    type: 'quote',
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 1,
+                    visibility: 'everyone',
+                    card,
+                    config: {text: 'a line'},
+                },
+            ],
+        };
+    }
 
     function input(): HTMLInputElement {
         return fixture.nativeElement.querySelector('input');
@@ -72,6 +99,8 @@ describe('ProfilePopoutComponent', () => {
         createMessage = vi.fn().mockReturnValue(of({}));
         openConversation = vi.fn();
         reportFailure = vi.fn();
+        canvas = undefined;
+        ensureLoaded = vi.fn();
 
         TestBed.configureTestingModule({
             providers: [
@@ -96,6 +125,8 @@ describe('ProfilePopoutComponent', () => {
                 {provide: ToastService, useValue: {success: vi.fn(), error: vi.fn(), httpError: vi.fn()}},
                 {provide: BrokenImageService, useValue: {isBroken: () => false, markBroken: vi.fn()}},
                 {provide: OsInfo, useValue: {isMobile: false}},
+                {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+                {provide: ProfileCanvasStore, useValue: {canvasFor: () => canvas, ensureLoaded}},
             ],
         });
 
@@ -180,5 +211,37 @@ describe('ProfilePopoutComponent', () => {
 
         expect(popoutSvc.popout()).toBeNull();
         expect(popoutSvc.modal()).toEqual({userId: USER_ID, tab: 'servers'});
+    });
+
+    it('draws card widgets the store already holds', () => {
+        canvas = canvasWith(true);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).not.toBeNull();
+    });
+
+    it('draws nothing when the canvas has no card widgets', () => {
+        canvas = canvasWith(false);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+    });
+
+    it('draws nothing when the store is cold', () => {
+        canvas = undefined;
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+    });
+
+    it('never asks the store to load a canvas', () => {
+        canvas = canvasWith(true);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(ensureLoaded).not.toHaveBeenCalled();
     });
 });

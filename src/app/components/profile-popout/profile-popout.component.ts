@@ -22,6 +22,8 @@ import {NavigationService} from '../../features/main-page/navigation.service';
 import {ProfileHeaderComponent} from '../profile-header/profile-header.component';
 import {ProfileActionsComponent} from '../profile-actions/profile-actions.component';
 import {ProfileMutualLineComponent} from '../profile-mutual-line/profile-mutual-line.component';
+import {ProfileCanvasComponent} from '../profile-canvas/profile-canvas.component';
+import {ProfileCanvasStore} from '../../stores/profile-canvas.store';
 import {Placement, placePopout} from './place-popout';
 
 /** Card width in pixels. Matches the `w-[21.25rem]` on the shell. */
@@ -35,7 +37,13 @@ const CARD_WIDTH = 340;
  */
 @Component({
     selector: 'app-profile-popout',
-    imports: [TranslateModule, ProfileHeaderComponent, ProfileActionsComponent, ProfileMutualLineComponent],
+    imports: [
+        TranslateModule,
+        ProfileHeaderComponent,
+        ProfileActionsComponent,
+        ProfileMutualLineComponent,
+        ProfileCanvasComponent,
+    ],
     templateUrl: './profile-popout.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -46,6 +54,7 @@ export class ProfilePopoutComponent {
     protected readonly sending = signal(false);
 
     private readonly card = viewChild<ElementRef<HTMLElement>>('card');
+    private canvasStore = inject(ProfileCanvasStore);
     private profileService = inject(ProfileService);
     private directMessages = inject(DirectMessageService);
     private messagingService = inject(MessagingService);
@@ -60,6 +69,21 @@ export class ProfilePopoutComponent {
     protected readonly anchored = computed(() => !!this.popoutSvc.popout()?.anchor);
 
     protected readonly placeholderName = computed(() => this.profile()?.userName ?? '');
+
+    /**
+     * Cache read only. A popout opens on hover in a member list, so a fetch here is a fan-out;
+     * the modal is what warms this.
+     */
+    protected readonly cardCanvas = computed(() => {
+        // profile() can stay the same cached object across two different popout opens, so this
+        // also reads the popout target: without it, a reopen after the store warms would not recompute.
+        const target = this.popoutSvc.popout();
+        const profile = this.profile();
+        if (!target || !profile) return undefined;
+
+        const canvas = this.canvasStore.canvasFor(profile.id);
+        return canvas?.widgets.some(widget => widget.card) ? canvas : undefined;
+    });
 
     constructor() {
         effect(() => {
