@@ -1964,6 +1964,7 @@
   "PROFILE_PAGE.BANNER_UPLOAD_FAILED": "Could not upload banner",
   "PROFILE_PAGE.AVATAR_REMOVE_FAILED": "Could not remove avatar",
   "PROFILE_PAGE.SAVE_ERROR": "Could not save your changes",
+  "PROFILE_PAGE.CANVAS_LOAD_FAILED": "Could not load your canvas",
   "PROFILE_PAGE.EDIT_WIDGET": "Edit {{type}} widget",
   "PROFILE_PAGE.UNDO": "Undo",
   "PROFILE_PAGE.REDO": "Redo",

@@ -5,7 +5,7 @@ import {Router} from '@angular/router';
 import {provideTranslateService} from '@ngx-translate/core';
 import {ConfirmationService, MessageService} from 'primeng/api';
 import {Select} from 'primeng/select';
-import {finalize, Observable, of, Subject, throwError} from 'rxjs';
+import {finalize, Observable, of, Subject, tap, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {ProfilePageComponent} from './profile-page.component';
 import {ProfileService} from '../../../services/profile.service';
@@ -63,6 +63,7 @@ function canvasWithWidgets(profileId: string, count: number): ProfileCanvasDto {
 function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
     const ownProfile: WritableSignal<ProfileDto | undefined> = signal(initial);
     const ensureLoadedCalls: string[] = [];
+    const retryLoadCalls: string[] = [];
     const updateProfileCalls: unknown[] = [];
     const saveCanvasCalls: unknown[] = [];
     const navigateCalls: unknown[] = [];
@@ -73,6 +74,9 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
     // A real signal so a test can simulate ensureLoaded's response landing after the initial
     // render, the way the real store's async GET does.
     const storeCanvas: WritableSignal<ProfileCanvasDto | undefined> = signal(undefined);
+    // A real signal so a test can latch a failed load the way the real store's `failed` entry
+    // field does, distinctly from a genuinely empty canvas.
+    const canvasLoadFailed = signal(false);
 
     TestBed.configureTestingModule({
         imports: [ProfilePageComponent],
@@ -109,6 +113,8 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
                 useValue: {
                     canvasFor: () => storeCanvas(),
                     ensureLoaded: (id: string) => ensureLoadedCalls.push(id),
+                    loadFailed: () => canvasLoadFailed(),
+                    retryLoad: (id: string) => retryLoadCalls.push(id),
                     saving: canvasSaving,
                     save: (canvas: unknown) => {
                         saveCanvasCalls.push(canvas);
@@ -131,11 +137,13 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
         textDraft: TestBed.inject(ProfileEditDraftService),
         history: TestBed.inject(ProfileEditHistoryService),
         ensureLoadedCalls,
+        retryLoadCalls,
         updateProfileCalls,
         saveCanvasCalls,
         navigateCalls,
         removeAvatarCalls,
         storeCanvas,
+        canvasLoadFailed,
     };
 }
 
@@ -307,6 +315,58 @@ describe('ProfilePageComponent', () => {
         expect(editor.dirty()).toBe(true);
     });
 
+    function undo(fixture: ComponentFixture<ProfilePageComponent>): void {
+        (fixture.componentInstance as unknown as {undo: () => void}).undo();
+    }
+
+    it('an undo made while its own save is in flight is not reverted by the save echo, and the server is told to converge on it', () => {
+        const saveResponse = new Subject<ProfileCanvasDto>();
+        let calls = 0;
+        // Mirrors ProfileCanvasStore.save(): the store patches its own canvasFor() signal (the
+        // echo) before the subscriber's next() runs, so a synchronously-resolving mock would
+        // make this pass vacuously. Reproduce that ordering with a held-open Subject for the
+        // first save; the converging follow-up save resolves normally, or this would resubscribe
+        // to an already-completed Subject and spin the autosave effect forever.
+        const {fixture, editor, storeCanvas, saveCanvasCalls} = setup(OWN, {
+            saveCanvas: canvas => {
+                calls++;
+                if (calls > 1) return of(canvas);
+                return saveResponse.pipe(tap(saved => storeCanvas.set(saved)));
+            },
+        });
+
+        editor.insert('marquee');
+        fixture.detectChanges();
+        expect(saveCanvasCalls).toHaveLength(1);
+        const sentB = saveCanvasCalls[0] as ProfileCanvasDto;
+
+        // Ctrl+Z while save(B) is still on the wire: the draft returns to A.
+        click(fixture, 'undo-button');
+        expect(editor.draft()!.widgets).toHaveLength(0);
+
+        saveResponse.next(sentB);
+        saveResponse.complete();
+        fixture.detectChanges();
+
+        expect(editor.draft()!.widgets).toHaveLength(0);
+        expect(saveCanvasCalls).toHaveLength(2);
+        expect((saveCanvasCalls[1] as ProfileCanvasDto).widgets).toHaveLength(0);
+    });
+
+    it('an undo made when no save is in flight still reverts the draft and clears dirty', () => {
+        const {fixture, editor} = setup(OWN);
+
+        editor.insert('marquee');
+        expect(editor.dirty()).toBe(true);
+
+        // No detectChanges since the insert: the autosave effect never ran, nothing is on the
+        // wire, and the undo button's disabled attribute is stale, so call undo() directly.
+        undo(fixture);
+
+        expect(editor.draft()!.widgets).toHaveLength(0);
+        expect(editor.dirty()).toBe(false);
+    });
+
     // ── Back affordance ──────────────────────────────────────────────────────
 
     it('the back button navigates to /overview', () => {
@@ -383,6 +443,21 @@ describe('ProfilePageComponent', () => {
 
         expect(lattice.classList.contains('opacity-0')).toBe(true);
         expect(lattice.classList.contains('opacity-100')).toBe(false);
+    });
+
+    it('a failed canvas load shows the retry affordance instead of the empty-canvas invitation, and Try again issues exactly one new request', () => {
+        const {fixture, canvasLoadFailed, ensureLoadedCalls, retryLoadCalls} = setup(OWN);
+        canvasLoadFailed.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[data-testid="canvas-load-failed"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-testid="canvas-empty-state"]')).toBeNull();
+
+        const callsBefore = ensureLoadedCalls.length;
+        click(fixture, 'retry-canvas-load');
+
+        expect(retryLoadCalls).toEqual([OWN.id]);
+        expect(ensureLoadedCalls.length).toBe(callsBefore + 1);
     });
 
     it('removing the avatar asks first, and only calls removeAvatar on confirm', () => {
@@ -569,6 +644,21 @@ describe('ProfilePageComponent', () => {
 
             expect(saveCanvasCalls).toHaveLength(1);
             expect(editor.dirty()).toBe(true);
+        });
+
+        it('the error status paints a distinct pill, not just an internal flag', () => {
+            const {fixture, editor} = setup(OWN, {saveCanvas: () => throwError(() => new Error('refused'))});
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+
+            const pill = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+                '[data-testid="save-status"]',
+            )!;
+            expect(pill.classList.contains('text-offline')).toBe(true);
+            expect(pill.classList.contains('text-text-muted')).toBe(false);
+            expect(pill.textContent).toContain('PROFILE_PAGE.SAVE_STATUS.ERROR');
+            expect(pill.querySelector('[data-testid="retry-save"]')).not.toBeNull();
         });
 
         it('a widget config text edit still autosaves immediately, coalescing only affects history', () => {

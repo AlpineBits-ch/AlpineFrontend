@@ -99,6 +99,13 @@ export class ProfilePageComponent {
         return this.canvasEditor.draft() ?? this.canvasStore.canvasFor(profile.id) ?? emptyCanvas(profile.id);
     });
 
+    /** Distinct from a genuinely empty canvas: nothing has been drawn because the load never
+     * came back, not because the profile has no widgets. */
+    protected readonly canvasLoadFailed = computed(() => {
+        const id = this.profileId();
+        return !!id && this.canvasStore.loadFailed(id);
+    });
+
     // ownProfile is a fresh object on every own-profile write (updateProfile, uploadAvatar,
     // uploadBanner, setSelfStatus), not just when the signed-in profile changes, so this must key
     // on the id rather than the profile object or it re-begins and drops an unsaved canvas draft.
@@ -143,13 +150,13 @@ export class ProfilePageComponent {
                     this.canvasEditor.begin(loaded ?? emptyCanvas(id));
                 } else if (
                     loaded &&
-                    !this.canvasEditor.dirty() &&
+                    !this.canvasEditor.everEdited() &&
                     JSON.stringify(loaded.widgets) !== JSON.stringify(draft.widgets)
                 ) {
                     // loaded arriving after the draft was seeded empty must not clobber an edit
-                    // already in progress. Skipped when loaded already matches the draft: a
-                    // successful save re-begins directly, and the store's echo of that same save
-                    // must not repeat it.
+                    // already in progress. everEdited, not dirty(): an undo back to a value that
+                    // happens to match the stale baseline still reads clean, and the store's echo
+                    // of that same save must not re-apply it to a draft the user moved past.
                     this.canvasEditor.begin(loaded);
                 }
                 if (this.textDraft.draft()?.profileId !== id) {
@@ -202,6 +209,13 @@ export class ProfilePageComponent {
 
     protected goBack(): void {
         void this.router.navigate(['/overview']);
+    }
+
+    protected retryCanvasLoad(): void {
+        const id = this.profileId();
+        if (!id) return;
+        this.canvasStore.retryLoad(id);
+        this.canvasStore.ensureLoaded(id);
     }
 
     /** Re-runs whichever save path is latched on error. There is no Save button, so this is the
@@ -320,7 +334,10 @@ export class ProfilePageComponent {
         this.canvasStore.save(canvas).subscribe({
             next: saved => {
                 // Same race as flushText(): a later edit may already have moved the draft on.
+                // Re-baselining rather than doing nothing is what lets that later edit still
+                // autosave once this response lands.
                 if (this.canvasEditor.draft() === canvas) this.canvasEditor.begin(saved);
+                else this.canvasEditor.rebaseline(saved.widgets);
                 this.canvasSaveFailedFor.set(null);
                 this.canvasSaveStatus.set('saved');
             },

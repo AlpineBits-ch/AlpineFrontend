@@ -113,6 +113,18 @@ describe('ProfileCanvasStore', () => {
         expect(api.gets).toHaveLength(2);
     });
 
+    it('loadFailed reports a failed load distinctly from an empty or never-requested one', () => {
+        const {api, store} = setup();
+        expect(store.loadFailed('p1')).toBe(false);
+
+        store.ensureLoaded('p1');
+        api.gets[0].error(new Error('boom'));
+        expect(store.loadFailed('p1')).toBe(true);
+
+        store.retryLoad('p1');
+        expect(store.loadFailed('p1')).toBe(false);
+    });
+
     it('applies a save optimistically and keeps the server answer', () => {
         const {api, store} = setup();
         store.ensureLoaded('p1');

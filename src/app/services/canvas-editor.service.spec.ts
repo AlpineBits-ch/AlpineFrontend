@@ -196,6 +196,55 @@ describe('CanvasEditorService', () => {
         expect(editor.dirty()).toBe(false);
     });
 
+    it('rebaseline updates what counts as clean without moving the draft', () => {
+        editor.insert('quote');
+        const draftBefore = editor.draft();
+
+        editor.rebaseline([]);
+
+        expect(editor.draft()).toBe(draftBefore);
+        expect(editor.dirty()).toBe(true);
+    });
+
+    it("rebaseline to the draft's own widgets makes it clean", () => {
+        editor.insert('quote');
+
+        editor.rebaseline(editor.draft()!.widgets);
+
+        expect(editor.dirty()).toBe(false);
+    });
+
+    it('everEdited stays false until a mutation, and begin resets it', () => {
+        expect(editor.everEdited()).toBe(false);
+
+        editor.insert('quote');
+        expect(editor.everEdited()).toBe(true);
+
+        editor.begin(editor.draft()!);
+        expect(editor.everEdited()).toBe(false);
+    });
+
+    it('everEdited stays true after an undo returns the draft to a value matching the stale baseline', () => {
+        editor.insert('quote');
+        editor.remove(editor.draft()!.widgets[0].id);
+
+        // Back to the widgets begin() started from, but the user did edit against this load.
+        expect(editor.draft()!.widgets).toEqual([]);
+        expect(editor.everEdited()).toBe(true);
+    });
+
+    it('an undo with no save in flight reverts the draft and clears dirty, same as before rebaseline existed', () => {
+        const history = TestBed.inject(ProfileEditHistoryService);
+        editor.insert('quote');
+        expect(editor.dirty()).toBe(true);
+
+        const entry = history.undo() as CanvasHistoryEntry;
+        editor.restore(entry.before);
+
+        expect(editor.draft()!.widgets).toEqual([]);
+        expect(editor.dirty()).toBe(false);
+    });
+
     it('dropAt onto an occupied cell reorders with no spacers', () => {
         editor.insert('quote'); // 2x1, lands at (0,0)
         editor.insert('local-time'); // 1x1, lands at (2,0)

@@ -93,7 +93,25 @@
 
             <div class="border-b border-white/[0.06]"></div>
 
-            <app-profile-canvas-editor [canvas]="canvas()" [owner]="p" />
+            @if (canvasLoadFailed()) {
+                <div
+                    class="mx-auto flex w-full max-w-3xl flex-col items-center gap-4 px-8 py-16 text-center"
+                    data-testid="canvas-load-failed"
+                >
+                    <i class="pi pi-exclamation-triangle text-lg text-offline" aria-hidden="true"></i>
+                    <p class="text-sm text-text-secondary">{{ 'PROFILE_PAGE.CANVAS_LOAD_FAILED' | translate }}</p>
+                    <button
+                        (click)="retryCanvasLoad()"
+                        class="cursor-pointer rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        data-testid="retry-canvas-load"
+                        type="button"
+                    >
+                        {{ 'COMMON.RETRY' | translate }}
+                    </button>
+                </div>
+            } @else {
+                <app-profile-canvas-editor [canvas]="canvas()" [owner]="p" />
+            }
 
             <p-confirmdialog appendTo="body" />
         } @else {

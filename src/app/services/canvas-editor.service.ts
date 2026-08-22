@@ -27,6 +27,10 @@ export class CanvasEditorService {
 
     private readonly baseline = signal<string>('');
     private readonly current = signal<ProfileCanvasDto | null>(null);
+    /** Whether any mutation has landed since the last `begin()`. Unlike `dirty()`, an undo back
+     * to a widgets array that happens to match `baseline` does not clear it: a store echo of a
+     * save this profile made must never re-apply what the user has since moved past. */
+    private readonly everEditedFlag = signal(false);
 
     /** Keyed on `${widgetId}:${fieldKey}`; a burst's own commit timer, live only while that
      * burst is open in `history`. */
@@ -38,6 +42,8 @@ export class CanvasEditorService {
         const canvas = this.current();
         return !!canvas && JSON.stringify(canvas.widgets) !== this.baseline();
     });
+
+    readonly everEdited = this.everEditedFlag.asReadonly();
 
     /** A same-profile call is a re-baseline (a save's success echo, a store echo catching up),
      * not a profile switch, and must not silently drop a text burst still in its debounce
@@ -60,6 +66,16 @@ export class CanvasEditorService {
         }
         this.current.set(packed);
         this.baseline.set(JSON.stringify(packed.widgets));
+        this.everEditedFlag.set(false);
+    }
+
+    /** Re-baselines without replacing the draft: what the server now holds, for a save whose
+     * response lands after the draft has already moved on. Leaves `everEdited` alone, so a store
+     * echo of this same save still cannot re-apply it to a draft the user moved past. */
+    rebaseline(widgets: CanvasWidgetDto[]): void {
+        const canvas = this.current();
+        if (!canvas) return;
+        this.baseline.set(JSON.stringify(normalise({...canvas, widgets}).widgets));
     }
 
     /** Lands a widgets array from a history entry. Unlike every method below, this never
@@ -238,6 +254,7 @@ export class CanvasEditorService {
     private write(widgets: CanvasWidgetDto[], history?: {kind: CanvasHistoryKind; widgetType: string}): void {
         const canvas = this.current();
         if (!canvas) return;
+        this.everEditedFlag.set(true);
         // reflow's presort keys off y, not array position, so array order only becomes
         // reading order if y is restamped from the array index first. Real widgets and spacers
         // are never sliced together here: normalise caps each of them separately.

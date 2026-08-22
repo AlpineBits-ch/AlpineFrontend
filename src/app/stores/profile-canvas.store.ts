@@ -63,6 +63,11 @@ export const ProfileCanvasStore = signalStore(
                 return store.byProfile()[profileId]?.canvas;
             },
 
+            /** True when the load latched on a failure rather than a genuinely empty canvas. */
+            loadFailed(profileId: string): boolean {
+                return !!store.byProfile()[profileId]?.failed;
+            },
+
             ensureLoaded(profileId: string): void {
                 const entry = store.byProfile()[profileId];
                 if (entry?.loading || entry?.canvas || entry?.failed) return;
