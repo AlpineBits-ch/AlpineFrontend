@@ -90,12 +90,36 @@ checkable, and it is the reason to build it rather than a flourish.
 | Avatar | Settings section, file input, crop dialog | Click the avatar itself, same crop dialog |
 | Display name | Settings input, DISABLED, "coming soon" | Plain text. Not editable, see below |
 | Bio | Settings textarea | Inline field where the bio is drawn |
-| Accent | Settings colour picker | Edit-mode control in the page header |
-| Font | Settings select | Edit-mode control in the page header |
+| Accent | Settings swatch, picker and reset | Same controls, in an edit-mode bar |
+| Font | Settings `p-select` with per-option preview | Same control, in an edit-mode bar |
 | Canvas | Settings section, added then removed | The page |
 
-The crop dialogs move as they are. They are already self-contained and there is no reason to touch
-them.
+### Move the controls, do not reinvent them
+
+Every control here moves as it is. The crop dialogs are self-contained and there is no reason to
+touch them, and the same goes for the rest:
+
+- Font is a `p-select` whose `#item` template renders each option in that option's own font stack,
+  with a live preview line under it reading a pangram in the selected face. Somebody built that and
+  it is good. A bare `<select>` is a native control in a themed dark app and looks like a bug.
+- Accent is a styled swatch with the colour picker and a reset, under a visible label.
+
+The first build of this page ignored that and produced a cramped chip overlaid on the banner holding
+a raw `<select>`, which was a visible regression against the settings page it replaces. The spec's
+own risk section calls that out and the spec caused it anyway, by describing these two as "an
+edit-mode control in the page header" instead of saying to move what exists.
+
+The rule, for these and anything else that migrates: **open the settings markup, and match it.** If
+the page needs a different arrangement, change the arrangement, not the control.
+
+### Where they go
+
+Not on the banner. Edit mode gets a bar directly under the identity strip holding the appearance
+controls with their real labels, at the width they need. The banner carries only the change
+affordance for the banner itself.
+
+Controls that pin to a corner and do not wrap are how a control ends up off-screen and unreachable at
+a narrow window, which is a defect rather than a cosmetic issue.
 
 `profile-settings.component.html` loses its first four sections and keeps the last five. It should
 end up under 400 lines.
