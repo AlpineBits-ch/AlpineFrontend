@@ -130,8 +130,12 @@ survives.
 
 ## 6. Getting there
 
-The self-profile menu gains "Edit profile", pointing at `/profile`. The existing menu already opens
-settings and the profile popout, so this sits beside them.
+The entry point already exists and already has the right name. `self-profile-menu` renders a row
+labelled `PROFILE_MENU.EDIT_PROFILE` which emits `editProfile`, and `quick-settings` currently
+answers it with `openProfileSettings()`. It points at the wrong place, not at nothing.
+
+So the whole navigation change is repointing that handler at `/profile`. No new menu entry, no new
+string, and the label was already promising a thing the app did not have.
 
 Opening someone else's profile is unchanged: the popout and the full modal, both untouched by this
 spec.
