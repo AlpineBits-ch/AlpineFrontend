@@ -4,7 +4,7 @@
 
 **Goal:** Give the profile its own page, edited in place, and move every presentational field off the settings form onto it.
 
-**Architecture:** One page component owning two states, view and edit, over the same layout. The canvas renderer, the widget registry, the draft service and the properties panel already exist and are container-agnostic; this plan builds the page around them, converts the drag from list-index to cell-based with automatic spacers, and deletes the settings sections it replaces.
+**Architecture:** A page shell over purely-controlled children, presenting two states, view and edit, across one seamless layout. "Edit in place" is what the person sees; it says nothing about how many components draw it, and an earlier draft of this line said "one page component" and produced a 547-line god template that four tasks then had to queue behind. The canvas renderer, the widget registry, the draft service and the properties panel already exist and are container-agnostic; this plan builds the page around them, converts the drag from list-index to cell-based with automatic spacers, and deletes the settings sections it replaces.
 
 **Tech Stack:** Angular 21 signals, standalone components, Angular router, PrimeNG only where it earns it, ngx-translate, Tailwind token classes, Vitest through the Angular CLI.
 
