@@ -44,7 +44,7 @@
             <app-canvas-lattice
                 [active]="showLattice()"
                 [columns]="canvasColumns"
-                [rows]="canvasRowCount()"
+                [rowHeights]="latticeRowHeights()"
                 class="pointer-events-none absolute inset-x-0 top-0 block"
             />
             @if (dropTarget(); as target) {

@@ -2,7 +2,7 @@ import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {ProfileCanvasEditorComponent} from './profile-canvas-editor.component';
+import {columnAt, ProfileCanvasEditorComponent, rowAt, rowTopAt} from './profile-canvas-editor.component';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {WIDGET_REGISTRY} from '../../../components/profile-canvas/widget-registry';
@@ -52,6 +52,61 @@ class HostComponent {
     readonly editor = inject(CanvasEditorService);
     readonly owner = OWNER;
 }
+
+// The seam a real browser can't be reproduced through: jsdom never lays out CSS grid, so these
+// exercise the geometry math directly against non-uniform, hand-measured rows rather than trusting
+// a rendered fixture. A fixture stubbed to a square grid would pass the bug this guards against.
+describe('grid geometry (pure)', () => {
+    it('rowAt resolves a pointer against measured, non-square row heights', () => {
+        // Rows of 156, 156, 200: a pointer at y=180 falls in the second row. The naive
+        // `rect.width / columns` math this replaces would have used a uniform 200px cell and
+        // wrongly answered row 0 (floor(180 / 200) === 0).
+        const rowTops = [0, 156, 312];
+        const rowHeights = [156, 156, 200];
+
+        expect(rowAt(180, rowTops, rowHeights)).toBe(1);
+        expect(rowAt(0, rowTops, rowHeights)).toBe(0);
+        expect(rowAt(155, rowTops, rowHeights)).toBe(0);
+        expect(rowAt(156, rowTops, rowHeights)).toBe(1);
+        expect(rowAt(311, rowTops, rowHeights)).toBe(1);
+        expect(rowAt(312, rowTops, rowHeights)).toBe(2);
+    });
+
+    it("rowAt extrapolates past the last measured row using that row's own height", () => {
+        const rowTops = [0, 156];
+        const rowHeights = [156, 200];
+
+        expect(rowAt(356, rowTops, rowHeights)).toBe(2); // 356 = 156 + 200: exactly the next row's top.
+        expect(rowAt(556, rowTops, rowHeights)).toBe(3);
+    });
+
+    it('rowAt clamps a negative offset to the first row', () => {
+        expect(rowAt(-40, [0, 156], [156, 200])).toBe(0);
+    });
+
+    it('rowTopAt reports a measured row directly and extrapolates beyond it', () => {
+        const rowTops = [0, 156, 312];
+        const rowHeights = [156, 156, 200];
+
+        expect(rowTopAt(0, rowTops, rowHeights)).toBe(0);
+        expect(rowTopAt(2, rowTops, rowHeights)).toBe(312);
+        expect(rowTopAt(3, rowTops, rowHeights)).toBe(512); // One row past the end, at the last row's own height.
+    });
+
+    it('columnAt subtracts the gap out of the stride rather than dividing width by column count', () => {
+        // 4 columns at 96px with an 8px gap: naive `width / columns` (raw 400 / 4 = 100) would
+        // drift a column early. The gap-aware stride is 104, so x=350 is column 3, not off the end.
+        expect(columnAt(350, 96, 8, 4)).toBe(3);
+        expect(columnAt(0, 96, 8, 4)).toBe(0);
+        expect(columnAt(97, 96, 8, 4)).toBe(0); // Still inside column 0's gap, not yet column 1.
+        expect(columnAt(104, 96, 8, 4)).toBe(1);
+    });
+
+    it('columnAt clamps to the last column rather than reading past the grid', () => {
+        expect(columnAt(10_000, 100, 8, 4)).toBe(3);
+        expect(columnAt(-10, 100, 8, 4)).toBe(0);
+    });
+});
 
 function setup(canvas: ProfileCanvasDto = emptyCanvas('p1')) {
     TestBed.resetTestingModule();
@@ -453,16 +508,22 @@ describe('ProfileCanvasEditorComponent', () => {
         it('arrow keys move the selection between tiles in reading order', () => {
             const {fixture} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
 
-            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+            );
             fixture.detectChanges();
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
 
-            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+            );
             fixture.detectChanges();
             expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('false');
 
-            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}),
+            );
             fixture.detectChanges();
             expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
         });
@@ -485,9 +546,13 @@ describe('ProfileCanvasEditorComponent', () => {
                 canvasOf([widget('a'), widget('sp', {type: 'spacer', x: 1}), widget('b', {x: 2})]),
             );
 
-            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+            );
             fixture.detectChanges();
-            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}),
+            );
             fixture.detectChanges();
 
             expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
