@@ -13,7 +13,6 @@ import {
 } from '@angular/core';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {
-    GRID_GAP_PX,
     ProfileCanvasComponent,
     WidgetSelectedEvent,
 } from '../../../components/profile-canvas/profile-canvas.component';
@@ -26,6 +25,9 @@ import {ProfileDto} from '../../../dtos/response/profile.dto';
 import {CANVAS_COLUMNS, isSpacer} from '../../../models/profile-canvas';
 import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
 import {CanvasLatticeComponent} from './canvas-lattice.component';
+import {cellAt, MeasuredGrid, measureGrid, rowTopAt, TileRect} from './canvas-grid-geometry';
+
+export {columnAt, rowAt, rowGeometryAt, rowTopAt} from './canvas-grid-geometry';
 
 /** Who the canvas is being previewed as. The owner ('me') is the only one who sees every visibility. */
 export type PreviewViewer = 'me' | 'friend' | 'mutual' | 'stranger';
@@ -47,87 +49,11 @@ interface DropTarget {
     height: number;
 }
 
-/**
- * What geometry is known about the rendered grid, in pixels relative to `canvasHost`'s own rect.
- * `columnWidth`/`columnGap` are analytic (the columns really are equal `minmax(0,1fr)` tracks).
- * `rowTops`/`rowHeights` are not: a row can grow past its `minmax` floor to fit tall content, and
- * the only way to know that is to measure a tile that starts there.
- */
-export interface MeasuredGrid {
-    left: number;
-    columnWidth: number;
-    columnGap: number;
-    rowTops: readonly number[];
-    rowHeights: readonly number[];
-}
-
 /** ArrowRight/ArrowDown move forward in reading order, ArrowLeft/ArrowUp move back. */
 function arrowDelta(key: string): number {
     if (key === 'ArrowRight' || key === 'ArrowDown') return 1;
     if (key === 'ArrowLeft' || key === 'ArrowUp') return -1;
     return 0;
-}
-
-/** Row `r`'s own top, in the same space as `rowTops`/`rowHeights`. Extrapolates past the last
- * measured row using that row's own height, so a drag can still target a row nothing occupies yet. */
-export function rowTopAt(r: number, rowTops: readonly number[], rowHeights: readonly number[]): number {
-    if (rowTops.length === 0) return 0;
-    if (r < rowTops.length) return rowTops[r];
-    const last = rowTops.length - 1;
-    const height = rowHeights[last] || 1;
-    return rowTops[last] + (r - last) * height;
-}
-
-/** Inverse of `rowTopAt`: which row contains `offsetY`. Walks measured (top, height) pairs rather
- * than dividing by a uniform cell size, because the real grid's rows are content-sized, not square. */
-export function rowAt(offsetY: number, rowTops: readonly number[], rowHeights: readonly number[]): number {
-    if (rowTops.length === 0) return 0;
-    if (offsetY < rowTops[0]) return 0;
-
-    for (let r = 0; r < rowTops.length; r++) {
-        const height = rowHeights[r] || 1;
-        if (offsetY < rowTops[r] + height) return r;
-    }
-
-    const last = rowTops.length - 1;
-    const height = rowHeights[last] || 1;
-    return last + 1 + Math.floor((offsetY - (rowTops[last] + height)) / height);
-}
-
-/** Columns really are equal `minmax(0,1fr)` tracks, so this stays analytic; only the gap needs
- * subtracting out of the stride. */
-export function columnAt(offsetX: number, columnWidth: number, gap: number, columns: number): number {
-    const stride = columnWidth + gap;
-    if (stride <= 0) return 0;
-    return Math.min(Math.max(Math.floor(offsetX / stride), 0), columns - 1);
-}
-
-/** A widget's own measured rect, in the same coordinate space as `MeasuredGrid.rowTops`. */
-export interface TileRect {
-    top: number;
-    height: number;
-}
-
-/**
- * Row `r`'s own top and height: an exact `h === 1` starter's rect if one exists, otherwise an even
- * split across whichever widget's footprint covers the row. Null when no widget covers the row, or
- * its rect could not be measured, signalling the caller to fall back for the whole grid instead.
- */
-export function rowGeometryAt(
-    r: number,
-    widgets: readonly CanvasWidgetDto[],
-    rectOf: (widget: CanvasWidgetDto) => TileRect | null,
-): TileRect | null {
-    const exact = widgets.find(w => w.y === r && w.h === 1);
-    const source = exact ?? widgets.find(w => w.y <= r && r < w.y + w.h);
-    if (!source) return null;
-
-    const rect = rectOf(source);
-    if (!rect || rect.height <= 0) return null;
-    if (source.h === 1) return rect;
-
-    const height = rect.height / source.h;
-    return {top: rect.top + (r - source.y) * height, height};
 }
 
 /** Suggested first widgets for a blank canvas, offered as one-click chips. */
@@ -379,71 +305,35 @@ export class ProfileCanvasEditorComponent {
         this.dropTarget.set(null);
     }
 
-    /**
-     * Measures the real grid whenever it can, row by row via `rowGeometryAt`. Falls back to evenly
-     * spaced square cells when a row is unmeasurable, e.g. an empty canvas or a host with no real
-     * layout.
-     */
+    /** Reads what `measureGrid` needs off the live DOM, then hands off to the pure geometry. */
     private measureGrid(): MeasuredGrid | null {
         const host = this.canvasHost()?.nativeElement;
         if (!host) return null;
 
         const hostRect = host.getBoundingClientRect();
-        const columns = this.canvasColumns;
-        const rows = this.canvasRowCount();
-        const widgets = this.canvas()?.widgets ?? [];
-
         const anyTile = host.querySelector<HTMLElement>('[data-widget-id]');
-        const grid = anyTile?.parentElement;
-        const gridRect = grid?.getBoundingClientRect();
+        const gridRect = anyTile?.parentElement?.getBoundingClientRect() ?? null;
 
-        if (gridRect && gridRect.width > 0) {
-            const rectOf = (widget: CanvasWidgetDto): TileRect | null => {
-                const el = host.querySelector<HTMLElement>(`[data-widget-id="${widget.id}"]`);
-                if (!el) return null;
-                const tileRect = el.getBoundingClientRect();
-                return {top: tileRect.top - hostRect.top, height: tileRect.height};
-            };
-
-            const rowTops: number[] = [];
-            const rowHeights: number[] = [];
-            for (let r = 0; r < rows; r++) {
-                const geometry = rowGeometryAt(r, widgets, rectOf);
-                if (!geometry) break;
-                rowTops.push(geometry.top);
-                rowHeights.push(geometry.height);
-            }
-            if (rowTops.length === rows) {
-                const columnWidth = (gridRect.width - GRID_GAP_PX * (columns - 1)) / columns;
-                return {
-                    left: gridRect.left - hostRect.left,
-                    columnWidth,
-                    columnGap: GRID_GAP_PX,
-                    rowTops,
-                    rowHeights,
-                };
-            }
-        }
-
-        const columnWidth = hostRect.width / columns;
-        const rowCount = Math.max(rows, 1);
-        return {
-            left: 0,
-            columnWidth,
-            columnGap: 0,
-            rowTops: Array.from({length: rowCount}, (_, r) => r * columnWidth),
-            rowHeights: Array.from({length: rowCount}, () => columnWidth),
+        const rectOf = (widget: CanvasWidgetDto): TileRect | null => {
+            const el = host.querySelector<HTMLElement>(`[data-widget-id="${widget.id}"]`);
+            if (!el) return null;
+            const tileRect = el.getBoundingClientRect();
+            return {top: tileRect.top - hostRect.top, height: tileRect.height};
         };
+
+        return measureGrid(
+            hostRect,
+            gridRect,
+            this.canvasColumns,
+            this.canvasRowCount(),
+            this.canvas()?.widgets ?? [],
+            rectOf,
+        );
     }
 
     private cellAt(event: DragEvent, grid: MeasuredGrid): {x: number; y: number} {
         const hostRect = this.canvasHost()?.nativeElement.getBoundingClientRect() ?? {left: 0, top: 0};
-        const offsetX = event.clientX - hostRect.left - grid.left;
-        const offsetY = event.clientY - hostRect.top;
-        return {
-            x: columnAt(offsetX, grid.columnWidth, grid.columnGap, this.canvasColumns),
-            y: rowAt(offsetY, grid.rowTops, grid.rowHeights),
-        };
+        return cellAt(event.clientX - hostRect.left, event.clientY - hostRect.top, grid, this.canvasColumns);
     }
 
     // ── Keyboard parity: everything the drag does, an arrow key does too ────────────────────────
