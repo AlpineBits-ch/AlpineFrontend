@@ -7,8 +7,8 @@ import {DiscoveryApiService} from '../services/discovery-api.service';
 import {ProfileService} from '../services/profile.service';
 import {RealtimeConnectionService} from '../services/realtime-connection.service';
 import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
-import {DiscoveryCardDto, DiscoveryFeedDto, ListingDto} from '../dtos/response/discovery.dto';
-import {DiscoveryFeedQuery, ListingWriteDto} from '../dtos/request/discovery.dto';
+import {DiscoveryCardDto, DiscoveryFeedDto, InterestsDto, ListingDto} from '../dtos/response/discovery.dto';
+import {DiscoveryFeedQuery, ListingWriteDto, SaveInterestsDto} from '../dtos/request/discovery.dto';
 
 function card(listingId: string, overrides: Partial<DiscoveryCardDto> = {}): DiscoveryCardDto {
     return {
@@ -53,6 +53,7 @@ class FakeDiscoveryApiService {
     discoverPending: Subject<DiscoveryFeedDto>[] = [];
     listingPending: Subject<ListingDto>[] = [];
     publishPending: Subject<ListingDto>[] = [];
+    saveInterestsPending: Subject<InterestsDto>[] = [];
 
     discover(_query: DiscoveryFeedQuery): Observable<DiscoveryFeedDto> {
         const subject = new Subject<DiscoveryFeedDto>();
@@ -90,8 +91,10 @@ class FakeDiscoveryApiService {
         return new Observable<never>();
     }
 
-    saveInterests(): Observable<never> {
-        return new Observable<never>();
+    saveInterests(_dto: SaveInterestsDto): Observable<InterestsDto> {
+        const subject = new Subject<InterestsDto>();
+        this.saveInterestsPending.push(subject);
+        return subject.asObservable();
     }
 }
 
@@ -232,5 +235,21 @@ describe('DiscoveryStore', () => {
         const row = store.listingFor('g1')()[0];
         expect(row.headline).toBe('Edited elsewhere');
         expect(row.publishedAt).toBe('now');
+    });
+
+    /**
+     * `interests: null` means "never loaded"; the page reads that to decide whether it is still
+     * waiting to find out if onboarding applies. A clear-to-zero must land as a real empty object,
+     * or a deliberate clear would be indistinguishable from a fetch that never happened.
+     */
+    it('holds an empty set rather than null after saving interests down to zero', () => {
+        const {api, store} = setup();
+
+        store.saveInterests({topics: [], visible: true}).subscribe();
+        api.saveInterestsPending[0].next({topics: [], visible: true});
+        api.saveInterestsPending[0].complete();
+
+        expect(store.interests()).not.toBeNull();
+        expect(store.interests()).toEqual({topics: [], visible: true});
     });
 });

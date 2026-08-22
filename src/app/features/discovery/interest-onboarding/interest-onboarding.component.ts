@@ -51,7 +51,15 @@ export class InterestOnboardingComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
-    protected readonly canSave = computed(() => this.topics().length > 0 && !this.saving());
+    /**
+     * Onboarding requires at least one topic; picking nothing and saving there is not a
+     * meaningful action, and Skip is the escape hatch. Edit must allow zero: clearing every chip
+     * and saving is how a user turns interests off after having set them.
+     */
+    protected readonly canSave = computed(() => {
+        if (this.saving()) return false;
+        return this.mode() === 'edit' || this.topics().length > 0;
+    });
 
     protected save(): void {
         if (!this.canSave()) return;

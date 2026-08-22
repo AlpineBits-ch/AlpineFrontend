@@ -5,7 +5,7 @@
         <p class="mt-1 text-[0.75rem] text-text-muted">{{ 'DISCOVERY.ONBOARDING.SUBTITLE' | translate }}</p>
     </div>
 
-    <div class="w-full text-left">
+    <div class="thin-scrollbar max-h-72 w-full overflow-y-auto text-left">
         <app-topic-picker (selectedChange)="topics.set($event)" [cap]="cap" [selected]="topics()" />
     </div>
 
