@@ -4,6 +4,8 @@ import {Observable, Subject, throwError} from 'rxjs';
 import {ProfileCanvasStore} from './profile-canvas.store';
 import {ProfileCanvasApiService} from '../services/profile-canvas-api.service';
 import {CanvasWriteDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {FakeRealtimeConnection} from '../testing/fake-realtime-connection';
 
 function canvas(profileId: string, widgetCount = 1): ProfileCanvasDto {
     return {
@@ -46,10 +48,14 @@ class FakeApi {
 
 function setup() {
     const api = new FakeApi();
+    const realtime = new FakeRealtimeConnection();
     TestBed.configureTestingModule({
-        providers: [{provide: ProfileCanvasApiService, useValue: api}],
+        providers: [
+            {provide: ProfileCanvasApiService, useValue: api},
+            {provide: RealtimeConnectionService, useValue: realtime},
+        ],
     });
-    return {api, store: TestBed.inject(ProfileCanvasStore)};
+    return {api, realtime, store: TestBed.inject(ProfileCanvasStore)};
 }
 
 describe('ProfileCanvasStore', () => {
@@ -158,6 +164,45 @@ describe('ProfileCanvasStore', () => {
 
         api.saves[0].next(canvas('p1', 2));
         api.saves[0].complete();
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
+    });
+
+    it('applies a realtime update to a canvas it holds', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 3)});
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(3);
+    });
+
+    it('normalises what the event carried', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        const wide = canvas('p1', 1);
+        wide.widgets[0].w = 9;
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: wide});
+
+        expect(store.canvasFor('p1')?.widgets[0].w).toBe(4);
+    });
+
+    it('ignores an event for a profile it never loaded', () => {
+        const {realtime, store} = setup();
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p9', canvas: canvas('p9', 2)});
+        expect(store.canvasFor('p9')).toBeUndefined();
+    });
+
+    it('does not let an event clobber a save in flight', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        store.save(canvas('p1', 5)).subscribe();
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 2)});
 
         expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
     });

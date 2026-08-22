@@ -156,6 +156,13 @@ import {
 } from '../dtos/response/maintenance.dto';
 import {AbsenceCreated, AbsenceDeleted, AbsenceUpdated} from '../dtos/response/absence.dto';
 import {WsInterestsChanged, WsListingChanged, WsListingSuspended} from '../dtos/response/discovery.dto';
+import {ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
+
+/** The whole document. The event object is the payload, so a field missing here is missing on the wire. */
+export interface WsProfileCanvasUpdated {
+    profileId: string;
+    canvas: ProfileCanvasDto;
+}
 
 /**
  * Every server → client event this client subscribes to through
@@ -380,6 +387,9 @@ export interface RealtimeEventMap {
     'discovery.ListingUnlisted': WsListingChanged;
     'discovery.ListingSuspended': WsListingSuspended;
     'discovery.InterestsChanged': WsInterestsChanged;
+
+    // Profile canvas.
+    'social.ProfileCanvasUpdated': WsProfileCanvasUpdated;
 }
 
 export type RealtimeEvent = keyof RealtimeEventMap;

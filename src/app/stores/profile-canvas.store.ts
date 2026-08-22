@@ -1,9 +1,11 @@
 import {inject} from '@angular/core';
-import {patchState, signalStore, withMethods, withState} from '@ngrx/signals';
+import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {catchError, Observable, tap, throwError} from 'rxjs';
 import {ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {normalise} from '../models/profile-canvas';
 import {ProfileCanvasApiService} from '../services/profile-canvas-api.service';
+import {RealtimeConnectionService} from '../services/realtime-connection.service';
+import {WsProfileCanvasUpdated} from '../services/realtime-events';
 
 interface CanvasEntry {
     canvas?: ProfileCanvasDto;
@@ -85,5 +87,25 @@ export const ProfileCanvasStore = signalStore(
                 );
             },
         };
+    }),
+
+    withHooks({
+        onInit(store) {
+            const realtime = inject(RealtimeConnectionService);
+
+            realtime.stream('social.ProfileCanvasUpdated').subscribe((event: WsProfileCanvasUpdated) => {
+                const entry = store.byProfile()[event.profileId];
+                if (!entry?.canvas) return;
+                // Our own save echoes back as this event, arriving after the optimistic write.
+                if (store.saving()) return;
+
+                patchState(store, {
+                    byProfile: {
+                        ...store.byProfile(),
+                        [event.profileId]: {...entry, canvas: normalise(event.canvas)},
+                    },
+                });
+            });
+        },
     }),
 );
