@@ -7,12 +7,12 @@
     [style.left.px]="placement()?.left ?? 0"
     [style.max-height.px]="maxHeight()"
     [style.top.px]="placement()?.top ?? 0"
-    class="thin-scrollbar fixed z-[9991] w-80 overflow-y-auto rounded-2xl border border-border bg-card shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)] focus-visible:outline-none"
+    class="thin-scrollbar fixed z-[9991] w-80 overflow-y-auto rounded-2xl shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)] focus-visible:outline-none"
     data-testid="widget-editor-popover"
     role="dialog"
     tabindex="-1"
 >
-    <div class="flex items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
+    <div class="flex items-center justify-between gap-2 rounded-t-2xl border-b border-white/[0.06] bg-card px-4 py-3">
         <h2 class="text-sm font-semibold text-text-primary">{{ titleKey() | translate }}</h2>
         <button
             (click)="removeWidget()"
@@ -25,7 +25,7 @@
         </button>
     </div>
 
-    <div class="p-3">
+    <div class="px-3 pb-3">
         <app-widget-properties [widget]="widget()" />
     </div>
 </div>

@@ -149,4 +149,34 @@ describe('WidgetEditorPopoverComponent', () => {
         render();
         expect(document.activeElement).toBe(card());
     });
+
+    it('moves focus back into itself when the selected widget changes while it stays open', async () => {
+        const {editor} = render();
+        editor.insert('marquee');
+        const other = editor.draft()!.widgets.find(w => w.id !== widget.id)!;
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        expect(document.activeElement).not.toBe(card());
+
+        fixture.componentRef.setInput('widget', other);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(document.activeElement).toBe(card());
+    });
+
+    it('does not steal focus back on an edit to a field of the same widget', async () => {
+        render();
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
+        expect(document.activeElement).toBe(input);
+
+        fixture.componentRef.setInput('widget', {...widget});
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        expect(document.activeElement).toBe(input);
+        input.remove();
+    });
 });

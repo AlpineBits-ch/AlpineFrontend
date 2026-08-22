@@ -142,11 +142,18 @@ describe('ProfilePageComponent', () => {
     it('falls back to the accent colour when there is no banner', () => {
         const {fixture} = setup({...OWN, bannerUrl: undefined});
         const el = fixture.nativeElement as HTMLElement;
-        const banner = el.querySelector('.h-48') as HTMLElement;
+        const banner = el.querySelector('.h-32') as HTMLElement;
 
         expect(el.querySelector('img[alt=""]')).toBeNull();
         expect(banner.style.background).not.toBe('');
         expect(banner.style.background).not.toBe('none');
+    });
+
+    it("draws the name in the profile's own font and accent", () => {
+        const {fixture} = setup(OWN);
+        const h1 = fixture.nativeElement.querySelector('h1') as HTMLElement;
+
+        expect(h1.style.color).toBe('rgb(51, 102, 153)');
     });
 
     it('shows a loading state instead of throwing when there is no profile yet', () => {
@@ -269,6 +276,22 @@ describe('ProfilePageComponent', () => {
             span.style.fontFamily = FONT_STACKS[value];
             expect(option?.querySelector('span')?.style.fontFamily).toBe(span.style.fontFamily);
         }
+    });
+
+    it('the canvas lattice is faded out in view mode and in in edit mode', () => {
+        const {fixture} = setup(OWN);
+        const lattice = () =>
+            (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+                '[data-testid="canvas-lattice"]',
+            )!;
+
+        expect(lattice().classList.contains('opacity-0')).toBe(true);
+        expect(lattice().classList.contains('opacity-100')).toBe(false);
+
+        click(fixture, 'edit-profile');
+
+        expect(lattice().classList.contains('opacity-100')).toBe(true);
+        expect(lattice().classList.contains('opacity-0')).toBe(false);
     });
 
     it('cancelling with nothing changed exits edit mode without asking', () => {

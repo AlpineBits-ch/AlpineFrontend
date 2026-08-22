@@ -1,5 +1,4 @@
 import {
-    afterNextRender,
     afterRenderEffect,
     ChangeDetectionStrategy,
     Component,
@@ -52,15 +51,24 @@ export class WidgetEditorPopoverComponent {
 
     protected readonly titleKey = computed(() => definitionFor(this.widget().type)?.labelKey ?? '');
 
+    // A plain equality check, not the object identity of widget(): a field edit hands this a new
+    // object with the same id on every keystroke, and that must not steal focus back mid-type.
+    private readonly widgetId = computed(() => this.widget().id);
+
     constructor() {
-        // The card's own content (the widget's fields) sizes it, so it is measured rather than assumed.
+        // Height comes from the widget's own fields, so every render re-measures before placing the card.
         afterRenderEffect(() => {
             this.widget();
             this.anchor();
             this.reposition();
         });
 
-        afterNextRender(() => this.card()?.nativeElement.focus());
+        // Runs on mount and again whenever the selection moves to a different widget, so an
+        // already-open editor still receives focus when the tile selection changes under it.
+        afterRenderEffect(() => {
+            this.widgetId();
+            this.card()?.nativeElement.focus();
+        });
 
         const onScroll = (event: Event) => {
             if (this.card()?.nativeElement.contains(event.target as Node)) return;

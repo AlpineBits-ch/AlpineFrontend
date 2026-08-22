@@ -30,9 +30,11 @@ import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
 import {ToastService} from '../../../services/toast.service';
 import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../models/profile-image.model';
-import {emptyCanvas} from '../../../models/profile-canvas';
+import {CANVAS_COLUMNS, emptyCanvas} from '../../../models/profile-canvas';
 import {ProfileFont} from '../../../dtos/response/profile.dto';
+import {UserNameStyleDirective} from '../../../directives/user-name-style.directive';
 import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
+import {CanvasLatticeComponent} from './canvas-lattice.component';
 
 /** Own-profile page: identity strip above the canvas, with an in-place edit mode. */
 @Component({
@@ -46,7 +48,9 @@ import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
         Dialog,
         ImageCropperComponent,
         Select,
+        UserNameStyleDirective,
         WidgetEditorPopoverComponent,
+        CanvasLatticeComponent,
     ],
     templateUrl: './profile-page.component.html',
     styleUrl: './profile-page.component.css',
@@ -96,6 +100,17 @@ export class ProfilePageComponent {
     });
 
     protected readonly safeAccentColor = safeAccentColor;
+
+    protected get canvasColumns(): number {
+        return CANVAS_COLUMNS;
+    }
+
+    // Read from the same normalised widgets the grid itself renders, so the lattice can never
+    // claim more rows exist than the canvas actually has.
+    protected readonly canvasRowCount = computed(() => {
+        const widgets = this.canvas()?.widgets ?? [];
+        return widgets.reduce((max, widget) => Math.max(max, widget.y + widget.h), 1);
+    });
 
     protected readonly selectedWidgetId = signal<string | null>(null);
     protected readonly selectedTileEl = signal<HTMLElement | null>(null);
