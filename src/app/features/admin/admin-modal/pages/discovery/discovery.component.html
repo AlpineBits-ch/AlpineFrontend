@@ -1,0 +1,288 @@
+<div class="flex flex-col gap-8 max-w-3xl">
+    <!-- Search -->
+    <section class="flex flex-col gap-3">
+        <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            {{ 'ADMIN.DISCOVERY.SEARCH.TITLE' | translate }}
+        </h2>
+
+        <div class="flex gap-2">
+            <input
+                (keydown.enter)="search()"
+                [ngModel]="query()"
+                (ngModelChange)="query.set($event)"
+                [placeholder]="'ADMIN.DISCOVERY.SEARCH.PLACEHOLDER' | translate"
+                class="flex-1 text-sm"
+                pInputText
+            />
+            <p-button
+                (onClick)="search()"
+                [loading]="listingsLoading()"
+                [label]="'ADMIN.DISCOVERY.SEARCH.BUTTON' | translate"
+                severity="primary"
+                size="small"
+            />
+        </div>
+
+        @if (listingsError()) {
+            <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                <i class="pi pi-exclamation-circle shrink-0"></i>
+                {{ 'ADMIN.DISCOVERY.SEARCH.ERROR' | translate }}
+            </div>
+        }
+
+        @if (searched() && !listingsError() && listings().length === 0) {
+            <p class="text-sm text-text-muted py-2">{{ 'ADMIN.DISCOVERY.SEARCH.EMPTY' | translate }}</p>
+        }
+
+        @if (listings().length > 0) {
+            <div class="flex flex-col gap-2">
+                @for (row of listings(); track row.guildId) {
+                    <div class="flex items-center gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <p class="text-sm font-medium text-text-primary truncate">{{ row.guildName }}</p>
+                                <span
+                                    class="text-[0.625rem] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0 bg-white/[0.06] text-text-muted"
+                                >
+                                    {{ stateKeys[row.state] | translate }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-text-muted truncate mt-0.5">{{ row.headline }}</p>
+                        </div>
+                        <p-button
+                            (onClick)="openBanForm(row)"
+                            [label]="'ADMIN.DISCOVERY.SEARCH.BAN_ACTION' | translate"
+                            severity="danger"
+                            [text]="true"
+                            size="small"
+                        />
+                    </div>
+                }
+            </div>
+
+            @if (listingsCursor()) {
+                <p-button
+                    (onClick)="loadMoreListings()"
+                    [loading]="listingsLoading()"
+                    [label]="'ADMIN.DISCOVERY.SEARCH.LOAD_MORE' | translate"
+                    severity="secondary"
+                    [text]="true"
+                    size="small"
+                    class="self-start"
+                />
+            }
+        }
+    </section>
+
+    <!-- Ban form -->
+    @if (formOpen()) {
+        <section class="flex flex-col gap-4 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-4">
+            <h2 class="text-sm font-semibold text-text-primary">
+                {{ 'ADMIN.DISCOVERY.FORM.TITLE' | translate }}
+                @if (formGuildName(); as name) {
+                    <span class="text-text-muted font-normal">· {{ name }}</span>
+                }
+            </h2>
+
+            <div>
+                <label class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted" for="ban-guild-id">
+                    {{ 'ADMIN.DISCOVERY.FORM.GUILD_ID_LABEL' | translate }}
+                </label>
+                <input
+                    [ngModel]="formGuildId()"
+                    (ngModelChange)="formGuildId.set($event)"
+                    [placeholder]="'ADMIN.DISCOVERY.FORM.GUILD_ID_PLACEHOLDER' | translate"
+                    class="w-full"
+                    id="ban-guild-id"
+                    pInputText
+                />
+            </div>
+
+            <div>
+                <label class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted" for="ban-reason">
+                    {{ 'ADMIN.DISCOVERY.FORM.REASON_LABEL' | translate }}
+                </label>
+                <textarea
+                    [ngModel]="formReason()"
+                    (ngModelChange)="formReason.set($event)"
+                    [placeholder]="'ADMIN.DISCOVERY.FORM.REASON_PLACEHOLDER' | translate"
+                    class="w-full resize-none"
+                    id="ban-reason"
+                    pTextarea
+                    rows="2"
+                ></textarea>
+            </div>
+
+            <div>
+                <label class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted" for="ban-staff-note">
+                    {{ 'ADMIN.DISCOVERY.FORM.STAFF_NOTE_LABEL' | translate }}
+                </label>
+                <textarea
+                    [ngModel]="formStaffNote()"
+                    (ngModelChange)="formStaffNote.set($event)"
+                    [placeholder]="'ADMIN.DISCOVERY.FORM.STAFF_NOTE_PLACEHOLDER' | translate"
+                    class="w-full resize-none"
+                    id="ban-staff-note"
+                    pTextarea
+                    rows="2"
+                ></textarea>
+            </div>
+
+            <div>
+                <label class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted" for="ban-expires-at">
+                    {{ 'ADMIN.DISCOVERY.FORM.EXPIRES_LABEL' | translate }}
+                </label>
+                <input
+                    [ngModel]="formExpiresAt()"
+                    (ngModelChange)="formExpiresAt.set($event)"
+                    class="w-full"
+                    id="ban-expires-at"
+                    pInputText
+                    type="date"
+                />
+                <p class="mt-1 text-[0.6875rem] text-text-faint">{{ 'ADMIN.DISCOVERY.FORM.EXPIRES_HINT' | translate }}</p>
+            </div>
+
+            @if (formError()) {
+                <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-circle shrink-0"></i>
+                    {{ formError() }}
+                </div>
+            }
+
+            <div class="flex items-center gap-2 justify-end">
+                <p-button
+                    (onClick)="closeBanForm()"
+                    [label]="'COMMON.CANCEL' | translate"
+                    severity="secondary"
+                    [text]="true"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="submitBan()"
+                    [disabled]="!formValid()"
+                    [loading]="formSubmitting()"
+                    [label]="'ADMIN.DISCOVERY.FORM.SUBMIT' | translate"
+                    severity="danger"
+                    size="small"
+                />
+            </div>
+        </section>
+    }
+
+    <!-- Bans -->
+    <section class="flex flex-col gap-3">
+        <div class="flex items-center justify-between border-b border-white/[0.10] pb-3">
+            <h2 class="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                {{ 'ADMIN.DISCOVERY.BANS.TITLE' | translate }}
+            </h2>
+            <p-button
+                (onClick)="openBanForm()"
+                [label]="'ADMIN.DISCOVERY.BANS.NEW' | translate"
+                severity="secondary"
+                [text]="true"
+                size="small"
+            />
+        </div>
+
+        <div class="flex items-center gap-2">
+            <p-toggleswitch [ngModel]="includeLifted()" (ngModelChange)="setIncludeLifted($event)" />
+            <span class="text-sm text-text-secondary">{{ 'ADMIN.DISCOVERY.BANS.INCLUDE_LIFTED' | translate }}</span>
+        </div>
+
+        @if (bansError()) {
+            <div class="flex items-center gap-2 text-sm text-rose-400 bg-rose-400/10 border border-rose-400/20 rounded-xl px-4 py-3">
+                <i class="pi pi-exclamation-circle shrink-0"></i>
+                {{ 'ADMIN.DISCOVERY.BANS.ERROR' | translate }}
+            </div>
+        }
+
+        @if (bansLoading() && bans().length === 0) {
+            <div class="flex flex-col gap-2">
+                @for (n of [1, 2]; track n) {
+                    <div class="h-20 bg-white/[0.03] border border-white/[0.08] rounded-xl animate-pulse"></div>
+                }
+            </div>
+        }
+
+        @if (!bansLoading() && bans().length === 0 && !bansError()) {
+            <div class="flex flex-col items-center gap-3 py-10 text-center">
+                <i class="pi pi-shield text-3xl text-text-faint"></i>
+                <p class="text-sm text-text-muted">{{ 'ADMIN.DISCOVERY.BANS.EMPTY' | translate }}</p>
+            </div>
+        }
+
+        @if (bans().length > 0) {
+            <div class="flex flex-col gap-2">
+                @for (ban of bans(); track ban.guildId + ban.bannedAt) {
+                    <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-medium text-text-primary truncate flex-1">{{ ban.guildName }}</p>
+                            <span
+                                [ngClass]="
+                                    status(ban) === 'active'
+                                        ? 'text-rose-400 bg-rose-400/10 border border-rose-400/20'
+                                        : 'text-text-muted bg-white/[0.04] border border-white/[0.08]'
+                                "
+                                class="text-[0.625rem] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
+                            >
+                                {{ statusKey(ban) | translate }}
+                            </span>
+                            @if (status(ban) === 'active') {
+                                <p-button
+                                    (onClick)="liftBan(ban)"
+                                    [loading]="liftingGuildId() === ban.guildId"
+                                    [label]="'ADMIN.DISCOVERY.BANS.LIFT' | translate"
+                                    severity="secondary"
+                                    [text]="true"
+                                    size="small"
+                                />
+                            }
+                        </div>
+
+                        <p class="text-xs text-text-secondary">{{ ban.reason }}</p>
+
+                        @if (ban.staffNote) {
+                            <p class="text-xs text-amber-200/90 bg-amber-500/[0.06] border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+                                <span class="font-semibold uppercase tracking-wide text-[0.625rem]">{{
+                                    'ADMIN.DISCOVERY.BANS.STAFF_NOTE_LABEL' | translate
+                                }}</span>
+                                {{ ban.staffNote }}
+                            </p>
+                        }
+
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-[0.6875rem] text-text-faint">
+                            <span>{{ 'ADMIN.DISCOVERY.BANS.BANNED_LABEL' | translate }} {{ ban.bannedAt | date: 'MMM d, y · HH:mm' }}</span>
+                            @if (ban.expiresAt) {
+                                <span
+                                    >{{ 'ADMIN.DISCOVERY.FORM.EXPIRES_LABEL' | translate }}
+                                    {{ ban.expiresAt | date: 'MMM d, y · HH:mm' }}</span
+                                >
+                            } @else {
+                                <span>{{ 'ADMIN.DISCOVERY.BANS.NO_EXPIRY' | translate }}</span>
+                            }
+                            @if (ban.liftedAt) {
+                                <span
+                                    >{{ 'ADMIN.DISCOVERY.BANS.LIFTED_LABEL' | translate }}
+                                    {{ ban.liftedAt | date: 'MMM d, y · HH:mm' }}</span
+                                >
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (bansCursor()) {
+                <p-button
+                    (onClick)="loadMoreBans()"
+                    [loading]="bansLoading()"
+                    [label]="'ADMIN.DISCOVERY.BANS.LOAD_MORE' | translate"
+                    severity="secondary"
+                    [text]="true"
+                    size="small"
+                    class="self-start"
+                />
+            }
+        }
+    </section>
+</div>

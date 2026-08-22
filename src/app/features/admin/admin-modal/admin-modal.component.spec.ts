@@ -10,6 +10,7 @@ describe('admin nav', () => {
 
         expect(ids).toContain('federation-instances');
         expect(ids).toContain('federation-policy');
+        expect(ids).toContain('discovery-bans');
     });
 
     it('names every group and page by translation key rather than by English', () => {

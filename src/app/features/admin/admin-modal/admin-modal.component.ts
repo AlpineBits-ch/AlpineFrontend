@@ -4,6 +4,7 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {FederationInstancesComponent} from './pages/federation-instances/federation-instances.component';
 import {FederationPolicyComponent} from './pages/federation-policy/federation-policy.component';
+import {AdminDiscoveryComponent} from './pages/discovery/discovery.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 /** One page in the admin nav. */
@@ -30,6 +31,10 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
             {id: 'federation-policy', labelKey: 'ADMIN.NAV.SETTINGS', icon: 'pi pi-sliders-h'},
         ],
     },
+    {
+        titleKey: 'ADMIN.NAV.DISCOVERY',
+        items: [{id: 'discovery-bans', labelKey: 'ADMIN.NAV.DISCOVERY_BANS', icon: 'pi pi-ban'}],
+    },
 ];
 
 @Component({
@@ -40,6 +45,7 @@ export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
         Button,
         FederationInstancesComponent,
         FederationPolicyComponent,
+        AdminDiscoveryComponent,
         TranslateModule,
     ],
     templateUrl: './admin-modal.component.html',
