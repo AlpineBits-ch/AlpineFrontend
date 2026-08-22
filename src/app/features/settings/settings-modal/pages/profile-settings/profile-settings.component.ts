@@ -30,7 +30,6 @@ import {cacheBustedUrl} from '../../../../../models/profile-image.model';
 import {BrokenImageService} from '../../../../../services/broken-image.service';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
 import {AccountPhoneComponent} from '../../../components/account-phone.component';
-import {CanvasEditorComponent} from './canvas-editor/canvas-editor.component';
 
 @Component({
     selector: 'app-profile-settings',
@@ -43,7 +42,6 @@ import {CanvasEditorComponent} from './canvas-editor/canvas-editor.component';
         DatePipe,
         Select,
         AccountPhoneComponent,
-        CanvasEditorComponent,
     ],
     templateUrl: './profile-settings.component.html',
     styleUrl: './profile-settings.component.css',
