@@ -49,6 +49,50 @@ grid becomes draggable. Save and Cancel replace Edit.
 The identity strip stays fixed relative to the canvas in both states, the way the canvas spec
 requires. It is the anti-impersonation guarantee and it is not arrangeable.
 
+## 1b. The composition
+
+The first build stacked a 240px banner, an overlapping avatar, the name, the bio, an appearance bar,
+and then the canvas last and unframed. That is the Discord shape this feature exists to leave. The
+pitch was that a profile is a room rather than a business card, and what got built was a business
+card with a grid stapled underneath.
+
+Nothing here changes the app's visual language. The palette is the existing `@theme` tokens, the
+chrome is Inter, PrimeNG stays themed by its preset. What changes is what the page gives its space to.
+
+**The canvas is the page.** Everything above it is a masthead, not a hero.
+
+- The banner compresses. It is a backdrop, not the subject, and 240px of it before you reach anything
+  is a decorative wall between a person and their room.
+- The avatar and name sit on one line with the bio under them, so identity reads as a caption to the
+  room rather than a title card above it.
+- A hairline under that block separates the person from the things they arranged. One rule, no
+  heading, no label. The change of content is the section break.
+- The canvas gets a max width and stays centred. At four columns on a wide monitor an unconstrained
+  grid stretches each cell into a letterbox, and every widget was designed against a square cell.
+
+**The name renders in the profile's own font.** There is a directive for it,
+`[appUserNameStyle]`, and six surfaces already apply it: the guild member list, message authors,
+system messages, the profile header, the composer's mention suggestions, and guild member settings.
+Every place in this app that draws a username honours the font and accent that person chose.
+
+Except the profile page, which uses it zero times and draws the name in the app's own face. The one
+page that exists to be about how someone looks is the one surface ignoring the lever they already
+had. Bind the directive; do not call `userNameStyle()` directly.
+
+### The signature: the grid appears when you arrange it
+
+In view mode the canvas is widgets on the app ground, and there is nothing to see but what the person
+put there.
+
+In edit mode the cell lattice shows through beneath them: faint brand-tinted guides on the four
+column grid and its rows. Not decoration. It is the snap target made visible, so a person dragging a
+tile can see the slots it will land in, and it turns edit mode into a genuine change of state rather
+than a bar appearing at the top.
+
+This is the one bold thing on the page. Everything around it stays quiet: no gradients, no glow, no
+animated anything. The lattice fades in on entering edit mode and out on leaving, and respects
+`prefers-reduced-motion` by simply being present or absent with no transition.
+
 ## 2. Editing a widget
 
 Click a tile. It gains a selected border and a compact editor anchors beside it, carrying that
