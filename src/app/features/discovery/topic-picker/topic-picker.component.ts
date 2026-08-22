@@ -56,6 +56,29 @@ export class TopicPickerComponent {
 
     protected readonly atCap = computed(() => this.selected().length >= this.cap());
 
+    /**
+     * The typed text, when it is not already on offer. The server mints a tag for any `tag:` topic
+     * it has no row for, so this is the only way a community that is not about a game gets a topic
+     * at all.
+     */
+    protected readonly mintableTag = computed((): string | null => {
+        const text = this.query().trim();
+        if (!text || this.searchFailed()) return null;
+
+        const known = [...this.results(), ...this.selected()];
+        return known.some(t => t.name.toLowerCase() === text.toLowerCase()) ? null : text;
+    });
+
+    protected addTypedTag(): void {
+        const text = this.mintableTag();
+        if (text === null || this.atCap()) return;
+
+        // id is the raw text, not a slug: the server normalizes it and keeps this as the display
+        // name. Sending a slug here would name the tag after the slug.
+        this.selectedChange.emit([...this.selected(), {kind: 'tag', id: text, name: text, steamAppId: null}]);
+        this.query.set('');
+    }
+
     protected isSelected(topic: TopicDto): boolean {
         return this.selected().some(t => sameTopic(t, topic));
     }

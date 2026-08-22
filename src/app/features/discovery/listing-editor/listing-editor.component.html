@@ -10,8 +10,6 @@
             <span class="shrink-0 text-[0.6875rem] text-text-muted">
                 @if (blockedReason() === 'topics') {
                     {{ 'DISCOVERY.LISTING.NEEDS_TOPIC' | translate }}
-                } @else if (blockedReason() === 'language') {
-                    {{ 'DISCOVERY.LISTING.INVALID_LANGUAGE' | translate }}
                 } @else {
                     @switch (saveStatus()) {
                         @case ('saving') {
@@ -60,6 +58,7 @@
             }
             <p-button
                 (onClick)="publish()"
+                [disabled]="blockedReason() !== null"
                 [label]="'DISCOVERY.LISTING.PUBLISH' | translate"
                 [loading]="publishing()"
                 severity="primary"
@@ -154,14 +153,27 @@
                             >
                                 {{ 'DISCOVERY.LISTING.LANGUAGE_LABEL' | translate }}
                             </label>
-                            <input
+                            <p-select
                                 (ngModelChange)="setLanguage($event)"
+                                [filter]="true"
                                 [ngModel]="language()"
-                                [placeholder]="'DISCOVERY.LISTING.LANGUAGE_PLACEHOLDER' | translate"
-                                class="w-full"
+                                [options]="languageOptions"
+                                filterBy="label,english"
                                 id="listing-language"
-                                pInputText
-                            />
+                                optionLabel="label"
+                                optionValue="value"
+                                styleClass="w-full"
+                            >
+                                <ng-template #item let-option>
+                                    <span class="flex w-full items-baseline justify-between gap-3">
+                                        <span>{{ option.label }}</span>
+                                        <span class="text-[0.6875rem] text-text-muted">{{ option.english }}</span>
+                                    </span>
+                                </ng-template>
+                            </p-select>
+                            <p class="mt-1.5 text-[0.6875rem] text-text-muted">
+                                {{ 'DISCOVERY.LISTING.LANGUAGE_HINT' | translate }}
+                            </p>
                         </div>
                         <div>
                             <label

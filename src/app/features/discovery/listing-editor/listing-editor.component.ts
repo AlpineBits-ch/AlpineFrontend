@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {HttpErrorResponse} from '@angular/common/http';
-import {catchError, debounceTime, Observable, Subject, switchMap, tap} from 'rxjs';
+import {catchError, debounceTime, Observable, Subject, switchMap, tap, EMPTY} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -38,6 +38,7 @@ import {MinuteClockService} from '../../../services/minute-clock.service';
 import {ApiConfigService} from '../../../services/api-config.service';
 import {RelativeTimePipe} from '../../../pipes/relative-time.pipe';
 import {injectGuildRoster} from '../../guild/shared/guild-roster';
+import {CONTENT_LANGUAGES} from '../../../models/language.model';
 
 /** A listing carries 1 to 8 topics. Spec section 3.3. */
 const TOPIC_CAP = 8;
@@ -72,9 +73,6 @@ const ALLOWED_LINK_HOSTS = new Set([
     'bsky.app',
 ]);
 
-/** Mirrors `ListingWriteService`'s `Bcp47`: well-formed, not validated against the subtag registry. */
-const BCP47_PATTERN = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
-
 function isAllowedLink(raw: string): boolean {
     let url: URL;
     try {
@@ -102,11 +100,12 @@ const STATE_KEYS: Record<ListingState, string> = {
     Unlisted: 'DISCOVERY.LISTING.STATE.UNLISTED',
 };
 
-type PublishErrorKind = 'notEntitled' | 'forbidden' | 'failed';
+type PublishErrorKind = 'notEntitled' | 'forbidden' | 'nothingSaved' | 'failed';
 
 const PUBLISH_ERROR_KEYS: Record<PublishErrorKind, string> = {
     notEntitled: 'DISCOVERY.LISTING.PUBLISH_ERROR.NOT_ENTITLED',
     forbidden: 'DISCOVERY.LISTING.PUBLISH_ERROR.FORBIDDEN',
+    nothingSaved: 'DISCOVERY.LISTING.PUBLISH_ERROR.NOTHING_SAVED',
     failed: 'DISCOVERY.LISTING.PUBLISH_ERROR.FAILED',
 };
 
@@ -135,6 +134,8 @@ function classifyPublishError(err: unknown): PublishErrorKind {
         const body = err.error as {error?: string} | null;
         return body?.error === 'public_listing_not_entitled' ? 'notEntitled' : 'forbidden';
     }
+    // The publish route answers 404 for a guild with no listing row, not for a bad URL.
+    if (err instanceof HttpErrorResponse && err.status === 404) return 'nothingSaved';
     return 'failed';
 }
 
@@ -206,12 +207,16 @@ export class ListingEditorComponent {
     );
     protected readonly stateKey = computed(() => STATE_KEYS[this.listing()?.state ?? 'Draft']);
 
-    /** The one precondition the server enforces that the client can fully catch ahead of a request; topics first, since nothing else can save without it. */
-    protected readonly blockedReason = computed((): 'topics' | 'language' | null => {
-        if (this.topics().length === 0) return 'topics';
-        if (!BCP47_PATTERN.test(this.language().trim())) return 'language';
-        return null;
-    });
+    /** The one precondition the server enforces that the client can fully catch ahead of a request. */
+    protected readonly blockedReason = computed((): 'topics' | null =>
+        this.topics().length === 0 ? 'topics' : null,
+    );
+
+    protected readonly languageOptions = CONTENT_LANGUAGES.map(l => ({
+        value: l.code,
+        label: l.label,
+        english: l.english,
+    }));
 
     protected readonly suspendedReasonKey = computed(() => {
         const listing = this.listing();
@@ -408,7 +413,9 @@ export class ListingEditorComponent {
     }
 
     protected publish(): void {
-        if (this.publishing()) return;
+        // saveDraftNow() refuses while blockedReason() is set, so publishing here would hit a guild
+        // with no listing row and answer 404.
+        if (this.publishing() || this.blockedReason() !== null) return;
         this.publishing.set(true);
         this.publishErrorKey.set(null);
 
@@ -419,12 +426,16 @@ export class ListingEditorComponent {
         const request$ = pendingSave
             ? pendingSave.pipe(
                   switchMap(() => publish$),
-                  catchError(() => publish$),
+                  // Falling through to publish is only right when the server already holds a
+                  // listing; with none, the 404 replaces the save error that explains it. The
+                  // failed save has already raised its own toast, so this stops rather than adds.
+                  catchError(() => (this.listing() ? publish$ : EMPTY)),
               )
             : publish$;
 
         request$.subscribe({
             next: () => this.publishing.set(false),
+            complete: () => this.publishing.set(false),
             error: (err: unknown) => {
                 this.publishing.set(false);
                 const key = PUBLISH_ERROR_KEYS[classifyPublishError(err)];

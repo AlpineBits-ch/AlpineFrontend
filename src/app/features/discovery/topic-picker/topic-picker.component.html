@@ -34,11 +34,25 @@
                 </button>
             }
         </div>
-    } @else if (query().trim()) {
-        @if (searchFailed()) {
-            <p class="text-[0.6875rem] text-offline">{{ 'DISCOVERY.TOPICS.SEARCH_FAILED' | translate }}</p>
-        } @else {
-            <p class="text-[0.6875rem] text-text-muted">{{ 'DISCOVERY.TOPICS.NO_MATCHES' | translate }}</p>
-        }
+    } @else if (query().trim() && searchFailed()) {
+        <p class="text-[0.6875rem] text-offline">{{ 'DISCOVERY.TOPICS.SEARCH_FAILED' | translate }}</p>
+    }
+
+    @if (mintableTag(); as text) {
+        <div class="flex items-baseline gap-2">
+            <button
+                (click)="addTypedTag()"
+                [disabled]="atCap()"
+                class="cursor-pointer rounded-lg border border-dashed border-white/20 bg-transparent px-2 py-1 text-[0.75rem] text-text-primary hover:border-white/35 disabled:cursor-not-allowed disabled:opacity-35"
+                type="button"
+            >
+                {{ 'DISCOVERY.TOPICS.ADD_TAG' | translate: {text: text} }}
+            </button>
+            @if (results().length === 0) {
+                <span class="text-[0.6875rem] text-text-muted">
+                    {{ 'DISCOVERY.TOPICS.ADD_TAG_HINT' | translate }}
+                </span>
+            }
+        </div>
     }
 </div>
