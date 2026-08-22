@@ -1,4 +1,5 @@
 import {TestBed} from '@angular/core/testing';
+import {HttpErrorResponse} from '@angular/common/http';
 import {describe, expect, it} from 'vitest';
 import {Observable, Subject, throwError} from 'rxjs';
 import {ProfileCanvasStore} from './profile-canvas.store';
@@ -98,12 +99,16 @@ describe('ProfileCanvasStore', () => {
         expect(store.canvasFor('p1')?.widgets[0].w).toBe(4);
     });
 
-    it('leaves the cache alone when the fetch fails, and a later ensureLoaded retries', () => {
+    it('leaves the cache alone when the fetch fails, and holds off until retryLoad', () => {
         const {api, store} = setup();
         store.ensureLoaded('p1');
         api.gets[0].error(new Error('boom'));
         expect(store.canvasFor('p1')).toBeUndefined();
 
+        store.ensureLoaded('p1');
+        expect(api.gets).toHaveLength(1);
+
+        store.retryLoad('p1');
         store.ensureLoaded('p1');
         expect(api.gets).toHaveLength(2);
     });
@@ -276,5 +281,44 @@ describe('ProfileCanvasStore', () => {
         realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 9)});
 
         expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
+    });
+});
+
+describe('ProfileCanvasStore load failures', () => {
+    it('a 404 is an empty canvas, not a failure: the profile has just never saved one', () => {
+        const {api, store} = setup();
+
+        store.ensureLoaded('p1');
+        api.gets[0].error(new HttpErrorResponse({status: 404}));
+
+        expect(store.canvasFor('p1')).toBeDefined();
+        expect(store.canvasFor('p1')!.widgets).toHaveLength(0);
+
+        // Cached, so a second read never reaches the wire.
+        store.ensureLoaded('p1');
+        expect(api.gets).toHaveLength(1);
+    });
+
+    it('a failed load is not retried on its own: the page effect reads the store on every write', () => {
+        const {api, store} = setup();
+
+        store.ensureLoaded('p1');
+        api.gets[0].error(new HttpErrorResponse({status: 500}));
+
+        store.ensureLoaded('p1');
+        store.ensureLoaded('p1');
+
+        expect(api.gets).toHaveLength(1);
+    });
+
+    it('retryLoad re-arms a failed load', () => {
+        const {api, store} = setup();
+
+        store.ensureLoaded('p1');
+        api.gets[0].error(new HttpErrorResponse({status: 500}));
+        store.retryLoad('p1');
+        store.ensureLoaded('p1');
+
+        expect(api.gets).toHaveLength(2);
     });
 });

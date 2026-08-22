@@ -1,8 +1,9 @@
 import {computed, inject} from '@angular/core';
 import {patchState, signalStore, withComputed, withHooks, withMethods, withState} from '@ngrx/signals';
 import {catchError, Observable, tap, throwError} from 'rxjs';
+import {HttpErrorResponse} from '@angular/common/http';
 import {ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
-import {normalise} from '../models/profile-canvas';
+import {emptyCanvas, normalise} from '../models/profile-canvas';
 import {ProfileCanvasApiService} from '../services/profile-canvas-api.service';
 import {RealtimeConnectionService} from '../services/realtime-connection.service';
 import {WsProfileCanvasUpdated} from '../services/realtime-events';
@@ -11,6 +12,9 @@ interface CanvasEntry {
     canvas?: ProfileCanvasDto;
     loading: boolean;
     requestId: number;
+    // A load that came back empty-handed. Without it ensureLoaded refires on every read of this
+    // entry, and the page's effect reads it on every store write.
+    failed?: boolean;
 }
 
 interface ProfileCanvasState {
@@ -61,7 +65,7 @@ export const ProfileCanvasStore = signalStore(
 
             ensureLoaded(profileId: string): void {
                 const entry = store.byProfile()[profileId];
-                if (entry?.loading || entry?.canvas) return;
+                if (entry?.loading || entry?.canvas || entry?.failed) return;
 
                 const requestId = (entry?.requestId ?? 0) + 1;
                 put(profileId, {canvas: entry?.canvas, loading: true, requestId});
@@ -71,12 +75,23 @@ export const ProfileCanvasStore = signalStore(
                         if (store.byProfile()[profileId]?.requestId !== requestId) return;
                         put(profileId, {canvas: normalise(canvas), loading: false, requestId});
                     },
-                    error: () => {
+                    error: (err: unknown) => {
                         if (store.byProfile()[profileId]?.requestId !== requestId) return;
-                        const current = store.byProfile()[profileId];
-                        put(profileId, {...current, loading: false});
+                        // 404 is a profile that has never saved a canvas, which is an empty one.
+                        if (err instanceof HttpErrorResponse && err.status === 404) {
+                            put(profileId, {canvas: normalise(emptyCanvas(profileId)), loading: false, requestId});
+                            return;
+                        }
+                        put(profileId, {...store.byProfile()[profileId], loading: false, failed: true});
                     },
                 });
+            },
+
+            /** Clears a failed load so the next ensureLoaded retries. */
+            retryLoad(profileId: string): void {
+                const entry = store.byProfile()[profileId];
+                if (!entry?.failed) return;
+                put(profileId, {...entry, failed: false});
             },
 
             save(canvas: ProfileCanvasDto): Observable<ProfileCanvasDto> {
