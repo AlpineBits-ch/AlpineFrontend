@@ -1,59 +1,23 @@
-import {
-    ChangeDetectionStrategy,
-    Component,
-    computed,
-    ElementRef,
-    effect,
-    inject,
-    signal,
-    untracked,
-    viewChild,
-} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked} from '@angular/core';
 import {Router} from '@angular/router';
-import {FormsModule} from '@angular/forms';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ConfirmationService} from 'primeng/api';
 import {ConfirmDialog} from 'primeng/confirmdialog';
-import {Dialog} from 'primeng/dialog';
-import {Select} from 'primeng/select';
 import {finalize, forkJoin} from 'rxjs';
-import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
-import {ImageCropperComponent} from '../../../components/image-cropper/image-cropper.component';
-import {
-    ProfileCanvasComponent,
-    WidgetSelectedEvent,
-} from '../../../components/profile-canvas/profile-canvas.component';
 import {ProfileService} from '../../../services/profile.service';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
 import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
 import {ToastService} from '../../../services/toast.service';
-import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profile-font.model';
-import {cacheBustedUrl} from '../../../models/profile-image.model';
-import {CANVAS_COLUMNS, emptyCanvas} from '../../../models/profile-canvas';
-import {ProfileFont} from '../../../dtos/response/profile.dto';
-import {UserNameStyleDirective} from '../../../directives/user-name-style.directive';
-import {WidgetEditorPopoverComponent} from './widget-editor-popover.component';
-import {CanvasLatticeComponent} from './canvas-lattice.component';
+import {emptyCanvas} from '../../../models/profile-canvas';
+import {ProfileMastheadComponent} from './profile-masthead.component';
+import {ProfileCanvasEditorComponent} from './profile-canvas-editor.component';
 
 /** Own-profile page: identity strip above the canvas, with an in-place edit mode. */
 @Component({
     selector: 'app-profile-page',
-    imports: [
-        AppAvatarComponent,
-        ProfileCanvasComponent,
-        TranslateModule,
-        FormsModule,
-        ConfirmDialog,
-        Dialog,
-        ImageCropperComponent,
-        Select,
-        UserNameStyleDirective,
-        WidgetEditorPopoverComponent,
-        CanvasLatticeComponent,
-    ],
+    imports: [ProfileMastheadComponent, ProfileCanvasEditorComponent, TranslateModule, ConfirmDialog],
     templateUrl: './profile-page.component.html',
-    styleUrl: './profile-page.component.css',
     providers: [ConfirmationService],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -70,25 +34,10 @@ export class ProfilePageComponent {
 
     protected readonly editing = signal(false);
 
-    protected readonly avatarCropVisible = signal(false);
-    protected readonly avatarCropSrc = signal('');
     protected readonly uploadingAvatar = signal(false);
-
-    protected readonly bannerCropVisible = signal(false);
-    protected readonly bannerCropSrc = signal('');
     protected readonly uploadingBanner = signal(false);
 
-    private readonly avatarFileInputRef = viewChild<ElementRef<HTMLInputElement>>('avatarFileInput');
-    private readonly bannerFileInputRef = viewChild<ElementRef<HTMLInputElement>>('bannerFileInput');
-
     protected readonly profile = computed(() => this.profileService.ownProfile());
-
-    protected readonly bannerUrl = computed((): string | undefined => {
-        const profile = this.profile();
-        return cacheBustedUrl(profile?.bannerUrl, profile?.updatedAt);
-    });
-
-    protected readonly bannerFallback = computed(() => safeAccentColor(this.profile()?.accentColor));
 
     // Editing shows the arrangement being worked on, not the last saved one: a resize or a
     // property edit only mutates the draft, and the grid would look inert without this.
@@ -99,45 +48,7 @@ export class ProfilePageComponent {
         return this.canvasStore.canvasFor(profile.id) ?? emptyCanvas(profile.id);
     });
 
-    protected readonly safeAccentColor = safeAccentColor;
-
-    protected get canvasColumns(): number {
-        return CANVAS_COLUMNS;
-    }
-
-    // Read from the same normalised widgets the grid itself renders, so the lattice can never
-    // claim more rows exist than the canvas actually has.
-    protected readonly canvasRowCount = computed(() => {
-        const widgets = this.canvas()?.widgets ?? [];
-        return widgets.reduce((max, widget) => Math.max(max, widget.y + widget.h), 1);
-    });
-
-    protected readonly selectedWidgetId = signal<string | null>(null);
-    protected readonly selectedTileEl = signal<HTMLElement | null>(null);
-    // Escape hides the popover but leaves selectedWidgetId alone, so the tile stays visibly
-    // selected for a keyboard user; only clearSelection() actually deselects.
-    private readonly editorHidden = signal(false);
-
-    protected readonly popoverWidget = computed(() => {
-        const id = this.selectedWidgetId();
-        if (!id || this.editorHidden()) return null;
-        return this.canvas()?.widgets.find(widget => widget.id === id) ?? null;
-    });
-
     protected readonly dirty = computed(() => this.canvasEditor.dirty() || this.textDraft.dirty());
-
-    protected readonly fontPreviewStack = computed(() => {
-        const font = this.textDraft.draft()?.font;
-        return font && font !== ProfileFont.Default ? FONT_STACKS[font] : null;
-    });
-
-    protected get fontOptions(): {value: ProfileFont; label: string}[] {
-        return FONT_OPTIONS;
-    }
-
-    protected get fontStacks(): Record<ProfileFont, string> {
-        return FONT_STACKS;
-    }
 
     // ownProfile is a fresh object on every own-profile write (updateProfile, uploadAvatar,
     // uploadBanner, setSelfStatus), not just when the signed-in profile changes, so this must key
@@ -178,7 +89,6 @@ export class ProfilePageComponent {
     protected cancel(): void {
         if (!this.dirty()) {
             this.editing.set(false);
-            this.clearSelection();
             return;
         }
 
@@ -193,38 +103,8 @@ export class ProfilePageComponent {
                 this.canvasEditor.discard();
                 this.textDraft.discard();
                 this.editing.set(false);
-                this.clearSelection();
             },
         });
-    }
-
-    protected onWidgetSelected(event: WidgetSelectedEvent): void {
-        if (this.selectedWidgetId() === event.id && !this.editorHidden()) {
-            this.clearSelection();
-            return;
-        }
-        this.selectedWidgetId.set(event.id);
-        this.selectedTileEl.set(event.element);
-        this.editorHidden.set(false);
-    }
-
-    protected onEditorEscaped(): void {
-        this.editorHidden.set(true);
-        this.selectedTileEl()?.focus();
-    }
-
-    protected onEditorDismissed(): void {
-        this.clearSelection();
-    }
-
-    protected onEditorDeleted(): void {
-        this.clearSelection();
-    }
-
-    private clearSelection(): void {
-        this.selectedWidgetId.set(null);
-        this.selectedTileEl.set(null);
-        this.editorHidden.set(false);
     }
 
     protected save(): void {
@@ -247,33 +127,13 @@ export class ProfilePageComponent {
                 this.canvasEditor.begin(savedCanvas);
                 this.textDraft.begin(profile);
                 this.editing.set(false);
-                this.clearSelection();
                 this.toast.success(this.translate.instant('PROFILE_PAGE.SAVED'));
             },
             error: err => this.toast.httpError(this.translate.instant('PROFILE_PAGE.SAVE_FAILED'), err),
         });
     }
 
-    protected pickAvatarFile(): void {
-        this.avatarFileInputRef()?.nativeElement.click();
-    }
-
-    protected onAvatarFileSelected(event: Event): void {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0];
-        input.value = '';
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            this.avatarCropSrc.set(reader.result as string);
-            this.avatarCropVisible.set(true);
-        };
-        reader.readAsDataURL(file);
-    }
-
-    protected onAvatarCropConfirmed(file: File): void {
-        this.avatarCropVisible.set(false);
+    protected onAvatarCropped(file: File): void {
         this.uploadingAvatar.set(true);
         this.profileService
             .uploadAvatar(file)
@@ -284,26 +144,7 @@ export class ProfilePageComponent {
             });
     }
 
-    protected pickBannerFile(): void {
-        this.bannerFileInputRef()?.nativeElement.click();
-    }
-
-    protected onBannerFileSelected(event: Event): void {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0];
-        input.value = '';
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            this.bannerCropSrc.set(reader.result as string);
-            this.bannerCropVisible.set(true);
-        };
-        reader.readAsDataURL(file);
-    }
-
-    protected onBannerCropConfirmed(file: File): void {
-        this.bannerCropVisible.set(false);
+    protected onBannerCropped(file: File): void {
         this.uploadingBanner.set(true);
         this.profileService
             .uploadBanner(file)
