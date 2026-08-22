@@ -66,7 +66,10 @@ chrome is Inter, PrimeNG stays themed by its preset. What changes is what the pa
 - The banner compresses. It is a backdrop, not the subject, and 240px of it before you reach anything
   is a decorative wall between a person and their room.
 - The avatar and name sit on one line with the bio under them, so identity reads as a caption to the
-  room rather than a title card above it.
+  room rather than a title card above it. A caption, not a postage stamp: the first build used
+  `size="large"`, which resolves to 3rem, so the avatar on the page about you was 48px, smaller than
+  the 80px thumbnail it replaced in settings. Size it for a page, not for a list row, and click it to
+  see it full size.
 - A hairline under that block separates the person from the things they arranged. One rule, no
   heading, no label. The change of content is the section break.
 - The canvas gets a max width and stays centred. At four columns on a wide monitor an unconstrained
