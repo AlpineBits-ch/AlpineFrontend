@@ -43,13 +43,11 @@ import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
 import {SocialWebsocketService} from '../../services/social-websocket.service';
 import {UserService} from '../../services/user.service';
-import {KeySetupDialogComponent} from '../key-setup/key-setup-dialog/key-setup-dialog.component';
 import {MasterKeyRecoveryDialogComponent} from '../key-setup/master-key-recovery-dialog/master-key-recovery-dialog.component';
 import {MasterKeyStateService} from '../../services/master-key-state.service';
 import {MlsService} from '../../services/mls.service';
 import {MlsSyncService} from '../../services/mls-sync.service';
 import {MlsHealthService} from '../../services/mls-health.service';
-import {DeviceRegistrationModalComponent} from '../device-registration/device-registration-modal/device-registration-modal.component';
 import {ConversationService} from '../../services/conversation.service';
 import {RichPresenceService} from '../../services/rich-presence.service';
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
@@ -69,10 +67,14 @@ import {runSignOut} from './sign-out';
 import {AccountGateBlock, hydrateThenReveal, revealAfterAccountGateBlock} from './launch-hydration';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
-import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
+import {FirstRunComponent} from '../first-run/first-run.component';
 import {trace} from '../../core/log';
 import {UserDto} from '../../dtos/response/UserDto';
 import {OnboardingService} from '../../services/onboarding.service';
+import {FirstRunService} from '../../services/first-run.service';
+import {DeviceRegistrationService} from '../../services/device-registration.service';
+import {resolveDeviceName} from '../../services/device-description';
+import {OsInfo} from '../../platform/ports/os-info.port';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
 import {AccountRegistryService} from '../../services/account-registry.service';
 import {AccountSwitchService} from '../../services/account-switch.service';
@@ -109,15 +111,13 @@ import {scopeKey} from '../../services/share-watch.service';
         VoiceResumeBannerComponent,
         VoiceStatusBarComponent,
         GuildMemberListComponent,
-        DeviceRegistrationModalComponent,
-        KeySetupDialogComponent,
         MasterKeyRecoveryDialogComponent,
         WikiComponent,
         PersonaDirectoryComponent,
         CharacterPageComponent,
         SceneBoardComponent,
         OnboardingGateComponent,
-        AccountOnboardingComponent,
+        FirstRunComponent,
         EventsPanelComponent,
         ForumPostListComponent,
         ReportDialogComponent,
@@ -145,12 +145,17 @@ export class MainPageComponent implements OnDestroy {
         return forumParentOf(view.channel, ws.guild.channels);
     });
     protected router = inject(Router);
-    protected readonly showDeviceRegistration = signal(false);
-    /** The account picker, and the gate that owns the key-setup dialog. See {@link SocialKeyGateService}. */
+    /** The one takeover that owns first launch. See {@link FirstRunService}. */
+    protected firstRun = inject(FirstRunService);
     protected onboarding = inject(OnboardingService);
     protected socialGate = inject(SocialKeyGateService);
+    private deviceRegistration = inject(DeviceRegistrationService);
+    private os = inject(OsInfo);
     /** A password reset left the encryption key unopenable, or the account has no recovery code. */
     protected readonly showMasterKeyRecovery = signal(false);
+    /** Registration ran headlessly and failed, so this device holds no identity at all. */
+    protected readonly deviceRegistrationFailed = signal(false);
+    private registering: Promise<void> | null = null;
     /** The key store could not be reached. Not the same state as "this device is not registered". */
     protected readonly keyUnlockFailed = signal(false);
     /** Part of this device's signing key is in the key store and part is not; must not offer registration. */
@@ -207,9 +212,6 @@ export class MainPageComponent implements OnDestroy {
 
         this.userTokenService.ensureTokenRegistered().then();
         void this.initLaunchSequence();
-
-        // The picker suspends the launch sequence, so answering it has to start the second half.
-        this.actionSub.add(this.onboarding.pickerCompleted.subscribe(() => void this.runDeviceLaunch()));
 
         // A tab that booted while another tab owned the engine unlocked nothing, so gaining the
         // engine has to relaunch. See {@link relaunchOnSessionTakeover}; never fires on the desktop.
@@ -362,11 +364,36 @@ export class MainPageComponent implements OnDestroy {
         this.richPresenceService.stop();
     }
 
-    protected onDeviceRegistered(keyHandle: string): void {
-        this.keyHandle.set(keyHandle);
-        this.showDeviceRegistration.set(false);
-        this.checkMasterKey();
-        this.userService.replenishKeyCount().subscribe();
+    /**
+     * Registers this device under a derived name. Nothing here needs a human, so nothing asks one.
+     *
+     * Shared rather than re-entered: `register()` deletes the device identifier before its own
+     * retry, so two overlapping calls can delete the identifier the other is registering under.
+     */
+    protected registerThisDevice(): Promise<void> {
+        this.registering ??= this.runRegistration().finally(() => (this.registering = null));
+        return this.registering;
+    }
+
+    private async runRegistration(): Promise<void> {
+        try {
+            const keyHandle = await firstValueFrom(
+                this.deviceRegistration.register(await resolveDeviceName(this.os)),
+            );
+            this.deviceRegistrationFailed.set(false);
+            this.keyHandle.set(keyHandle);
+            this.checkMasterKey();
+            this.userService.replenishKeyCount().subscribe({
+                error: err => {
+                    console.error('Could not upload key packages for the new identity', err);
+                    this.keyPackagesFailed.set(true);
+                },
+            });
+        } catch (err) {
+            // Nothing else raises a banner for this, and there is no modal left to fail in front of.
+            this.deviceRegistrationFailed.set(true);
+            console.error('This device could not be registered', err);
+        }
     }
 
     /** Sign out, taking this device's key material with it. See {@link runSignOut}. */
@@ -384,26 +411,35 @@ export class MainPageComponent implements OnDestroy {
 
     /**
      * Launch sequence in two halves: the account's own gates, then this device's crypto state.
-     * The first half can suspend, so {@link OnboardingService.pickerCompleted} restarts the second.
+     * The first half can suspend on the first-run takeover, which is awaited before the second.
      */
     private async initLaunchSequence(): Promise<void> {
         const gate = await this.resolveAccountGates();
-        if (gate !== 'continue') {
-            // A blocking dialog owns the screen, so still mark ready or it sits behind the splash.
-            // Hydrate only once this account has a slot: doing it earlier writes under
-            // BOOTSTRAP_SLOT_ID, which no wipe is ever handed the id of.
-            await revealAfterAccountGateBlock(
-                gate,
-                {
-                    hydrate: () => this.profileCache.hydrate(),
-                    hydrateConversations: () => this.conversationStore.hydrate(),
-                    revalidateAll: () => this.profileCache.revalidateAll(),
-                    markReady: () => this.appReady.markReady(),
-                },
-                async () => (await this.accounts.activeSlot()) !== null,
-            );
+        if (gate === 'continue') {
+            await this.runDeviceLaunch();
             return;
         }
+
+        // Opened before the splash lifts, so the takeover is already up when it does.
+        const run = gate === 'first-run' ? this.firstRun.open() : null;
+
+        // A blocking surface owns the screen, so still mark ready or it sits behind the splash.
+        // Hydrate only once this account has a slot: doing it earlier writes under
+        // BOOTSTRAP_SLOT_ID, which no wipe is ever handed the id of.
+        await revealAfterAccountGateBlock(
+            gate,
+            {
+                hydrate: () => this.profileCache.hydrate(),
+                hydrateConversations: () => this.conversationStore.hydrate(),
+                revalidateAll: () => this.profileCache.revalidateAll(),
+                markReady: () => this.appReady.markReady(),
+            },
+            async () => (await this.accounts.activeSlot()) !== null,
+        );
+
+        // Email verification ends the launch here. First-run hands control back when it closes.
+        if (!run) return;
+        await run;
         await this.runDeviceLaunch();
     }
 
@@ -435,10 +471,7 @@ export class MainPageComponent implements OnDestroy {
             this.emailVerification.show(user.email || this.resolveEmail());
             return 'email-verification';
         }
-        if (this.onboarding.needsOnboarding()) {
-            this.onboarding.show();
-            return 'onboarding';
-        }
+        if (this.onboarding.needsOnboarding()) return 'first-run';
         return 'continue';
     }
 
@@ -513,7 +546,7 @@ export class MainPageComponent implements OnDestroy {
         if (outcome.handle) this.keyHandle.set(outcome.handle);
         // `needsRegistration` is the only outcome that may register: any other would mint a fresh
         // keypair over live group state.
-        this.showDeviceRegistration.set(outcome.needsRegistration);
+        if (outcome.needsRegistration) void this.registerThisDevice();
         // Same banner as an unreachable key store: both mean encryption is unavailable this launch
         // and registering is not the answer.
         this.keyUnlockFailed.set(

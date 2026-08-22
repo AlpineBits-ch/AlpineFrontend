@@ -1,5 +1,6 @@
 import {DeviceType} from '../dtos/response/user-device.dto';
 import {detectHost, PlatformHost} from '../platform/host';
+import {OsInfo} from '../platform/ports/os-info.port';
 
 /** The parts of this device's identity that are safe to derive without any I/O. */
 export interface DeviceDescription {
@@ -15,7 +16,7 @@ export interface DeviceDescription {
  * phone approving an anonymous "unknown device".
  *
  * Lives in its own module rather than beside its first caller: `DeviceIdentityService`,
- * `QrLoginService`, `AuthService` and `DeviceRegistrationModalComponent` all need it, and the first
+ * `QrLoginService`, `AuthService` and `DeviceRegistrationService` all need it, and the first
  * two also depend on each other through DI - importing it from either would close an import cycle.
  *
  * <p><b>This is the only place a `DeviceType` is decided, and that is load-bearing rather than
@@ -44,6 +45,21 @@ export function describeCurrentDevice(host: PlatformHost = detectHost()): Device
         return {deviceName: `Venta Desktop on ${os}`, deviceType: DeviceType.Desktop};
     }
     return {deviceName: `${detectBrowser()} on ${os}`, deviceType: DeviceType.Web};
+}
+
+/**
+ * The label to offer for this device, preferring the machine's own name over a derived one.
+ *
+ * Returns a name and nothing else. {@link describeCurrentDevice} stays the only place a
+ * {@link DeviceType} is decided, so a caller that needs both asks for both rather than deriving a
+ * type from whatever came back here.
+ *
+ * Every way `hostname()` can decline, null, blank, or a rejected IPC call when the capability is
+ * missing, falls through to the derived name.
+ */
+export async function resolveDeviceName(os: OsInfo, host: PlatformHost = detectHost()): Promise<string> {
+    const hostname = await os.hostname().catch(() => null);
+    return hostname?.trim() || describeCurrentDevice(host).deviceName;
 }
 
 function detectOs(): string {

@@ -134,7 +134,7 @@ export class DeviceIdentityService {
      * device row must not cost the account its message history on this machine.
      *
      * @returns false when it could not register - the caller should fall through to its normal
-     *          error path rather than retry. The interactive `DeviceRegistrationModalComponent`
+     *          error path rather than retry. The headless `DeviceRegistrationService`
      *          remains the only correct recovery when no signing key is stored at all.
      */
     async ensureRegistered(): Promise<boolean> {

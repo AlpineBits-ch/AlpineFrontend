@@ -1,7 +1,9 @@
 import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
+import {InputText} from 'primeng/inputtext';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {LoginSessionsService} from '../../../../../services/login-sessions.service';
@@ -15,7 +17,7 @@ import {KeyBackupRestoreComponent} from '../../../key-backup-restore/key-backup-
 
 @Component({
     selector: 'app-devices-settings',
-    imports: [Button, Dialog, Tooltip, TranslateModule, KeyBackupRestoreComponent],
+    imports: [Button, Dialog, FormsModule, InputText, Tooltip, TranslateModule, KeyBackupRestoreComponent],
     templateUrl: './devices-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -31,6 +33,10 @@ export class DevicesSettingsComponent {
     /** Client device id a forget request is currently in flight for. */
     protected readonly forgetting = signal<string | null>(null);
     protected readonly pendingForget = signal<LoginSessionDto | null>(null);
+    /** Client device id whose name is open for editing. */
+    protected readonly renamingId = signal<string | null>(null);
+    protected readonly renameDraft = signal('');
+    protected readonly savingRename = signal(false);
 
     /** Current session first: it is the one the reader is trying to identify themselves against. */
     protected readonly ordered = computed(() =>
@@ -130,6 +136,47 @@ export class DevicesSettingsComponent {
                 this.forgetting.set(null);
                 this.pendingForget.set(null);
                 this.toast.httpError(this.translate.instant('SETTINGS.DEVICES.FORGET_FAILED'), err);
+            },
+        });
+    }
+
+    protected startRename(session: LoginSessionDto): void {
+        if (!session.clientDeviceId) return;
+        this.renamingId.set(session.clientDeviceId);
+        this.renameDraft.set(session.deviceName);
+        setTimeout(() => {
+            const field = document.querySelector<HTMLInputElement>('[data-testid="device-rename"]');
+            field?.focus();
+            field?.select();
+        });
+    }
+
+    protected cancelRename(): void {
+        if (this.savingRename()) return;
+        this.renamingId.set(null);
+        this.renameDraft.set('');
+    }
+
+    protected saveRename(): void {
+        const clientDeviceId = this.renamingId();
+        const name = this.renameDraft().trim();
+        if (!clientDeviceId || !name || this.savingRename()) return;
+
+        this.savingRename.set(true);
+        this.deviceService.renameDevice(clientDeviceId, name).subscribe({
+            next: () => {
+                // One device can hold several sessions, and they all show its name.
+                this.sessions.update(list =>
+                    list.map(s => (s.clientDeviceId === clientDeviceId ? {...s, deviceName: name} : s)),
+                );
+                this.savingRename.set(false);
+                this.renamingId.set(null);
+                this.renameDraft.set('');
+                this.toast.success(this.translate.instant('SETTINGS.DEVICES.RENAMED', {device: name}));
+            },
+            error: err => {
+                this.savingRename.set(false);
+                this.toast.httpError(this.translate.instant('SETTINGS.DEVICES.RENAME_FAILED'), err);
             },
         });
     }

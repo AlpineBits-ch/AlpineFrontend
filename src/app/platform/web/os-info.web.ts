@@ -54,4 +54,9 @@ export class WebOsInfo extends OsInfo {
     override async appVersion(): Promise<string> {
         return packageVersion;
     }
+
+    /** A browser is not told the machine's name, and no API offers it. */
+    override async hostname(): Promise<string | null> {
+        return null;
+    }
 }

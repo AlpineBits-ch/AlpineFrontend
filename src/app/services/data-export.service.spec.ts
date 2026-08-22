@@ -10,28 +10,12 @@ import {provideZonelessChangeDetection} from '@angular/core';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {OsInfo} from '../platform/ports/os-info.port';
+import {FakeOsInfo} from '../platform/testing/fake-os-info';
 import {ApiConfigService} from './api-config.service';
 import {AuthService} from './auth.service';
 import {DataExportSaveUnsupportedError, DataExportService, downloadErrorStatus} from './data-export.service';
 
 const BASE = 'https://api.test.example';
-
-class FakeOsInfo extends OsInfo {
-    constructor(
-        override readonly kind: OsInfo['kind'],
-        override readonly isMobile: boolean,
-    ) {
-        super();
-    }
-
-    override async appName(): Promise<string> {
-        return 'Venta';
-    }
-
-    override async appVersion(): Promise<string> {
-        return '3.0.195';
-    }
-}
 
 function setup(kind: OsInfo['kind'], isMobile = false) {
     TestBed.resetTestingModule();

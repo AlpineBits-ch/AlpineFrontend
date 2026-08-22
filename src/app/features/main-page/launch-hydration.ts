@@ -28,11 +28,11 @@ export async function hydrateThenReveal(steps: LaunchHydrationSteps): Promise<vo
 }
 
 /**
- * Which blocking dialog `resolveAccountGates()` handed the screen to, when it did. Not
- * interchangeable: the onboarding takeover is opaque, so nothing behind it needs hydrating, while
+ * Which blocking surface `resolveAccountGates()` handed the screen to, when it did. Not
+ * interchangeable: the first-run takeover is opaque, so nothing behind it needs hydrating, while
  * the email-verification dialog is a translucent mask over the still-rendered main-page shell.
  */
-export type AccountGateBlock = 'onboarding' | 'email-verification';
+export type AccountGateBlock = 'first-run' | 'email-verification';
 
 /**
  * Reveals whatever `resolveAccountGates()` decided to show, hydrating first only when that surface
@@ -48,7 +48,7 @@ export async function revealAfterAccountGateBlock(
     steps: LaunchHydrationSteps,
     hasAccountSlot: () => Promise<boolean> = async () => true,
 ): Promise<void> {
-    if (block === 'onboarding') {
+    if (block === 'first-run') {
         // Opaque takeover: nothing behind it renders, so hydration could fix nothing visible.
         steps.markReady();
         return;

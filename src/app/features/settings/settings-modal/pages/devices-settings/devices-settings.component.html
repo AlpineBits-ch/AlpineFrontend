@@ -34,13 +34,27 @@
 
                         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="text-[0.8125rem] text-text-primary truncate">{{ session.deviceName }}</span>
-                                @if (isThisDevice(session)) {
-                                    <span
-                                        class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide text-online bg-online/10 border border-online/25 rounded-full px-2 py-0.5"
-                                    >
-                                        {{ 'SETTINGS.DEVICES.THIS_DEVICE' | translate }}
-                                    </span>
+                                @if (renamingId() && renamingId() === session.clientDeviceId) {
+                                    <input
+                                        pInputText
+                                        class="w-full text-[0.8125rem]"
+                                        data-testid="device-rename"
+                                        maxlength="60"
+                                        [ngModel]="renameDraft()"
+                                        (ngModelChange)="renameDraft.set($event)"
+                                        (keydown.enter)="saveRename()"
+                                        (keydown.escape)="cancelRename()"
+                                        [attr.aria-label]="'SETTINGS.DEVICES.RENAME' | translate"
+                                    />
+                                } @else {
+                                    <span class="text-[0.8125rem] text-text-primary truncate">{{ session.deviceName }}</span>
+                                    @if (isThisDevice(session)) {
+                                        <span
+                                            class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide text-online bg-online/10 border border-online/25 rounded-full px-2 py-0.5"
+                                        >
+                                            {{ 'SETTINGS.DEVICES.THIS_DEVICE' | translate }}
+                                        </span>
+                                    }
                                 }
                             </div>
                             <span
@@ -55,42 +69,83 @@
                             </span>
                         </div>
 
-                        @if (session.isCurrent) {
-                            <!-- Revoking the session you are using would leave the app holding a token
-                                 it can no longer refresh; Log Out is the coherent way to end it. -->
-                            <span [pTooltip]="'SETTINGS.DEVICES.CURRENT_HINT' | translate" class="shrink-0" tooltipPosition="left">
-                                <p-button [disabled]="true" [text]="true" icon="pi pi-sign-out" severity="secondary" size="small" />
-                            </span>
+                        @if (renamingId() && renamingId() === session.clientDeviceId) {
+                            <p-button
+                                (onClick)="saveRename()"
+                                [ariaLabel]="'COMMON.SAVE' | translate"
+                                [disabled]="!renameDraft().trim()"
+                                [loading]="savingRename()"
+                                [pTooltip]="'COMMON.SAVE' | translate"
+                                [text]="true"
+                                icon="pi pi-check"
+                                size="small"
+                                styleClass="shrink-0"
+                                tooltipPosition="left"
+                            />
+                            <p-button
+                                (onClick)="cancelRename()"
+                                [ariaLabel]="'SETTINGS.DEVICES.CANCEL' | translate"
+                                [disabled]="savingRename()"
+                                [pTooltip]="'SETTINGS.DEVICES.CANCEL' | translate"
+                                [text]="true"
+                                icon="pi pi-times"
+                                severity="secondary"
+                                size="small"
+                                styleClass="shrink-0"
+                                tooltipPosition="left"
+                            />
                         } @else {
-                            <p-button
-                                (onClick)="confirmRevoke(session)"
-                                [ariaLabel]="'SETTINGS.DEVICES.REVOKE' | translate"
-                                [loading]="revoking() === session.id"
-                                [pTooltip]="'SETTINGS.DEVICES.REVOKE' | translate"
-                                [text]="true"
-                                icon="pi pi-sign-out"
-                                severity="danger"
-                                size="small"
-                                styleClass="shrink-0"
-                                tooltipPosition="left"
-                            />
-                        }
+                            @if (session.clientDeviceId) {
+                                <p-button
+                                    (onClick)="startRename(session)"
+                                    [ariaLabel]="'SETTINGS.DEVICES.RENAME' | translate"
+                                    [pTooltip]="'SETTINGS.DEVICES.RENAME' | translate"
+                                    [text]="true"
+                                    icon="pi pi-pencil"
+                                    severity="secondary"
+                                    size="small"
+                                    styleClass="shrink-0"
+                                    tooltipPosition="left"
+                                />
+                            }
 
-                        <!-- Signing a device out ends its session; forgetting it removes the
-                             device itself, along with its encryption keys and backup. -->
-                        @if (session.clientDeviceId) {
-                            <p-button
-                                (onClick)="confirmForget(session)"
-                                [ariaLabel]="'SETTINGS.DEVICES.FORGET' | translate"
-                                [loading]="forgetting() === session.clientDeviceId"
-                                [pTooltip]="'SETTINGS.DEVICES.FORGET' | translate"
-                                [text]="true"
-                                icon="pi pi-trash"
-                                severity="danger"
-                                size="small"
-                                styleClass="shrink-0"
-                                tooltipPosition="left"
-                            />
+                            @if (session.isCurrent) {
+                                <!-- Revoking the session you are using would leave the app holding a token
+                                     it can no longer refresh; Log Out is the coherent way to end it. -->
+                                <span [pTooltip]="'SETTINGS.DEVICES.CURRENT_HINT' | translate" class="shrink-0" tooltipPosition="left">
+                                    <p-button [disabled]="true" [text]="true" icon="pi pi-sign-out" severity="secondary" size="small" />
+                                </span>
+                            } @else {
+                                <p-button
+                                    (onClick)="confirmRevoke(session)"
+                                    [ariaLabel]="'SETTINGS.DEVICES.REVOKE' | translate"
+                                    [loading]="revoking() === session.id"
+                                    [pTooltip]="'SETTINGS.DEVICES.REVOKE' | translate"
+                                    [text]="true"
+                                    icon="pi pi-sign-out"
+                                    severity="danger"
+                                    size="small"
+                                    styleClass="shrink-0"
+                                    tooltipPosition="left"
+                                />
+                            }
+
+                            <!-- Signing a device out ends its session; forgetting it removes the
+                                 device itself, along with its encryption keys and backup. -->
+                            @if (session.clientDeviceId) {
+                                <p-button
+                                    (onClick)="confirmForget(session)"
+                                    [ariaLabel]="'SETTINGS.DEVICES.FORGET' | translate"
+                                    [loading]="forgetting() === session.clientDeviceId"
+                                    [pTooltip]="'SETTINGS.DEVICES.FORGET' | translate"
+                                    [text]="true"
+                                    icon="pi pi-trash"
+                                    severity="danger"
+                                    size="small"
+                                    styleClass="shrink-0"
+                                    tooltipPosition="left"
+                                />
+                            }
                         }
                     </li>
                 }

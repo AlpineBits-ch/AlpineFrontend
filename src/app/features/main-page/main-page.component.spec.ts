@@ -43,6 +43,10 @@ import {SessionTeardownService} from '../../services/session-teardown.service';
 import {ApiConfigService} from '../../services/api-config.service';
 import {ProfileService} from '../../services/profile.service';
 import {ProfileCacheService} from '../../services/cache/profile-cache.service';
+import {FirstRunService} from '../../services/first-run.service';
+import {DeviceRegistrationService} from '../../services/device-registration.service';
+import {OsInfo} from '../../platform/ports/os-info.port';
+import {FakeOsInfo} from '../../platform/testing/fake-os-info';
 
 /**
  * Lets the launch sequence settle before an assertion. Macrotask hops, not `Promise.resolve()`
@@ -112,14 +116,14 @@ interface Fakes {
     mlsHealthClear: ReturnType<typeof vi.fn>;
     recordFailure: ReturnType<typeof vi.fn>;
     needsOnboarding: ReturnType<typeof vi.fn>;
-    showOnboarding: ReturnType<typeof vi.fn>;
     wantsSocial: ReturnType<typeof vi.fn>;
-    pickerCompleted: Subject<void>;
     promptNow: ReturnType<typeof vi.fn>;
     getConversations: ReturnType<typeof vi.fn>;
     sweepForAdmission: ReturnType<typeof vi.fn>;
     navigate: ReturnType<typeof vi.fn>;
     getIdentityClaims: ReturnType<typeof vi.fn>;
+    registerDevice: ReturnType<typeof vi.fn>;
+    firstRunOpen: ReturnType<typeof vi.fn>;
 }
 
 function makeFakes(): Fakes {
@@ -178,14 +182,14 @@ function makeFakes(): Fakes {
         mlsHealthClear: vi.fn(),
         recordFailure: vi.fn(),
         needsOnboarding: vi.fn().mockReturnValue(false),
-        showOnboarding: vi.fn(),
         wantsSocial: vi.fn().mockReturnValue(false),
-        pickerCompleted: new Subject<void>(),
         promptNow: vi.fn(),
         getConversations: vi.fn().mockReturnValue(of([])),
         sweepForAdmission: vi.fn().mockResolvedValue({probed: 0, requested: 0}),
         navigate: vi.fn().mockResolvedValue(true),
         getIdentityClaims: vi.fn().mockReturnValue({email: 'claim@b.c'}),
+        registerDevice: vi.fn().mockReturnValue(of('handle-new')),
+        firstRunOpen: vi.fn().mockResolvedValue(undefined),
     };
 }
 
@@ -302,10 +306,7 @@ function configure(fakes: Fakes): void {
                 provide: OnboardingService,
                 useValue: {
                     needsOnboarding: fakes.needsOnboarding,
-                    show: fakes.showOnboarding,
                     wantsSocial: fakes.wantsSocial,
-                    pickerCompleted: fakes.pickerCompleted,
-                    visible: signal(false),
                 },
             },
             {
@@ -333,6 +334,9 @@ function configure(fakes: Fakes): void {
                 provide: ProfileCacheService,
                 useValue: {hydrate: fakes.hydrate, revalidateAll: fakes.revalidateAll},
             },
+            {provide: FirstRunService, useValue: {open: fakes.firstRunOpen}},
+            {provide: DeviceRegistrationService, useValue: {register: fakes.registerDevice}},
+            {provide: OsInfo, useValue: new FakeOsInfo()},
         ],
     });
 
@@ -602,25 +606,28 @@ describe('MainPageComponent launch sequence gates', () => {
         expect(fakes.deviceId).not.toHaveBeenCalled();
     });
 
-    it('stops and shows the picker when onboarding is owed', async () => {
+    it('stops and hands first run the screen when onboarding is owed', async () => {
         const fakes = makeFakes();
         fakes.needsOnboarding.mockReturnValue(true);
+        fakes.firstRunOpen.mockReturnValue(new Promise<void>(() => {}));
         await setup(fakes);
 
-        expect(fakes.showOnboarding).toHaveBeenCalled();
+        expect(fakes.firstRunOpen).toHaveBeenCalled();
         expect(fakes.deviceId).not.toHaveBeenCalled();
-        // The onboarding takeover is opaque, so it reveals without hydrating.
+        // The first-run takeover is opaque, so it reveals without hydrating.
         expect(fakes.markReady).toHaveBeenCalled();
         expect(fakes.hydrate).not.toHaveBeenCalled();
     });
 
-    it('restarts at the device half when the picker is answered', async () => {
+    it('restarts at the device half when first run closes', async () => {
         const fakes = makeFakes();
+        let closeFirstRun = (): void => undefined;
         fakes.needsOnboarding.mockReturnValue(true);
+        fakes.firstRunOpen.mockReturnValue(new Promise<void>(resolve => (closeFirstRun = resolve)));
         await setup(fakes);
         expect(fakes.deviceId).not.toHaveBeenCalled();
 
-        fakes.pickerCompleted.next();
+        closeFirstRun();
         await settle();
 
         expect(fakes.deviceId).toHaveBeenCalled();
@@ -759,59 +766,59 @@ describe('MainPageComponent launch outcome banners', () => {
     beforeEach(() => TestBed.resetTestingModule());
     afterEach(() => vi.restoreAllMocks());
 
-    async function launchWith(kind: string | undefined): Promise<any> {
+    async function launchWith(kind: string | undefined): Promise<{component: any; fakes: Fakes}> {
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const fakes = makeFakes();
         fakes.autoUnlock.mockReturnValue(throwError(() => ({kind})));
         const {component} = await setup(fakes);
-        return component;
+        return {component, fakes};
     }
 
-    it('sets the session handle on a clean unlock and offers nothing', async () => {
-        const {component} = await setup();
+    it('sets the session handle on a clean unlock and registers nothing', async () => {
+        const {component, fakes} = await setup();
 
         expect(component.keyHandle()).toBe('handle-1');
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(false);
         expect(component.keyStoreIncomplete()).toBe(false);
         expect(component.keyPackagesFailed()).toBe(false);
     });
 
-    it('offers registration only for KeyNotFound', async () => {
-        const component = await launchWith('KeyNotFound');
+    it('registers this device only for KeyNotFound', async () => {
+        const {component, fakes} = await launchWith('KeyNotFound');
 
-        expect(component.showDeviceRegistration()).toBe(true);
+        expect(fakes.registerDevice).toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(false);
         expect(component.keyStoreIncomplete()).toBe(false);
     });
 
-    it('an unreachable key store fails the unlock without offering registration', async () => {
-        const component = await launchWith('KeyStoreUnreachable');
+    it('an unreachable key store fails the unlock without registering', async () => {
+        const {component, fakes} = await launchWith('KeyStoreUnreachable');
 
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(true);
         expect(component.keyStoreIncomplete()).toBe(false);
     });
 
     it('an unrecognised failure kind is treated as unreachable, never as registration', async () => {
-        const component = await launchWith(undefined);
+        const {component, fakes} = await launchWith(undefined);
 
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(true);
     });
 
-    it('an identity mismatch fails the unlock without offering registration', async () => {
-        const component = await launchWith('IdentityMismatch');
+    it('an identity mismatch fails the unlock without registering', async () => {
+        const {component, fakes} = await launchWith('IdentityMismatch');
 
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(true);
         expect(component.keyStoreIncomplete()).toBe(false);
     });
 
-    it('a partly present key store sets both flags and offers no registration', async () => {
-        const component = await launchWith('KeyStoreIncomplete');
+    it('a partly present key store sets both flags and registers nothing', async () => {
+        const {component, fakes} = await launchWith('KeyStoreIncomplete');
 
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
         expect(component.keyUnlockFailed()).toBe(true);
         expect(component.keyStoreIncomplete()).toBe(true);
     });
@@ -823,7 +830,7 @@ describe('MainPageComponent launch outcome banners', () => {
 
         expect(component.keyPackagesFailed()).toBe(true);
         expect(component.keyUnlockFailed()).toBe(false);
-        expect(component.showDeviceRegistration()).toBe(false);
+        expect(fakes.registerDevice).not.toHaveBeenCalled();
     });
 });
 
@@ -878,35 +885,112 @@ describe('MainPageComponent retry actions', () => {
         expect(component.mlsStorageUnavailable()).toBe(false);
         expect(fakes.getSelf).toHaveBeenCalledTimes(2);
     });
+});
 
-    it('onDeviceRegistered stores the handle, closes the modal and re-reads the account', async () => {
+describe('MainPageComponent device registration', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+    afterEach(() => vi.restoreAllMocks());
+
+    it('a successful registration stores the handle and re-reads the account', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const fakes = makeFakes();
         fakes.autoUnlock.mockReturnValue(throwError(() => ({kind: 'KeyNotFound'})));
-        const {component} = await setup(fakes);
-        expect(component.showDeviceRegistration()).toBe(true);
-        fakes.replenishKeyCount.mockClear();
-
+        fakes.registerDevice.mockReturnValue(of('handle-new'));
         fakes.self.set({id: 'user-1', encryptedMasterKey: 'blob'});
         fakes.masterKeyRefresh.mockResolvedValue('needs-recovery');
-        component.onDeviceRegistered('handle-new');
-        await settle();
+        const {component} = await setup(fakes);
 
+        expect(fakes.registerDevice).toHaveBeenCalled();
         expect(component.keyHandle()).toBe('handle-new');
-        expect(component.showDeviceRegistration()).toBe(false);
+        // The account gates read it once; the second read is the post-registration one.
+        expect(fakes.getSelf).toHaveBeenCalledTimes(2);
         expect(fakes.replenishKeyCount).toHaveBeenCalled();
         expect(component.showMasterKeyRecovery()).toBe(true);
     });
 
-    it('onDeviceRegistered surfaces email verification on a 403 re-read', async () => {
+    it('a registration re-read that 403s surfaces email verification', async () => {
         const fakes = makeFakes();
-        const {component} = await setup(fakes);
         fakes.knownEmail.set('known@b.c');
-        fakes.getSelf.mockReturnValue(throwError(() => ({status: 403})));
-
-        component.onDeviceRegistered('handle-new');
-        await settle();
+        fakes.autoUnlock.mockReturnValue(throwError(() => ({kind: 'KeyNotFound'})));
+        fakes.getSelf
+            .mockReturnValueOnce(of({id: 'user-1', email: 'a@b.c', emailVerifiedAt: '2026-01-01'}))
+            .mockReturnValue(throwError(() => ({status: 403})));
+        await setup(fakes);
 
         expect(fakes.showEmailVerification).toHaveBeenCalledWith('known@b.c', {action: 'navigate-login'});
+    });
+
+    it('a failed registration is logged and leaves the unlock outcome flags alone', async () => {
+        const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const fakes = makeFakes();
+        fakes.autoUnlock.mockReturnValue(throwError(() => ({kind: 'KeyNotFound'})));
+        fakes.registerDevice.mockReturnValue(throwError(() => new Error('nope')));
+        const {component} = await setup(fakes);
+
+        expect(err).toHaveBeenCalled();
+        expect(component.deviceRegistrationFailed()).toBe(true);
+        expect(component.keyHandle()).toBeNull();
+        expect(component.keyUnlockFailed()).toBe(false);
+        expect(component.keyStoreIncomplete()).toBe(false);
+        expect(component.keyPackagesFailed()).toBe(false);
+        expect(fakes.voiceResumeCheck).toHaveBeenCalled();
+    });
+
+    it('a failed registration raises the retry strip, and a successful retry clears it', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const fakes = makeFakes();
+        fakes.registerDevice.mockReturnValue(throwError(() => new Error('nope')));
+        const {component} = await setup(fakes);
+
+        await component.registerThisDevice();
+        expect(component.deviceRegistrationFailed()).toBe(true);
+
+        fakes.registerDevice.mockReturnValue(of('handle-new'));
+        await component.registerThisDevice();
+
+        expect(component.deviceRegistrationFailed()).toBe(false);
+        expect(component.keyHandle()).toBe('handle-new');
+    });
+
+    it('two overlapping registrations register once, and both callers resolve', async () => {
+        const fakes = makeFakes();
+        const inFlight = new Subject<string>();
+        fakes.registerDevice.mockReturnValue(inFlight);
+        const {component} = await setup(fakes);
+
+        const first = component.registerThisDevice();
+        const second = component.registerThisDevice();
+        await settle();
+
+        expect(fakes.registerDevice).toHaveBeenCalledTimes(1);
+
+        inFlight.next('handle-new');
+        inFlight.complete();
+        await Promise.all([first, second]);
+
+        expect(component.keyHandle()).toBe('handle-new');
+    });
+
+    it('the guard clears once registration settles, so a later call registers again', async () => {
+        const fakes = makeFakes();
+        const {component} = await setup(fakes);
+
+        await component.registerThisDevice();
+        await component.registerThisDevice();
+
+        expect(fakes.registerDevice).toHaveBeenCalledTimes(2);
+    });
+
+    it('a key-package upload that fails after registering raises its own banner', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const fakes = makeFakes();
+        const {component} = await setup(fakes);
+        fakes.replenishKeyCount.mockReturnValue(throwError(() => new Error('nope')));
+
+        await component.registerThisDevice();
+
+        expect(component.keyPackagesFailed()).toBe(true);
+        expect(component.deviceRegistrationFailed()).toBe(false);
     });
 });
 

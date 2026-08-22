@@ -30,6 +30,7 @@
     "updater:allow-download-and-install",
     "process:allow-restart",
     "os:default",
+    "os:allow-hostname",
     "store:allow-load",
     "store:default",
     "secure-storage:default",

@@ -17,11 +17,15 @@ export class FakeOsInfo extends OsInfo {
     /** Set to make {@link appVersion} reject. Callers must then show no version, not a stale one. */
     versionError: Error | null = null;
 
+    /** Set to make {@link hostname} reject, which is what a missing `os:allow-hostname` looks like. */
+    hostnameError: Error | null = null;
+
     constructor(
         override readonly kind: OsInfo['kind'] = 'windows',
         override readonly isMobile = false,
         private readonly name = 'Venta',
         private readonly version = '3.0.195',
+        private readonly host: string | null = null,
     ) {
         super();
     }
@@ -34,5 +38,10 @@ export class FakeOsInfo extends OsInfo {
     override async appVersion(): Promise<string> {
         if (this.versionError) throw this.versionError;
         return this.version;
+    }
+
+    override async hostname(): Promise<string | null> {
+        if (this.hostnameError) throw this.hostnameError;
+        return this.host;
     }
 }

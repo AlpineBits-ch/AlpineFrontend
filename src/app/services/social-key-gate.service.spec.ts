@@ -5,6 +5,7 @@ import {SocialKeyGateService} from './social-key-gate.service';
 import {UserService} from './user.service';
 import {OnboardingService} from './onboarding.service';
 import {MasterKeyService} from './master-key.service';
+import {FirstRunService, FirstRunOptions} from './first-run.service';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 
 const KEY = {version: 1} as EncryptedMasterKey;
@@ -23,14 +24,28 @@ function setup(initial: UserDto | null = {id: 'user_1'} as UserDto, engineAvaila
     });
     const addSocialInterest = vi.fn<() => Promise<void>>(() => Promise.resolve());
     const isAvailable = vi.fn(() => engineAvailable);
+
+    let finish: ((done: boolean) => void) | null = null;
+    const open = vi.fn((_options?: FirstRunOptions) => new Promise<boolean>(resolve => (finish = resolve)));
+
     TestBed.configureTestingModule({
         providers: [
             {provide: UserService, useValue: {self, getSelf}},
             {provide: OnboardingService, useValue: {addSocialInterest}},
             {provide: MasterKeyService, useValue: {isAvailable}},
+            {provide: FirstRunService, useValue: {open}},
         ],
     });
-    return {service: TestBed.inject(SocialKeyGateService), self, getSelf, addSocialInterest, isAvailable};
+
+    return {
+        service: TestBed.inject(SocialKeyGateService),
+        self,
+        getSelf,
+        addSocialInterest,
+        isAvailable,
+        open,
+        finish: (done: boolean) => finish?.(done),
+    };
 }
 
 describe('SocialKeyGateService.isSatisfied', () => {
@@ -61,105 +76,96 @@ describe('SocialKeyGateService.isSatisfied', () => {
 
     /** The account state is not consulted there: there is nothing it could change. */
     it('does not consult the account when there is no engine', () => {
-        const {service, isAvailable} = setup({id: 'user_1'} as UserDto, false);
+        const {service, isAvailable, open} = setup({id: 'user_1'} as UserDto, false);
         void service.require();
         expect(isAvailable).toHaveBeenCalled();
-        expect(service.dialogVisible()).toBe(false);
+        expect(open).not.toHaveBeenCalled();
     });
 });
 
 describe('SocialKeyGateService.require', () => {
-    it('resolves true immediately without opening the dialog when a key exists', async () => {
-        const {service} = setup({id: 'user_1', encryptedMasterKey: KEY} as UserDto);
+    it('resolves true immediately without a first run when a key exists', async () => {
+        const {service, open} = setup({id: 'user_1', encryptedMasterKey: KEY} as UserDto);
         await expect(service.require()).resolves.toBe(true);
-        expect(service.dialogVisible()).toBe(false);
+        expect(open).not.toHaveBeenCalled();
     });
 
-    it('opens a dismissible dialog when no key exists', () => {
-        const {service} = setup();
+    /** The stored answer may say Isle only; a gated action still needs the key. */
+    it('opens first run demanding a key when none exists', () => {
+        const {service, open} = setup();
         void service.require();
-        expect(service.dialogVisible()).toBe(true);
-        expect(service.dismissible()).toBe(true);
+        expect(open).toHaveBeenCalledWith({keyRequired: true});
     });
 
-    /** The caller must be let through, not parked behind a dialog nobody can finish. */
-    it('resolves true without a dialog when there is no local key engine', async () => {
-        const {service} = setup({id: 'user_1'} as UserDto, false);
+    /** The caller must be let through, not parked behind a run nobody can finish. */
+    it('resolves true without a first run when there is no local key engine', async () => {
+        const {service, open} = setup({id: 'user_1'} as UserDto, false);
         await expect(service.require()).resolves.toBe(true);
-        expect(service.dialogVisible()).toBe(false);
+        expect(open).not.toHaveBeenCalled();
     });
 
     it('resolves true once setup completes', async () => {
-        const {service} = setup();
+        const {service, finish} = setup();
         const allowed = service.require();
-        service.onSetupComplete();
+        finish(true);
         await expect(allowed).resolves.toBe(true);
-        expect(service.dialogVisible()).toBe(false);
-    });
-
-    it('resolves false when the user backs out, leaving the caller to do nothing', async () => {
-        const {service} = setup();
-        const allowed = service.require();
-        service.onDismissed();
-        await expect(allowed).resolves.toBe(false);
-        expect(service.dialogVisible()).toBe(false);
     });
 
     /**
-     * A caller that retries the instant the dialog closes must not be told to set up a key it has
-     * just written, and must not be handed a fabricated envelope to get there.
+     * A caller that retries the instant the run ends must not be told to set up a key it has just
+     * written, and must not be handed a fabricated envelope to get there.
      */
     it('is satisfied immediately after completion, without waiting on the refetch', async () => {
-        const {service, self} = setup();
+        const {service, self, finish} = setup();
         const allowed = service.require();
-        service.onSetupComplete();
+        finish(true);
         await allowed;
         expect(service.isSatisfied()).toBe(true);
         expect(self()?.encryptedMasterKey).toBeTruthy();
     });
 
     it('records the social interest once setup completes', async () => {
-        const {service, addSocialInterest} = setup();
+        const {service, addSocialInterest, finish} = setup();
         const allowed = service.require();
-        service.onSetupComplete();
+        finish(true);
         await allowed;
         expect(addSocialInterest).toHaveBeenCalled();
     });
 
-    /** Two gated actions in quick succession must share one dialog and one answer. */
-    it('shares one dialog between concurrent callers and answers both', async () => {
-        const {service} = setup();
+    /** Two gated actions in quick succession must share one run and one answer. */
+    it('shares one run between concurrent callers and answers both', async () => {
+        const {service, open, finish} = setup();
         const first = service.require();
         const second = service.require();
-        service.onSetupComplete();
+        finish(true);
         await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+        expect(open).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('SocialKeyGateService.promptNow', () => {
-    /** The launch-time path: same dialog, no action waiting behind it and no way out. */
-    it('opens the dialog non-dismissibly', () => {
-        const {service} = setup();
+    it('opens first run demanding a key', () => {
+        const {service, open} = setup();
         service.promptNow();
-        expect(service.dialogVisible()).toBe(true);
-        expect(service.dismissible()).toBe(false);
+        expect(open).toHaveBeenCalledWith({keyRequired: true});
     });
 
     it('does not record a social interest, since the account already stated one', async () => {
-        const {service, addSocialInterest} = setup();
+        const {service, addSocialInterest, finish} = setup();
         service.promptNow();
-        service.onSetupComplete();
+        finish(true);
+        await Promise.resolve();
         await Promise.resolve();
         expect(addSocialInterest).not.toHaveBeenCalled();
     });
 
     /**
-     * Suppressed too: this dialog is `[closable]="false"` with no "Not now", so a browser session
-     * reaching it would sit on an uncompletable ceremony with no way forward and no way back.
+     * Suppressed too: a browser session has no engine, so it would sit on a ceremony it cannot
+     * finish with no way forward and no way back.
      */
     it('stays silent when there is no local key engine', () => {
-        const {service} = setup({id: 'user_1'} as UserDto, false);
+        const {service, open} = setup({id: 'user_1'} as UserDto, false);
         service.promptNow();
-        expect(service.dialogVisible()).toBe(false);
+        expect(open).not.toHaveBeenCalled();
     });
 });

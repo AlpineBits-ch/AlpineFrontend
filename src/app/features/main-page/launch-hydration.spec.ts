@@ -180,12 +180,12 @@ describe('revealAfterAccountGateBlock', () => {
         return {calls, steps: {...base, ...overrides}};
     }
 
-    it('marks ready without hydrating for the opaque onboarding takeover', async () => {
+    it('marks ready without hydrating for the opaque first-run takeover', async () => {
         const {calls, steps: s} = steps();
 
-        await revealAfterAccountGateBlock('onboarding', s);
+        await revealAfterAccountGateBlock('first-run', s);
 
-        // Nothing behind the picker is visible, so there is nothing hydration could fix that the
+        // Nothing behind the takeover is visible, so there is nothing hydration could fix that the
         // user could see - hydrate must not even be called.
         expect(calls).toEqual(['markReady']);
     });

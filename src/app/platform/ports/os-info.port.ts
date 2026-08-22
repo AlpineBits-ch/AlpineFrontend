@@ -11,4 +11,7 @@ export abstract class OsInfo {
     abstract appName(): Promise<string>;
 
     abstract appVersion(): Promise<string>;
+
+    /** The machine's network name, or null where the host has none to give. */
+    abstract hostname(): Promise<string | null>;
 }

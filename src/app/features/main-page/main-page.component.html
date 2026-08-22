@@ -107,8 +107,6 @@
              sensible place to own a modal. -->
         <app-report-dialog />
 
-        <app-device-registration-modal (registered)="onDeviceRegistered($event)" [visible]="showDeviceRegistration()" />
-
         <!-- A retry, deliberately not the registration modal. -->
         @if (keyUnlockFailed()) {
             <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30 bg-[#1b1b1f] p-4 shadow-xl">
@@ -178,19 +176,29 @@
             </div>
         }
 
-        <!-- The account picker. Sits above everything, including the guild join gate, because it
-             is answered once and before anything else the app might ask for. -->
-        @if (onboarding.visible()) {
-            <app-account-onboarding />
+        <!-- Registration is headless now, so this strip is the only thing that reports its failure. -->
+        @if (deviceRegistrationFailed()) {
+            <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30 bg-[#1b1b1f] p-4 shadow-xl">
+                <p class="text-sm font-medium text-amber-200">This device is not registered</p>
+                <p class="mt-1 text-[12px] leading-snug text-text-secondary">
+                    Its encryption keys could not be set up, so encrypted conversations stay unreadable here. Nothing has been lost.
+                </p>
+                <div class="mt-3 flex justify-end">
+                    <button
+                        (click)="registerThisDevice()"
+                        class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-medium text-text-primary hover:bg-white/15"
+                    >
+                        Try again
+                    </button>
+                </div>
+            </div>
         }
 
-        <!-- One instance, two ways in. -->
-        <app-key-setup-dialog
-            (dismissed)="socialGate.onDismissed()"
-            (setupComplete)="socialGate.onSetupComplete()"
-            [dismissible]="socialGate.dismissible()"
-            [visible]="socialGate.dialogVisible()"
-        />
+        <!-- Sits above everything, including the guild join gate: it is answered once and before
+             anything else the app might ask for. One instance, every way in. -->
+        @if (firstRun.visible()) {
+            <app-first-run />
+        }
 
         <!-- A password reset that left the encryption key unopenable, or an account with no
              recovery code yet. Both were silent until the first restore attempt failed. -->

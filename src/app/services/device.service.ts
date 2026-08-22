@@ -20,6 +20,17 @@ export class DeviceService {
     }
 
     /**
+     * Renames a registered device through the registration route.
+     *
+     * The body must carry these two fields and nothing else. An `identityPublicKey` reads as a
+     * rotation server-side, which purges every key package this device owns and orphans it from
+     * every MLS group it belongs to.
+     */
+    renameDevice(clientDeviceId: string, deviceName: string): Observable<UserDeviceDto> {
+        return this.http.post<UserDeviceDto>(this.base, {clientDeviceId, deviceName});
+    }
+
+    /**
      * Removes the device and, by cascade, its MLS key packages, its encrypted backup and its
      * push tokens; login sessions from that device are revoked. There was no removal path
      * before this, which is why a reinstalled handset kept receiving push forever.

@@ -2,7 +2,7 @@
  * The one place a `DeviceType` is decided.
  *
  * <p><b>Why this file exists now.</b> There were two code paths and they disagreed. This one branches
- * on the host and answers `Web` for any browser; `DeviceRegistrationModalComponent` computed its own
+ * on the host and answers `Web` for any browser; the registration modal computed its own
  * as `isMobile ? Mobile : Desktop` and could not answer `Web` at all. That was already wrong - a
  * browser registered as Desktop - and it got worse when `isMobile` moved from `PlatformService` (false
  * for everything outside Tauri) to `OsInfo` (a true form factor), because a *phone browser* then
@@ -17,8 +17,9 @@
  * `detectHost()` rather than this rule. Same pattern as `useRustPublisher`.</p>
  */
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {describeCurrentDevice} from './device-description';
+import {describeCurrentDevice, resolveDeviceName} from './device-description';
 import {DeviceType} from '../dtos/response/user-device.dto';
+import {FakeOsInfo} from '../platform/testing/fake-os-info';
 
 const CHROME_WINDOWS =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
@@ -110,5 +111,59 @@ describe('describeCurrentDevice deviceName', () => {
         stubNavigator(CHROME_WINDOWS);
 
         expect(describeCurrentDevice('tauri').deviceName).toBe('Venta Desktop on Windows');
+    });
+});
+
+/**
+ * Every way `hostname()` can fail to answer, since each one reaches the app as a different value and
+ * none of them may surface as a blank device label.
+ */
+describe('resolveDeviceName', () => {
+    function osWithHostname(hostname: string | null): FakeOsInfo {
+        return new FakeOsInfo('windows', false, 'Venta', '3.0.195', hostname);
+    }
+
+    it('prefers the hostname the machine reports', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname('DOMS-TOWER'), 'tauri')).toBe('DOMS-TOWER');
+    });
+
+    it('trims the hostname', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname('  DOMS-TOWER \n'), 'tauri')).toBe('DOMS-TOWER');
+    });
+
+    it('falls back to the described name when there is no hostname', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname(null), 'tauri')).toBe('Venta Desktop on Windows');
+    });
+
+    it('falls back when the hostname is empty', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname(''), 'tauri')).toBe('Venta Desktop on Windows');
+    });
+
+    it('falls back when the hostname is only whitespace', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname('   '), 'tauri')).toBe('Venta Desktop on Windows');
+    });
+
+    it('falls back when the IPC call rejects, without propagating', async () => {
+        stubNavigator(SAFARI_IPHONE, 5);
+        const os = osWithHostname('DOMS-TOWER');
+        os.hostnameError = new Error('os.hostname not allowed');
+
+        await expect(resolveDeviceName(os, 'web')).resolves.toBe('Safari on iOS');
+    });
+
+    it('defaults to asking the host itself, matching describeCurrentDevice', async () => {
+        stubNavigator(CHROME_WINDOWS);
+
+        expect(await resolveDeviceName(osWithHostname(null))).toBe(describeCurrentDevice().deviceName);
     });
 });

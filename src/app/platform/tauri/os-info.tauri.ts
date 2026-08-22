@@ -48,6 +48,12 @@ export class TauriOsInfo extends OsInfo {
         const {getVersion} = await import('@tauri-apps/api/app');
         return getVersion();
     }
+
+    /** Needs `os:allow-hostname`, which `os:default` does not grant. Without it the IPC call rejects. */
+    override async hostname(): Promise<string | null> {
+        const {hostname} = await import('@tauri-apps/plugin-os');
+        return hostname();
+    }
 }
 
 /**

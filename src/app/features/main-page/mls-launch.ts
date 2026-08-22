@@ -20,7 +20,7 @@ export interface MlsLaunchSteps {
 export interface MlsLaunchOutcome {
     /** The session handle, or null when the unlock did not produce one. */
     handle: string | null;
-    /** No signing key is stored at all: the interactive registration modal is the right answer. */
+    /** No signing key is stored at all: registering this device is the right answer. */
     needsRegistration: boolean;
     /**
      * The key store could not be read for some other reason. Never {@link needsRegistration}:
