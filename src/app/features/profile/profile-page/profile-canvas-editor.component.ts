@@ -38,6 +38,21 @@ const VIEWER_VISIBILITY: Readonly<Record<PreviewViewer, readonly CanvasVisibilit
     stranger: ['everyone'],
 };
 
+/** Pixel geometry for the drop indicator, derived from the target cell and the grid's own rect. */
+interface DropTarget {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}
+
+/** ArrowRight/ArrowDown move forward in reading order, ArrowLeft/ArrowUp move back. */
+function arrowDelta(key: string): number {
+    if (key === 'ArrowRight' || key === 'ArrowDown') return 1;
+    if (key === 'ArrowLeft' || key === 'ArrowUp') return -1;
+    return 0;
+}
+
 /**
  * The canvas, the lattice, tile selection and the visitor preview. Inserting a widget and picking
  * types both go through CanvasEditorService directly, the same way WidgetPropertiesComponent and
@@ -58,7 +73,8 @@ const VIEWER_VISIBILITY: Readonly<Record<PreviewViewer, readonly CanvasVisibilit
 export class ProfileCanvasEditorComponent {
     readonly canvas = input<ProfileCanvasDto>();
     readonly owner = input.required<ProfileDto>();
-    /** Drives the lattice: quiet at rest, visible while a tile is being dragged. Drag lands next; nothing sets this yet. */
+    /** External override, for a future caller that wants the lattice on for a reason other than
+     * this component's own drag. The grid drag below drives it the rest of the time. */
     readonly dragging = input(false);
 
     private readonly editor = inject(CanvasEditorService);
@@ -123,12 +139,23 @@ export class ProfileCanvasEditorComponent {
 
     protected readonly hiddenCount = computed(() => this.hiddenWidgetIds().size);
 
+    // Which tile is under a native HTML5 drag, and where it would land. Both null at rest.
+    private readonly draggingId = signal<string | null>(null);
+    protected readonly dropTarget = signal<DropTarget | null>(null);
+
+    protected readonly showLattice = computed(() => this.dragging() || this.draggingId() !== null);
+
     constructor() {
         // Reaches into ProfileCanvasComponent's own tiles by the data-widget-id contract, since
         // that component takes no dimming input. Every widget stays mounted; only opacity and
         // aria-hidden change, so nothing disappears from the layout or the accessibility tree.
         effect(() => {
             this.syncDimming(this.hiddenWidgetIds());
+        });
+
+        // Same contract, for `draggable`: a spacer holds nothing to drag, matching tileSelectable's gate.
+        effect(() => {
+            this.syncDraggable(this.canvas()?.widgets ?? []);
         });
     }
 
@@ -167,9 +194,7 @@ export class ProfileCanvasEditorComponent {
             this.clearSelection();
             return;
         }
-        this.selectedWidgetId.set(event.id);
-        this.selectedTileEl.set(event.element);
-        this.editorHidden.set(false);
+        this.selectTile(event.id, event.element);
     }
 
     protected onEditorEscaped(): void {
@@ -189,6 +214,140 @@ export class ProfileCanvasEditorComponent {
         this.selectedWidgetId.set(null);
         this.selectedTileEl.set(null);
         this.editorHidden.set(false);
+    }
+
+    private selectTile(id: string, element: HTMLElement): void {
+        this.selectedWidgetId.set(id);
+        this.selectedTileEl.set(element);
+        this.editorHidden.set(false);
+    }
+
+    // ── Grid drag: the drop target is a cell computed from the pointer, never a list index ──────
+
+    protected onGridDragStart(event: DragEvent): void {
+        const tile = (event.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
+        const id = tile?.dataset['widgetId'];
+        const widget = id ? this.canvas()?.widgets.find(w => w.id === id) : null;
+        if (!id || !widget || isSpacer(widget)) {
+            event.preventDefault();
+            return;
+        }
+        this.draggingId.set(id);
+        event.dataTransfer?.setData('text/plain', id);
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    }
+
+    protected onGridDragOver(event: DragEvent): void {
+        const id = this.draggingId();
+        if (!id) return;
+        event.preventDefault(); // Or the drop never fires.
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+        const dragged = this.canvas()?.widgets.find(w => w.id === id);
+        const geometry = this.gridGeometry();
+        if (!dragged || !geometry) return;
+
+        const {cellSize, columns} = geometry;
+        const cell = this.cellAt(event, geometry);
+        const x = Math.min(Math.max(cell.x, 0), columns - dragged.w);
+        this.dropTarget.set({
+            left: x * cellSize,
+            top: cell.y * cellSize,
+            width: dragged.w * cellSize,
+            height: dragged.h * cellSize,
+        });
+    }
+
+    protected onGridDrop(event: DragEvent): void {
+        event.preventDefault();
+        const id = this.draggingId();
+        this.clearDrag();
+        if (!id) return;
+
+        const dragged = this.canvas()?.widgets.find(w => w.id === id);
+        const geometry = this.gridGeometry();
+        if (!dragged || !geometry) return;
+
+        const cell = this.cellAt(event, geometry);
+
+        // Dropped back inside the tile's own footprint: nothing moved, so nothing writes.
+        if (
+            cell.x >= dragged.x &&
+            cell.x < dragged.x + dragged.w &&
+            cell.y >= dragged.y &&
+            cell.y < dragged.y + dragged.h
+        ) {
+            return;
+        }
+
+        this.editor.dropAt(id, cell);
+    }
+
+    protected onGridDragEnd(): void {
+        this.clearDrag();
+    }
+
+    private clearDrag(): void {
+        this.draggingId.set(null);
+        this.dropTarget.set(null);
+    }
+
+    private gridGeometry(): {left: number; top: number; cellSize: number; columns: number} | null {
+        const host = this.canvasHost()?.nativeElement;
+        if (!host) return null;
+        const rect = host.getBoundingClientRect();
+        if (rect.width <= 0) return null;
+        return {left: rect.left, top: rect.top, cellSize: rect.width / this.canvasColumns, columns: this.canvasColumns};
+    }
+
+    private cellAt(
+        event: DragEvent,
+        geometry: {left: number; top: number; cellSize: number; columns: number},
+    ): {x: number; y: number} {
+        const x = Math.floor((event.clientX - geometry.left) / geometry.cellSize);
+        const y = Math.floor((event.clientY - geometry.top) / geometry.cellSize);
+        return {x: Math.min(Math.max(x, 0), geometry.columns - 1), y: Math.max(y, 0)};
+    }
+
+    private syncDraggable(widgets: readonly CanvasWidgetDto[]): void {
+        const host = this.canvasHost()?.nativeElement;
+        if (!host) return;
+
+        const byId = new Map(widgets.map(widget => [widget.id, widget]));
+        host.querySelectorAll<HTMLElement>('[data-widget-id]').forEach(tile => {
+            const widget = byId.get(tile.dataset['widgetId'] ?? '');
+            tile.draggable = !!widget && !isSpacer(widget);
+        });
+    }
+
+    // ── Keyboard parity: everything the drag does, an arrow key does too ────────────────────────
+
+    protected onGridKeydown(event: KeyboardEvent): void {
+        const delta = arrowDelta(event.key);
+        if (delta === 0) return;
+
+        const widgets = (this.canvas()?.widgets ?? []).filter(w => !isSpacer(w));
+        if (widgets.length === 0) return;
+        event.preventDefault();
+
+        const selected = this.selectedWidgetId();
+        const modified = event.shiftKey || event.ctrlKey || event.metaKey || event.altKey;
+
+        if (modified) {
+            if (selected) this.editor.move(selected, delta);
+            return;
+        }
+
+        const index = selected ? widgets.findIndex(w => w.id === selected) : -1;
+        const next = widgets[Math.min(Math.max(index + delta, 0), widgets.length - 1)];
+        this.selectTileById(next.id);
+    }
+
+    private selectTileById(id: string): void {
+        const element = this.canvasHost()?.nativeElement.querySelector<HTMLElement>(`[data-widget-id="${id}"]`);
+        if (!element) return;
+        this.selectTile(id, element);
+        element.focus();
     }
 
     // A spacer never becomes a selectable tile (ProfileCanvasComponent.tileSelectable agrees), so

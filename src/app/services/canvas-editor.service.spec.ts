@@ -1,6 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {CanvasEditorService} from './canvas-editor.service';
+import {ProfileEditHistoryService} from './profile-edit-history.service';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {emptyCanvas, MAX_WIDGETS} from '../models/profile-canvas';
 
@@ -174,5 +175,101 @@ describe('CanvasEditorService', () => {
         editor.insert('quote');
         editor.begin(editor.draft()!);
         expect(editor.dirty()).toBe(false);
+    });
+
+    it('dropAt onto an occupied cell reorders with no spacers', () => {
+        editor.insert('quote'); // 2x1, lands at (0,0)
+        editor.insert('local-time'); // 1x1, lands at (2,0)
+        const [a, b] = editor.draft()!.widgets;
+
+        editor.dropAt(b.id, {x: 0, y: 0});
+
+        const widgets = editor.draft()!.widgets;
+        expect(widgets.map(w => w.id)).toEqual([b.id, a.id]);
+        expect(widgets.some(w => w.type === 'spacer')).toBe(false);
+    });
+
+    it('dropAt past the content inserts spacers and lands the widget at the target', () => {
+        editor.insert('marquee'); // 4x1, fills row 0
+        editor.insert('local-time'); // 1x1, lands at (0,1)
+        const [, moved] = editor.draft()!.widgets;
+
+        editor.dropAt(moved.id, {x: 2, y: 2});
+
+        const widgets = editor.draft()!.widgets;
+        const landed = widgets.find(w => w.id === moved.id)!;
+        expect(landed).toMatchObject({x: 2, y: 2});
+        expect(widgets.some(w => w.type === 'spacer')).toBe(true);
+    });
+
+    it('dropAt marks the draft dirty', () => {
+        editor.insert('marquee');
+        editor.insert('local-time');
+        const [, moved] = editor.draft()!.widgets;
+        editor.begin(editor.draft()!);
+
+        editor.dropAt(moved.id, {x: 2, y: 2});
+
+        expect(editor.dirty()).toBe(true);
+    });
+
+    it('dropAt does nothing for an id that is not in the draft', () => {
+        editor.insert('quote');
+        const before = editor.draft();
+
+        editor.dropAt('nope', {x: 0, y: 0});
+
+        expect(editor.draft()).toBe(before);
+    });
+
+    describe('history', () => {
+        it('insert pushes an add entry naming the widget type', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+
+            const entry = history.undo();
+            expect(entry).toMatchObject({domain: 'canvas', kind: 'add', widgetType: 'quote'});
+            expect((entry as {before: CanvasWidgetDto[]}).before).toEqual([]);
+        });
+
+        it('remove pushes a remove entry naming the removed widget\'s type', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo(); // discard the insert entry, isolate remove
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.remove(id);
+
+            const entry = history.undo();
+            expect(entry).toMatchObject({domain: 'canvas', kind: 'remove', widgetType: 'quote'});
+        });
+
+        it('a mutation refused before it can change anything pushes nothing', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('from-the-future'); // unknown type, refused
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('a mutation that is a genuine no-op pushes nothing', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo();
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.setVisibility(id, 'everyone'); // already 'everyone'
+
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('restore lands a widgets array without pushing a new entry', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.reset();
+
+            editor.restore([]);
+
+            expect(editor.draft()?.widgets).toEqual([]);
+            expect(history.canUndo()).toBe(false);
+        });
     });
 });

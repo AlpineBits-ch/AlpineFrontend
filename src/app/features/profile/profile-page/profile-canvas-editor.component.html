@@ -30,13 +30,34 @@
             </div>
         </div>
 
-        <div #canvasHost class="relative">
+        <div
+            #canvasHost
+            (dragend)="onGridDragEnd()"
+            (dragover)="onGridDragOver($event)"
+            (dragstart)="onGridDragStart($event)"
+            (drop)="onGridDrop($event)"
+            (keydown)="onGridKeydown($event)"
+            class="relative"
+            data-testid="canvas-host"
+            tabindex="-1"
+        >
             <app-canvas-lattice
-                [active]="dragging()"
+                [active]="showLattice()"
                 [columns]="canvasColumns"
                 [rows]="canvasRowCount()"
                 class="pointer-events-none absolute inset-x-0 top-0 block"
             />
+            @if (dropTarget(); as target) {
+                <div
+                    [style.height.px]="target.height"
+                    [style.left.px]="target.left"
+                    [style.top.px]="target.top"
+                    [style.width.px]="target.width"
+                    aria-hidden="true"
+                    class="pointer-events-none absolute z-20 rounded-md border-2 border-brand bg-brand/20"
+                    data-testid="drop-indicator"
+                ></div>
+            }
             <app-profile-canvas
                 (widgetSelected)="onWidgetSelected($event)"
                 [canvas]="arranged"

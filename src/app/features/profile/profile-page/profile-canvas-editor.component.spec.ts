@@ -80,6 +80,58 @@ function lattice(fixture: ComponentFixture<unknown>): HTMLElement {
     return testId(fixture, 'canvas-lattice')!;
 }
 
+function canvasHost(fixture: ComponentFixture<unknown>): HTMLElement {
+    return testId(fixture, 'canvas-host')!;
+}
+
+/** CANVAS_COLUMNS(4) cells at 100px each, so cell (cx, cy) sits at (cx * 100 + 50, cy * 100 + 50). */
+function stubGrid(fixture: ComponentFixture<unknown>): void {
+    const rect = {left: 0, top: 0, right: 400, bottom: 400, width: 400, height: 400, x: 0, y: 0};
+    canvasHost(fixture).getBoundingClientRect = () => ({...rect, toJSON: () => rect}) as DOMRect;
+}
+
+function cellPoint(cx: number, cy: number): {clientX: number; clientY: number} {
+    return {clientX: cx * 100 + 50, clientY: cy * 100 + 50};
+}
+
+function fakeDataTransfer(): DataTransfer {
+    const store = new Map<string, string>();
+    return {
+        setData: (type: string, value: string) => store.set(type, value),
+        getData: (type: string) => store.get(type) ?? '',
+        effectAllowed: 'none',
+        dropEffect: 'none',
+    } as unknown as DataTransfer;
+}
+
+function fireDrag(
+    target: HTMLElement,
+    type: string,
+    point: {clientX: number; clientY: number} = {clientX: 0, clientY: 0},
+): DragEvent {
+    const event = new Event(type, {bubbles: true, cancelable: true}) as DragEvent;
+    Object.defineProperty(event, 'clientX', {value: point.clientX, configurable: true});
+    Object.defineProperty(event, 'clientY', {value: point.clientY, configurable: true});
+    Object.defineProperty(event, 'dataTransfer', {value: fakeDataTransfer(), configurable: true});
+    target.dispatchEvent(event);
+    return event;
+}
+
+function startDrag(fixture: ComponentFixture<unknown>, widgetId: string): void {
+    fireDrag(tile(fixture, widgetId), 'dragstart');
+    fixture.detectChanges();
+}
+
+function dragTo(fixture: ComponentFixture<unknown>, cx: number, cy: number): void {
+    fireDrag(canvasHost(fixture), 'dragover', cellPoint(cx, cy));
+    fixture.detectChanges();
+}
+
+function dropAt(fixture: ComponentFixture<unknown>, cx: number, cy: number): void {
+    fireDrag(canvasHost(fixture), 'drop', cellPoint(cx, cy));
+    fixture.detectChanges();
+}
+
 function tile(fixture: ComponentFixture<unknown>, widgetId: string): HTMLElement {
     return el(fixture).querySelector(`[data-widget-id="${widgetId}"]`)!;
 }
@@ -302,5 +354,143 @@ describe('ProfileCanvasEditorComponent', () => {
         clickPreview(fixture, 'me');
 
         expect(JSON.stringify(editor.draft())).toBe(before);
+    });
+
+    describe('grid drag', () => {
+        it('dropping past the content inserts spacers and lands the tile at the target', () => {
+            const {fixture, editor} = setup(
+                canvasOf([
+                    widget('big', {type: 'marquee', w: 4, h: 1}),
+                    widget('small', {type: 'local-time', w: 1, h: 1, y: 1}),
+                ]),
+            );
+            stubGrid(fixture);
+
+            startDrag(fixture, 'small');
+            dragTo(fixture, 2, 2);
+            dropAt(fixture, 2, 2);
+
+            const widgets = editor.draft()!.widgets;
+            expect(widgets.find(w => w.id === 'small')).toMatchObject({x: 2, y: 2});
+            expect(widgets.some(w => w.type === 'spacer')).toBe(true);
+        });
+
+        it('dropping on an occupied cell reorders with no spacers', () => {
+            const {fixture, editor} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
+            stubGrid(fixture);
+
+            startDrag(fixture, 'b');
+            dragTo(fixture, 0, 0);
+            dropAt(fixture, 0, 0);
+
+            const widgets = editor.draft()!.widgets;
+            expect(widgets.map(w => w.id)).toEqual(['b', 'a']);
+            expect(widgets.some(w => w.type === 'spacer')).toBe(false);
+        });
+
+        it('dropping a tile on itself is a no-op that does not dirty the draft', () => {
+            const {fixture, editor} = setup(canvasOf([widget('a'), widget('b', {y: 1})]));
+            stubGrid(fixture);
+            const before = editor.draft();
+
+            startDrag(fixture, 'a');
+            dragTo(fixture, 0, 0);
+            dropAt(fixture, 0, 0);
+
+            expect(editor.draft()).toBe(before);
+            expect(editor.dirty()).toBe(false);
+        });
+
+        it('a spacer cannot be dragged', () => {
+            const {fixture} = setup(canvasOf([widget('sp', {type: 'spacer'})]));
+            expect(tile(fixture, 'sp').draggable).toBe(false);
+        });
+
+        it('a widget tile is draggable', () => {
+            const {fixture} = setup(canvasOf([widget('a')]));
+            expect(tile(fixture, 'a').draggable).toBe(true);
+        });
+
+        it('dragover prevents default so the drop can fire', () => {
+            const {fixture} = setup(canvasOf([widget('a')]));
+            stubGrid(fixture);
+
+            startDrag(fixture, 'a');
+            const over = fireDrag(canvasHost(fixture), 'dragover', cellPoint(1, 0));
+
+            expect(over.defaultPrevented).toBe(true);
+        });
+
+        it('the lattice shows while a tile is dragging and hides once the drag ends', () => {
+            const {fixture} = setup(canvasOf([widget('a')]));
+            stubGrid(fixture);
+            expect(lattice(fixture).classList.contains('opacity-100')).toBe(false);
+
+            startDrag(fixture, 'a');
+            expect(lattice(fixture).classList.contains('opacity-100')).toBe(true);
+
+            fireDrag(canvasHost(fixture), 'dragend');
+            fixture.detectChanges();
+            expect(lattice(fixture).classList.contains('opacity-100')).toBe(false);
+        });
+
+        it('shows a drop indicator over the target cell while dragging', () => {
+            const {fixture} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
+            stubGrid(fixture);
+
+            startDrag(fixture, 'a');
+            expect(testId(fixture, 'drop-indicator')).toBeNull();
+
+            dragTo(fixture, 3, 0);
+            const indicator = testId(fixture, 'drop-indicator')!;
+            expect(indicator).not.toBeNull();
+            expect(indicator.style.left).toBe('300px');
+            expect(indicator.style.top).toBe('0px');
+        });
+    });
+
+    describe('keyboard parity', () => {
+        it('arrow keys move the selection between tiles in reading order', () => {
+            const {fixture} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
+
+            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            fixture.detectChanges();
+            expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
+
+            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            fixture.detectChanges();
+            expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
+            expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('false');
+
+            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+            fixture.detectChanges();
+            expect(tile(fixture, 'a').getAttribute('aria-pressed')).toBe('true');
+        });
+
+        it('a modified arrow key moves the selected tile instead of the selection', () => {
+            const {fixture, editor} = setup(canvasOf([widget('a'), widget('b', {x: 1})]));
+            tile(fixture, 'a').click();
+            fixture.detectChanges();
+
+            canvasHost(fixture).dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, shiftKey: true}),
+            );
+            fixture.detectChanges();
+
+            expect(editor.draft()!.widgets.map(w => w.id)).toEqual(['b', 'a']);
+        });
+
+        it('a spacer is skipped when arrow keys move the selection', () => {
+            const {fixture} = setup(
+                canvasOf([widget('a'), widget('sp', {type: 'spacer', x: 1}), widget('b', {x: 2})]),
+            );
+
+            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            fixture.detectChanges();
+            canvasHost(fixture).dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            fixture.detectChanges();
+
+            expect(tile(fixture, 'b').getAttribute('aria-pressed')).toBe('true');
+        });
     });
 });
