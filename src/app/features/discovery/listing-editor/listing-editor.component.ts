@@ -2,6 +2,7 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
+    DestroyRef,
     effect,
     inject,
     input,
@@ -10,8 +11,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {HttpErrorResponse} from '@angular/common/http';
-import {Subject} from 'rxjs';
-import {debounceTime} from 'rxjs/operators';
+import {catchError, debounceTime, Observable, Subject, switchMap, tap} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -27,7 +27,7 @@ import {
     ListingState,
     TopicDto,
 } from '../../../dtos/response/discovery.dto';
-import {topicRefWire} from '../../../dtos/request/discovery.dto';
+import {ListingWriteDto, topicRefWire} from '../../../dtos/request/discovery.dto';
 import {ENTITLEMENT_KEYS, isGranted} from '../../../dtos/response/entitlement.dto';
 import {DiscoveryStore} from '../../../stores/discovery.store';
 import {EntitlementStore} from '../../../stores/entitlement.store';
@@ -48,9 +48,48 @@ const LINKS_CAP = 3;
 /** Matches `draft.service.ts`'s server-autosave cadence. */
 const AUTOSAVE_DEBOUNCE_MS = 1_200;
 
+/** Under a minute left, `relativeTime` would render "this minute", which reads as broken on a 72h cooldown. */
+const BUMP_SOON_MS = 60_000;
+
+/** Mirrors `ListingWriteService.AllowedLinkHosts` server-side, so an unlisted host is refused before a request rather than after. */
+const ALLOWED_LINK_HOSTS = new Set([
+    'discord.gg',
+    'discord.com',
+    'twitter.com',
+    'x.com',
+    'youtube.com',
+    'youtu.be',
+    'twitch.tv',
+    'instagram.com',
+    'tiktok.com',
+    'reddit.com',
+    'steamcommunity.com',
+    'patreon.com',
+    'roll20.net',
+    'dndbeyond.com',
+    'startplaying.games',
+    'worldanvil.com',
+    'bsky.app',
+]);
+
+/** Mirrors `ListingWriteService`'s `Bcp47`: well-formed, not validated against the subtag registry. */
+const BCP47_PATTERN = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
+
+function isAllowedLink(raw: string): boolean {
+    let url: URL;
+    try {
+        url = new URL(raw);
+    } catch {
+        return false;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    return ALLOWED_LINK_HOSTS.has(host.startsWith('www.') ? host.slice(4) : host);
+}
+
 type SuspendedReason = 'PlanLapsed' | 'StaffAction';
 
-/** Keyed off the enum, not interpolated: a reason this build has never heard of is a missing property here, caught at compile time, rather than a blank line. */
+/** Compile error if `SuspendedReason` grows without a matching entry here. */
 const SUSPENDED_REASON_KEYS: Record<SuspendedReason, string> = {
     PlanLapsed: 'DISCOVERY.LISTING.SUSPENDED.PLAN_LAPSED',
     StaffAction: 'DISCOVERY.LISTING.SUSPENDED.STAFF_ACTION',
@@ -63,12 +102,6 @@ const STATE_KEYS: Record<ListingState, string> = {
     Unlisted: 'DISCOVERY.LISTING.STATE.UNLISTED',
 };
 
-/** Every literal key the two lookup tables above can produce, for `i18n-keys.spec.ts`. */
-export const LISTING_EDITOR_TRANSLATION_KEYS: readonly string[] = [
-    ...Object.values(SUSPENDED_REASON_KEYS),
-    ...Object.values(STATE_KEYS),
-];
-
 type PublishErrorKind = 'notEntitled' | 'forbidden' | 'failed';
 
 const PUBLISH_ERROR_KEYS: Record<PublishErrorKind, string> = {
@@ -76,6 +109,40 @@ const PUBLISH_ERROR_KEYS: Record<PublishErrorKind, string> = {
     forbidden: 'DISCOVERY.LISTING.PUBLISH_ERROR.FORBIDDEN',
     failed: 'DISCOVERY.LISTING.PUBLISH_ERROR.FAILED',
 };
+
+/** Every literal key the three lookup tables above can produce, for `i18n-keys.spec.ts`. */
+export const LISTING_EDITOR_TRANSLATION_KEYS: readonly string[] = [
+    ...Object.values(SUSPENDED_REASON_KEYS),
+    ...Object.values(STATE_KEYS),
+    ...Object.values(PUBLISH_ERROR_KEYS),
+];
+
+/** The server's 400 body for a draft save is the plain refusal string itself - show it, not a generic one. */
+function draftSaveErrorMessage(err: unknown, translate: TranslateService): string {
+    if (
+        err instanceof HttpErrorResponse &&
+        err.status === 400 &&
+        typeof err.error === 'string' &&
+        err.error.trim()
+    ) {
+        return err.error;
+    }
+    return translate.instant('DISCOVERY.LISTING.SAVE_ERROR');
+}
+
+function classifyPublishError(err: unknown): PublishErrorKind {
+    if (err instanceof HttpErrorResponse && err.status === 403) {
+        const body = err.error as {error?: string} | null;
+        return body?.error === 'public_listing_not_entitled' ? 'notEntitled' : 'forbidden';
+    }
+    return 'failed';
+}
+
+function bumpCooldownAvailableAt(err: unknown): string | null {
+    if (!(err instanceof HttpErrorResponse) || err.status !== 409) return null;
+    const body = err.error as {error?: string; bumpAvailableAt?: string} | null;
+    return body?.error === 'bump_cooldown' && body.bumpAvailableAt ? body.bumpAvailableAt : null;
+}
 
 /** A guild's own listing: composed here, autosaved as a draft, published against the entitlement. */
 @Component({
@@ -109,6 +176,10 @@ export class ListingEditorComponent {
     protected readonly joinPolicy = signal<JoinPolicy>('Open');
     protected readonly links = signal<string[]>([]);
     protected readonly newLink = signal('');
+    protected readonly linkInvalid = signal(false);
+
+    /** Reflects the autosave lifecycle, not just "is there a pending debounce". */
+    protected readonly saveStatus = signal<'saved' | 'unsaved' | 'saving' | 'error'>('saved');
 
     protected readonly publishing = signal(false);
     protected readonly unlisting = signal(false);
@@ -129,10 +200,18 @@ export class ListingEditorComponent {
     );
 
     protected readonly listingLoaded = computed(() => this.store.listingLoaded(this.guildId()));
+    protected readonly listingError = computed(() => this.store.listingError(this.guildId()));
     protected readonly listing = computed(
         (): ListingDto | null => this.store.listingFor(this.guildId())()[0] ?? null,
     );
     protected readonly stateKey = computed(() => STATE_KEYS[this.listing()?.state ?? 'Draft']);
+
+    /** The one precondition the server enforces that the client can fully catch ahead of a request; topics first, since nothing else can save without it. */
+    protected readonly blockedReason = computed((): 'topics' | 'language' | null => {
+        if (this.topics().length === 0) return 'topics';
+        if (!BCP47_PATTERN.test(this.language().trim())) return 'language';
+        return null;
+    });
 
     protected readonly suspendedReasonKey = computed(() => {
         const listing = this.listing();
@@ -143,7 +222,7 @@ export class ListingEditorComponent {
     private readonly apiConfig = inject(ApiConfigService);
     private readonly guild = computed(() => this.guilds.guilds().find(g => g.id === this.guildId()) ?? null);
     private readonly guildIconUrl = computed(
-        () => `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/${this.guildId()}/icon`,
+        () => `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/${this.guildId()}/icon/thumbnail`,
     );
 
     protected readonly previewCard = computed((): DiscoveryCardDto => {
@@ -194,6 +273,12 @@ export class ListingEditorComponent {
         const at = this.bumpAvailableAt();
         return !at || new Date(at).getTime() <= this.clock.now();
     });
+    protected readonly bumpCountingDown = computed(() => {
+        const at = this.bumpAvailableAt();
+        if (!at) return false;
+        const remaining = new Date(at).getTime() - this.clock.now();
+        return remaining > 0 && remaining < BUMP_SOON_MS;
+    });
 
     private seededGuildId: string | null = null;
     private readonly autosave$ = new Subject<void>();
@@ -219,6 +304,11 @@ export class ListingEditorComponent {
         this.autosave$
             .pipe(debounceTime(AUTOSAVE_DEBOUNCE_MS), takeUntilDestroyed())
             .subscribe(() => this.flushDraft());
+
+        // The debounce above never fires for the last edit before navigating away.
+        inject(DestroyRef).onDestroy(() => {
+            if (this.saveStatus() === 'unsaved') this.flushDraft();
+        });
     }
 
     private seedForm(guildId: string, listing: ListingDto | null): void {
@@ -229,8 +319,10 @@ export class ListingEditorComponent {
         this.language.set(listing?.language ?? 'en');
         this.joinPolicy.set(listing?.joinPolicy ?? 'Open');
         this.links.set(listing?.links ?? []);
+        this.linkInvalid.set(false);
         this.bumpOverrideAt.set(null);
         this.publishErrorKey.set(null);
+        this.saveStatus.set('saved');
     }
 
     protected setHeadline(value: string): void {
@@ -261,6 +353,11 @@ export class ListingEditorComponent {
     protected addLink(): void {
         const value = this.newLink().trim();
         if (!value || this.links().length >= LINKS_CAP) return;
+        if (!isAllowedLink(value)) {
+            this.linkInvalid.set(true);
+            return;
+        }
+        this.linkInvalid.set(false);
         this.links.set([...this.links(), value]);
         this.newLink.set('');
         this.queueAutosave();
@@ -271,32 +368,62 @@ export class ListingEditorComponent {
         this.queueAutosave();
     }
 
+    protected retry(): void {
+        this.store.loadListing(this.guildId(), {force: true});
+    }
+
     private queueAutosave(): void {
+        this.saveStatus.set('unsaved');
         this.autosave$.next();
     }
 
-    /** A draft needs at least one topic server-side; skip rather than retry a guaranteed 400. */
-    private flushDraft(): void {
+    /** Null when there is nothing to send yet, or the draft would fail a rule the client already enforces. */
+    private saveDraftNow(): Observable<ListingDto> | null {
         const guildId = this.seededGuildId;
-        if (guildId === null || this.topics().length === 0) return;
+        if (guildId === null || this.blockedReason() !== null) return null;
 
-        this.store
-            .saveDraft(guildId, {
-                headline: this.headline(),
-                pitch: this.pitch(),
-                topics: this.topics().map(topicRefWire),
-                language: this.language(),
-                joinPolicy: this.joinPolicy(),
-                links: this.links(),
-            })
-            .subscribe({error: () => undefined});
+        const dto: ListingWriteDto = {
+            headline: this.headline(),
+            pitch: this.pitch(),
+            topics: this.topics().map(topicRefWire),
+            language: this.language().trim(),
+            joinPolicy: this.joinPolicy(),
+            links: this.links(),
+        };
+
+        this.saveStatus.set('saving');
+        return this.store.saveDraft(guildId, dto).pipe(
+            tap({
+                next: () => this.saveStatus.set('saved'),
+                error: (err: unknown) => {
+                    this.saveStatus.set('error');
+                    this.toast.error(draftSaveErrorMessage(err, this.translate));
+                },
+            }),
+        );
+    }
+
+    private flushDraft(): void {
+        this.saveDraftNow()?.subscribe({error: () => undefined});
     }
 
     protected publish(): void {
         if (this.publishing()) return;
         this.publishing.set(true);
         this.publishErrorKey.set(null);
-        this.store.publish(this.guildId()).subscribe({
+
+        // Publishes whatever the server currently holds, so a keystroke inside the debounce window
+        // must land before the request, not after.
+        const pendingSave = this.saveStatus() === 'unsaved' ? this.saveDraftNow() : null;
+        const publish$ = this.store.publish(this.guildId());
+        const request$ = pendingSave
+            ? pendingSave.pipe(
+                  switchMap(() => publish$),
+                  catchError(() => publish$),
+              )
+            : publish$;
+
+        request$.subscribe({
             next: () => this.publishing.set(false),
             error: (err: unknown) => {
                 this.publishing.set(false);
@@ -330,22 +457,12 @@ export class ListingEditorComponent {
             error: (err: unknown) => {
                 this.bumping.set(false);
                 const availableAt = bumpCooldownAvailableAt(err);
-                if (availableAt) this.bumpOverrideAt.set(availableAt);
+                if (availableAt) {
+                    this.bumpOverrideAt.set(availableAt);
+                    return;
+                }
+                this.toast.error(this.translate.instant('DISCOVERY.LISTING.BUMP_ERROR'));
             },
         });
     }
-}
-
-function classifyPublishError(err: unknown): PublishErrorKind {
-    if (err instanceof HttpErrorResponse && err.status === 403) {
-        const body = err.error as {error?: string} | null;
-        return body?.error === 'public_listing_not_entitled' ? 'notEntitled' : 'forbidden';
-    }
-    return 'failed';
-}
-
-function bumpCooldownAvailableAt(err: unknown): string | null {
-    if (!(err instanceof HttpErrorResponse) || err.status !== 409) return null;
-    const body = err.error as {error?: string; bumpAvailableAt?: string} | null;
-    return body?.error === 'bump_cooldown' && body.bumpAvailableAt ? body.bumpAvailableAt : null;
 }

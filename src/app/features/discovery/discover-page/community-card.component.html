@@ -12,6 +12,10 @@
         </div>
     </div>
 
+    @if (card().headline) {
+        <p class="text-[0.875rem] font-semibold leading-snug text-text-primary">{{ card().headline }}</p>
+    }
+
     <p class="line-clamp-2 text-[0.8125rem] leading-relaxed text-text-secondary">{{ card().pitch }}</p>
 
     @if (card().matchedTopics.length > 0) {

@@ -6,11 +6,40 @@
             stateKey() | translate
         }}</span>
 
+        @if (listingLoaded()) {
+            <span class="shrink-0 text-[0.6875rem] text-text-muted">
+                @if (blockedReason() === 'topics') {
+                    {{ 'DISCOVERY.LISTING.NEEDS_TOPIC' | translate }}
+                } @else if (blockedReason() === 'language') {
+                    {{ 'DISCOVERY.LISTING.INVALID_LANGUAGE' | translate }}
+                } @else {
+                    @switch (saveStatus()) {
+                        @case ('saving') {
+                            {{ 'DISCOVERY.LISTING.SAVE_STATUS.SAVING' | translate }}
+                        }
+                        @case ('unsaved') {
+                            {{ 'DISCOVERY.LISTING.SAVE_STATUS.UNSAVED' | translate }}
+                        }
+                        @case ('error') {
+                            {{ 'DISCOVERY.LISTING.SAVE_STATUS.ERROR' | translate }}
+                        }
+                        @default {
+                            {{ 'DISCOVERY.LISTING.SAVE_STATUS.SAVED' | translate }}
+                        }
+                    }
+                }
+            </span>
+        }
+
         <div class="ml-auto flex shrink-0 items-center gap-2">
             @if (listing()?.state === 'Published') {
                 @if (!bumpReady()) {
                     <span class="text-[0.6875rem] text-text-muted">
-                        {{ 'DISCOVERY.LISTING.BUMP_AVAILABLE' | translate: {date: (bumpAvailableAt() | relativeTime: clock.now())} }}
+                        @if (bumpCountingDown()) {
+                            {{ 'DISCOVERY.LISTING.BUMP_AVAILABLE_SOON' | translate }}
+                        } @else {
+                            {{ 'DISCOVERY.LISTING.BUMP_AVAILABLE' | translate: {date: (bumpAvailableAt() | relativeTime: clock.now())} }}
+                        }
                     </span>
                 }
                 <p-button
@@ -41,9 +70,18 @@
 
     <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar px-4 py-5 sm:px-6">
         @if (!listingLoaded()) {
-            <div class="flex justify-center py-16">
-                <i class="pi pi-spin pi-spinner text-text-muted"></i>
-            </div>
+            @if (listingError(); as error) {
+                <div class="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                    <p class="m-0 text-[0.8125rem] text-text-secondary">
+                        {{ (error === 'forbidden' ? 'DISCOVERY.LISTING.NO_ACCESS' : 'DISCOVERY.LISTING.LOAD_ERROR') | translate }}
+                    </p>
+                    <p-button (onClick)="retry()" [label]="'COMMON.RETRY' | translate" severity="secondary" size="small" />
+                </div>
+            } @else {
+                <div class="flex justify-center py-16">
+                    <i class="pi pi-spin pi-spinner text-text-muted"></i>
+                </div>
+            }
         } @else {
             @if (suspendedReasonKey(); as reasonKey) {
                 <div class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3">
@@ -154,6 +192,7 @@
                                     <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-text-secondary">{{ link }}</span>
                                     <button
                                         (click)="removeLink($index)"
+                                        [attr.aria-label]="'DISCOVERY.LISTING.LINKS_REMOVE' | translate"
                                         class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-text-muted hover:text-text-secondary"
                                         type="button"
                                     >
@@ -164,6 +203,7 @@
                             @if (links().length < linksCap) {
                                 <div class="flex items-center gap-2">
                                     <input
+                                        (keydown.enter)="addLink()"
                                         [(ngModel)]="newLink"
                                         [placeholder]="'DISCOVERY.LISTING.LINKS_PLACEHOLDER' | translate"
                                         class="min-w-0 flex-1"
@@ -177,6 +217,9 @@
                                         {{ 'DISCOVERY.LISTING.LINKS_ADD' | translate }}
                                     </button>
                                 </div>
+                            }
+                            @if (linkInvalid()) {
+                                <p class="m-0 text-[0.6875rem] text-rose-300">{{ 'DISCOVERY.LISTING.LINKS_INVALID' | translate }}</p>
                             }
                         </div>
                     </div>

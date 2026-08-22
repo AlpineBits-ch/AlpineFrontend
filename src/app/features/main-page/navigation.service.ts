@@ -341,7 +341,7 @@ export class NavigationService {
         this.mobileNavOpen.set(false);
     }
 
-    /** A guild's own listing. Guild-scoped like the wiki, and for the same reason. */
+    /** Guild-scoped: the listing is one per guild, so there is nothing within it to select. */
     openListingEditor(guildId: string): void {
         const current = this.mainView();
         if (current.type !== 'listing-editor' || current.guildId !== guildId) {
