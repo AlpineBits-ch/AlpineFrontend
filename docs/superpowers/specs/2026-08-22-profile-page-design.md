@@ -5,7 +5,7 @@ moves off the settings form: banner, avatar, bio, accent, font and the canvas.
 Settings keeps account and security.
 
 Companion to `2026-08-22-profile-canvas-design.md`, which owns the canvas model, the layout engine,
-the widget registry and the visibility rules. This one owns the page, the edit mode and the
+the widget registry and the visibility rules. This one owns the page, its editing model and the
 migration.
 
 ## Why
@@ -25,10 +25,10 @@ a different hat.
 | --- | --- |
 | What moves | Banner, avatar, bio, accent, font, canvas |
 | What stays in settings | Account, Connections, Sessions, Change Password, Danger Zone |
-| Edit model | Explicit mode. View, then Edit, then Save or Cancel |
+| Edit model | Always editable. Autosave, undo with Ctrl+Z, no Edit or Save button |
 | Widget editing | Anchored to the selected tile, not a side panel |
 | Second representation | None. The grid is the only list of widgets |
-| Visitor preview | Me / Friend / Mutual / Stranger, in edit mode |
+| Visitor preview | Me / Friend / Mutual / Stranger, always available |
 | Route | `/profile`, reachable from the self-profile menu |
 | Backend | None beyond what the canvas spec already needs |
 
@@ -36,18 +36,20 @@ a different hat.
 
 `src/app/features/profile/profile-page/`.
 
-Two states, and the page is never ambiguous about which it is in.
+There is one state. The page is your workshop, always. Banner and avatar carry their change
+affordance, the bio is a field where it already sits, the grid is draggable, and nothing reflows into
+a form because there is no other layout to reflow into.
 
-**Viewing** renders exactly what another person sees: banner, avatar, name, bio, then the
-canvas at four columns through the same `ProfileCanvasComponent` every other surface uses. One Edit
-button.
+An earlier draft of this spec had an explicit mode: view, then Edit, then Save or Cancel. The reason
+for it was that you need some way to see your own profile as a visitor sees it. The viewer preview
+answers that better, so the mode was buying nothing except a click and a boundary to explain.
+"View as Stranger" shows you something an edit mode never could: what a stranger is actually allowed
+to see.
 
-**Editing** turns the same layout into a workshop in place. Nothing reflows into a form. Banner and
-avatar gain a change affordance, bio becomes a field where it already sits, and the
-grid becomes draggable. Save and Cancel replace Edit.
+**Nothing is ever explicitly saved.** Changes autosave, and Ctrl+Z undoes them. See section 3b.
 
-The identity strip stays fixed relative to the canvas in both states, the way the canvas spec
-requires. It is the anti-impersonation guarantee and it is not arrangeable.
+The identity strip stays fixed relative to the canvas. It is the anti-impersonation guarantee from
+the canvas spec and it is not arrangeable.
 
 ## 1b. The composition
 
@@ -79,19 +81,23 @@ Except the profile page, which uses it zero times and draws the name in the app'
 page that exists to be about how someone looks is the one surface ignoring the lever they already
 had. Bind the directive; do not call `userNameStyle()` directly.
 
-### The signature: the grid appears when you arrange it
+### The signature: the grid appears while you move something
 
-In view mode the canvas is widgets on the app ground, and there is nothing to see but what the person
-put there.
+At rest the canvas is widgets on the app ground, and there is nothing to see but what the person put
+there. While a tile is being dragged, the cell lattice shows through beneath it: faint brand-tinted
+guides on the four column grid and its rows.
 
-In edit mode the cell lattice shows through beneath them: faint brand-tinted guides on the four
-column grid and its rows. Not decoration. It is the snap target made visible, so a person dragging a
-tile can see the slots it will land in, and it turns edit mode into a genuine change of state rather
-than a bar appearing at the top.
+It is the snap target made visible. A person moving a tile can see the slots it will land in, which
+is the moment that information is worth anything.
+
+Removing the edit mode moved this. An earlier draft tied the lattice to entering edit mode, which no
+longer exists, and leaving it on permanently would be the failure the always-editable model has to
+avoid: a page wearing its machinery at all times, so it reads as a grid editor rather than as
+somebody's room. Tying it to the drag keeps the page quiet at rest and honest while arranging.
 
 This is the one bold thing on the page. Everything around it stays quiet: no gradients, no glow, no
-animated anything. The lattice fades in on entering edit mode and out on leaving, and respects
-`prefers-reduced-motion` by simply being present or absent with no transition.
+animation elsewhere. It fades in as a drag begins and out as it ends, and under
+`prefers-reduced-motion` it is simply present or absent with no transition.
 
 ## 2. Editing a widget
 
@@ -114,7 +120,7 @@ scrolls internally rather than pushing the page.
 
 ## 3. Preview as someone else
 
-In edit mode a segmented control offers Me, Friend, Mutual and Stranger. Selecting one redraws the
+A segmented control offers Me, Friend, Mutual and Stranger. Selecting one redraws the
 canvas as that viewer would see it, applying each widget's own `visibility`.
 
 Widgets that viewer cannot see **dim rather than disappear**, so the distinction between "hidden from
@@ -125,6 +131,51 @@ owner is allowed to see all of their own widgets by definition.
 
 Per-widget visibility is otherwise a control nobody can verify. This is the thing that makes it
 checkable, and it is the reason to build it rather than a flourish.
+
+## 3b. Autosave and undo
+
+With no Save button, two things have to be true: a change must reliably reach the server, and a
+mistake must be cheap to reverse. Neither is optional, and the second is what makes the first safe.
+
+### Autosave
+
+`src/app/features/discovery/listing-editor/listing-editor.component.ts` already does this in this
+codebase and was hardened this week. Match it rather than inventing a second approach.
+
+What to take from it:
+
+- A `saveStatus` of `saved` / `unsaved` / `saving` / `error`, shown to the person. Silence is not a
+  status: somebody who cannot tell whether their work is safe will not trust the page.
+- A `Subject` with `debounceTime`, so a burst of edits is one write.
+- **A flush on destroy.** The debounce never fires for the last edit before navigating away, and Back
+  is this page's primary exit. Without the flush, the most common way to leave is also the way to
+  lose your most recent change. That file carries a comment saying exactly this, which is what a
+  comment about a silently-violated invariant is for.
+
+Text fields coalesce: typing a bio is one save, not one per keystroke. A structural change to the
+canvas, a drop or a delete or a resize, writes on its own.
+
+`ProfileCanvasStore.save` already writes optimistically and guards per profile with an owning
+`requestId`, so a slow save cannot clobber a newer one and the realtime listener cannot clobber a
+save in flight. Autosave inherits all of that. Do not add a second guard.
+
+### Undo
+
+Ctrl+Z, and Ctrl+Shift+Z to redo. Both also reachable as buttons, because a keyboard-only affordance
+for the only way to reverse a mistake is not an affordance for most people.
+
+- One history of the whole editable state: canvas arrangement, widget config, bio, accent, font.
+- Text edits coalesce into one entry per field per pause, matching how they autosave. Undoing a bio
+  should restore the bio you had, not the bio minus one character.
+- Undo writes. An undone change autosaves like any other, or undo is a lie that survives until reload.
+- Avatar and banner uploads are NOT undoable. They are file uploads with their own delete path, and a
+  history entry that silently re-uploads a replaced image would be worse than no entry. Removal is
+  already confirmed separately.
+- The UI states what it will reverse. "Undo" alone is a guess; naming the action is the difference
+  between confidence and a second mistake.
+
+There is no undo anywhere else in this app, so there is no pattern to match and this is new ground.
+Keep it to one history owned in one place.
 
 ## 4. What moves, field by field
 
@@ -210,14 +261,12 @@ string, and the label was already promising a thing the app did not have.
 the page replaces the sidebar, the guild list and the channel list. The custom titlebar survives,
 because it sits outside the router outlet, but that is a window control and not navigation.
 
-The page therefore carries its own header with a back affordance to `/overview`, present in BOTH
-states. An earlier draft of this spec described how to reach the page and never described leaving it,
+The page therefore carries its own header with a back affordance to `/overview`. An earlier draft of
+this spec described how to reach the page and never described leaving it,
 and the first build was a dead end you could only escape by closing the window.
 
-Back is a NORMAL exit, not a discard. It never prompts, because both drafts survive navigation: the
-canvas through `CanvasEditorService` and the bio through whatever holds it. Only Cancel discards, and
-only Cancel confirms. If leaving lost work, back would have to prompt, and a page you cannot leave
-without a dialog is barely better than one you cannot leave at all.
+Back never prompts. Nothing is unsaved by the time you press it: autosave has already written, and
+the flush on destroy catches the last edit the debounce did not. See section 3b.
 
 Nesting the page inside the shell instead would keep the sidebar and give the exit for free, but
 `MainPageComponent` has no router outlet of its own, so that is a larger change. Worth revisiting if
