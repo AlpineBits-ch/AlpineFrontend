@@ -1,7 +1,7 @@
 # Profile page
 
 Your profile becomes a page you visit and edit on the thing itself. Everything about how you look
-moves off the settings form: banner, avatar, name, pronouns, bio, accent, font and the canvas.
+moves off the settings form: banner, avatar, name, bio, accent, font and the canvas.
 Settings keeps account and security.
 
 Companion to `2026-08-22-profile-canvas-design.md`, which owns the canvas model, the layout engine,
@@ -23,7 +23,7 @@ a different hat.
 
 | Question | Answer |
 | --- | --- |
-| What moves | Banner, avatar, name, pronouns, bio, accent, font, canvas |
+| What moves | Banner, avatar, name, bio, accent, font, canvas |
 | What stays in settings | Account, Connections, Sessions, Change Password, Danger Zone |
 | Edit model | Explicit mode. View, then Edit, then Save or Cancel |
 | Widget editing | Anchored to the selected tile, not a side panel |
@@ -38,12 +38,12 @@ a different hat.
 
 Two states, and the page is never ambiguous about which it is in.
 
-**Viewing** renders exactly what another person sees: banner, avatar, name, pronouns, bio, then the
+**Viewing** renders exactly what another person sees: banner, avatar, name, bio, then the
 canvas at four columns through the same `ProfileCanvasComponent` every other surface uses. One Edit
 button.
 
 **Editing** turns the same layout into a workshop in place. Nothing reflows into a form. Banner and
-avatar gain a change affordance, name, pronouns and bio become fields where they already sit, and the
+avatar gain a change affordance, name and bio become fields where they already sit, and the
 grid becomes draggable. Save and Cancel replace Edit.
 
 The identity strip stays fixed relative to the canvas in both states, the way the canvas spec
@@ -89,7 +89,6 @@ checkable, and it is the reason to build it rather than a flourish.
 | Banner | Settings section, file input, crop dialog | Click the banner itself, same crop dialog |
 | Avatar | Settings section, file input, crop dialog | Click the avatar itself, same crop dialog |
 | Display name | Settings text input | Inline field where the name is drawn |
-| Pronouns | Settings text input | Inline field under the name |
 | Bio | Settings textarea | Inline field where the bio is drawn |
 | Accent | Settings colour picker | Edit-mode control in the page header |
 | Font | Settings select | Edit-mode control in the page header |
@@ -110,7 +109,7 @@ Unchanged from the canvas spec, and worth restating because the page changes wha
 | The saved canvas | `ProfileCanvasStore` |
 | The unsaved canvas draft | `CanvasEditorService` |
 | The profile row | `ProfileService.ownProfile` |
-| Unsaved name, pronouns, bio, accent, font | The page component, a signal per field |
+| Unsaved name, bio, accent, font | The page component, a signal per field |
 | Which widget is selected, which viewer is previewed | The page component |
 
 ### The trap this page makes worse
@@ -158,6 +157,12 @@ which is what made the mount untested last time. The page gets one.
 
 ## 8. Out of scope
 
+- **Pronouns.** Earlier drafts of this spec listed them, and the mockups showed them. They do not
+  exist. `ProfileDto` has no `pronouns` field; the only `pronouns` in the codebase belongs to
+  personas, the roleplay characters, which is where the idea was pattern-matched from. Adding one to
+  an account needs a column, a DTO field and PATCH support, which is backend work this spec
+  explicitly does not take on. Worth doing as its own piece; rendering a field with no data source
+  is worse than not having it.
 - Editing anyone else's profile, obviously.
 - A public web view of a profile.
 - Themes and backdrops. That is the canvas spec's phase for it, and it lands as an edit-mode control
