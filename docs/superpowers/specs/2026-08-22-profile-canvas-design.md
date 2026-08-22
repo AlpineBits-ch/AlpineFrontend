@@ -158,8 +158,19 @@ whitespace. Drop a 1x1 below a 2x2 and it is pulled up beside it instead. For a 
 self-expression, "I want breathing room here" is a reasonable thing to want to say.
 
 A `spacer` widget closes that. It renders nothing and occupies cells, so the packer flows around it.
-The grid stays packed and gapless by construction, which is what keeps narrow reflow trivially
-correct, and the person still gets to choose where the air is.
+The person gets to choose where the air is without the packer closing it up.
+
+One correction to an earlier claim here, found by fuzzing `dropAt` across 500,000 cases. This spec
+used to say the grid is "gapless by construction". It is not, and never was. First-fit packing means
+no widget is placed leaving a gap that IT could have filled, but a gap nothing fits in survives: a
+2x1 beside a 2x2 leaves two cells under the 2x1 that a following 4x1 cannot use, so it starts a fresh
+row and those two cells stay empty forever. That is ordinary grid behaviour, the same thing CSS grid
+does, and it is a property of `reflow` rather than anything spacers introduced. The fuzz confirmed it
+reproduces from `reflow` alone with no `dropAt` call at all.
+
+So the accurate invariant, and the one later tasks may rely on, is narrower: **no widget is ever
+placed after a gap it could have occupied**, and `reflow` is idempotent. Do not assert full cell
+coverage anywhere; it is false for mixed-height canvases.
 
 Spacers are inserted automatically, not by hand. The editor's drag targets a CELL, not a list
 position, and dropping a widget past the end of the current content inserts exactly enough spacers to
@@ -319,24 +330,49 @@ avatars. The two are fetched separately and joined at the component.
 
 ## 6. The editor
 
-`src/app/features/settings/settings-modal/pages/profile-settings/canvas-editor/`.
+Not in settings. Your profile is its own page, and you edit it there, on the thing itself.
 
-Profile settings already owns bio, accent, font, avatar and banner. The canvas editor is a new section
-below them, not a separate page: everything about how you look stays in one place.
+Settings keeps account and security only: Account, Connections, Sessions, Change Password, Danger
+Zone. Everything about how you look moves to the profile page: banner, avatar, name, pronouns, bio,
+accent, font and the canvas. That takes the settings page from ten sections to five and gives
+"edit my profile" a single destination.
 
-- A 4 column preview of the draft, rendered by the same `profile-canvas` component the modal uses.
-- Click a widget to select it. The properties panel beside it holds that widget's own fields plus
-  footprint and visibility.
-- Drag to reorder. Drop targets are cell boundaries, and the draft is re-packed through `reflow` on
-  every drop, so an illegal arrangement is not representable.
-- An insert menu built from the registry, disabled per type at `max` and entirely at `MAX_WIDGETS`.
-- Save is explicit. Closing settings with a dirty draft does not prompt and does not discard: the
-  draft lives in a root-provided service, so reopening settings returns to it exactly as it was. The
-  only thing that asks first is Discard, which is the one action that loses work.
+### The grid is the only representation
 
-Keyboard reorder is required, not optional: move selection with the arrow keys, move the selected
-widget with the arrow keys held with a modifier. A drag-only editor is unusable without a mouse and
-this is the only way to author a profile.
+There is no list of widgets anywhere. The canvas IS the list. A second textual list beside a visual
+grid is the same information twice, and it makes the editor read as a form for a layout rather than
+the layout itself.
+
+- Click a widget in the grid to select it.
+- Selection reveals its editor. Nothing else changes shape, nothing scrolls, nothing appears below.
+- Drag a widget in the grid to move it. Drop targets are cells, and dropping past the end of the
+  content inserts spacers so it lands where it was dropped, per section 2b.
+- The insert menu adds a widget to the end of the grid, where it can then be dragged.
+
+### Two states, never ambiguous
+
+The page opens showing your profile exactly as it is. **Edit** turns it into a workshop: banner and
+avatar take a change affordance, name and bio become fields, the grid becomes draggable. **Save** and
+**Cancel** return you to viewing.
+
+The draft lives in a root-provided service, so navigating away mid-edit loses nothing and returning
+resumes it. Only Cancel asks first, because it is the one action that discards work.
+
+### Preview as someone else
+
+In edit mode, a control switches the canvas between **Me**, **Friend**, **Mutual** and **Stranger**,
+redrawing it exactly as that viewer would see it and honouring each widget's own visibility. Widgets
+that viewer cannot see dim rather than vanish, so you can tell the difference between "hidden from
+them" and "not there". A line under the grid says how many are hidden.
+
+Per-widget visibility is otherwise an abstract setting nobody can verify. This is the thing that
+makes it concrete, and it costs one computed over data already on the client.
+
+### Keyboard parity, not optional
+
+Arrow keys move the selection between widgets in reading order. Arrow keys with a modifier move the
+selected widget. Every action reachable by drag is reachable by keyboard, because this is the only
+way to author a profile and a drag-only editor is unusable without a mouse.
 
 ## 7. Visibility
 
