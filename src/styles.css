@@ -398,15 +398,14 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 0.5625rem;
-    opacity: 0;
+    opacity: 0.7;
     transition: opacity var(--duration-fast) var(--ease-brand);
 }
 
-/* Collapsed has to be readable without hovering, so the chevron stays up for it. */
 .chan-section:hover .chan-section-chevron,
 .chan-section-toggle:focus-visible .chan-section-chevron,
 .chan-section.is-collapsed .chan-section-chevron {
-    opacity: 0.7;
+    opacity: 1;
 }
 
 .chan-section-label {
