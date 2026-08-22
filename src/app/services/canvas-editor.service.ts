@@ -40,10 +40,11 @@ export class CanvasEditorService {
         return canvas.widgets.filter(widget => widget.type === type).length < definition.max;
     }
 
-    insert(type: string): void {
+    /** Returns the widget it created, or null when the insert was refused. */
+    insert(type: string): CanvasWidgetDto | null {
         const canvas = this.current();
         const definition = definitionFor(type);
-        if (!canvas || !definition || !this.canInsert(type)) return;
+        if (!canvas || !definition || !this.canInsert(type)) return null;
 
         const footprint = definition.footprints[0];
         const widget: CanvasWidgetDto = {
@@ -58,6 +59,7 @@ export class CanvasEditorService {
             config: definition.defaultConfig(),
         };
         this.write([...canvas.widgets, widget]);
+        return this.current()?.widgets.find(w => w.id === widget.id) ?? null;
     }
 
     remove(id: string): void {

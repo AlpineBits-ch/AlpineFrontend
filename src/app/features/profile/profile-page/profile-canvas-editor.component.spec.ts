@@ -8,7 +8,7 @@ import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.serv
 import {WIDGET_REGISTRY} from '../../../components/profile-canvas/widget-registry';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../../../dtos/response/profile-canvas.dto';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
-import {CANVAS_COLUMNS, emptyCanvas} from '../../../models/profile-canvas';
+import {CANVAS_COLUMNS, emptyCanvas, MAX_WIDGETS} from '../../../models/profile-canvas';
 
 const OWNER: ProfileDto = {
     id: 'p1',
@@ -98,6 +98,17 @@ function menuRows(fixture: ComponentFixture<unknown>): HTMLElement[] {
 
 function openWidgetMenu(fixture: ComponentFixture<unknown>): void {
     testId(fixture, 'add-widget')!.click();
+    fixture.detectChanges();
+}
+
+const PREVIEW_ORDER = ['me', 'friend', 'mutual', 'stranger'] as const;
+
+function previewButtons(fixture: ComponentFixture<unknown>): HTMLElement[] {
+    return Array.from(el(fixture).querySelectorAll<HTMLElement>('[data-testid="preview-viewer"]'));
+}
+
+function clickPreview(fixture: ComponentFixture<unknown>, viewer: (typeof PREVIEW_ORDER)[number]): void {
+    previewButtons(fixture)[PREVIEW_ORDER.indexOf(viewer)].click();
     fixture.detectChanges();
 }
 
@@ -225,5 +236,84 @@ describe('ProfileCanvasEditorComponent', () => {
         fixture.detectChanges();
 
         expect(testId(fixture, 'widget-editor-popover')).toBeNull();
+    });
+
+    // F1: only the per-type max (marquee at 1) was covered before. Fill the draft to the global
+    // cap with types nowhere near their own max, so only MAX_WIDGETS itself can be refusing them.
+    it('disables every entry in the picker once the draft is at MAX_WIDGETS', () => {
+        const widgets = Array.from({length: MAX_WIDGETS}, (_, i) => widget(`w${i}`, {y: i}));
+        const {fixture} = setup(canvasOf(widgets));
+        openWidgetMenu(fixture);
+
+        const rows = menuRows(fixture);
+        expect(rows).toHaveLength(WIDGET_REGISTRY.length);
+        expect(rows.every(row => row.getAttribute('aria-disabled') === 'true')).toBe(true);
+    });
+
+    it('the preview control renders in both edit and view mode', () => {
+        const editing = setup(emptyCanvas('p1'), true);
+        expect(previewButtons(editing.fixture)).toHaveLength(4);
+
+        const viewing = setup(emptyCanvas('p1'), false);
+        expect(previewButtons(viewing.fixture)).toHaveLength(4);
+    });
+
+    it('a widget the previewed viewer cannot see dims rather than disappears', () => {
+        const {fixture} = setup(canvasOf([widget('w1', {visibility: 'friends'})]));
+
+        clickPreview(fixture, 'stranger');
+
+        expect(tile(fixture, 'w1')).not.toBeNull();
+        expect(tile(fixture, 'w1').style.opacity).toBe('0.4');
+    });
+
+    it('a dimmed widget is not aria-hidden, and its state is announced instead', () => {
+        const {fixture} = setup(canvasOf([widget('w1', {visibility: 'friends'})]));
+
+        clickPreview(fixture, 'stranger');
+
+        expect(tile(fixture, 'w1').getAttribute('aria-hidden')).not.toBe('true');
+        expect(testId(fixture, 'preview-hidden-widget')).not.toBeNull();
+    });
+
+    it('a widget visible to the previewed viewer is not dimmed', () => {
+        const {fixture} = setup(canvasOf([widget('w1', {visibility: 'everyone'})]));
+
+        clickPreview(fixture, 'stranger');
+
+        expect(tile(fixture, 'w1').style.opacity).toBe('');
+    });
+
+    it('the count line reports how many are hidden for that viewer', () => {
+        const {fixture} = setup(
+            canvasOf([
+                widget('w1', {visibility: 'friends'}),
+                widget('w2', {y: 1, visibility: 'mutuals'}),
+                widget('w3', {y: 2, visibility: 'everyone'}),
+            ]),
+        );
+
+        clickPreview(fixture, 'stranger');
+
+        expect(testId(fixture, 'preview-hidden-count')?.getAttribute('data-hidden-count')).toBe('2');
+    });
+
+    it('no count line renders under Me', () => {
+        const {fixture} = setup(canvasOf([widget('w1', {visibility: 'friends'})]));
+
+        expect(testId(fixture, 'preview-hidden-count')).toBeNull();
+    });
+
+    // The important one: a preview that filters by mutating the draft is a data-loss bug.
+    it('switching viewer never mutates the draft', () => {
+        const {fixture, editor} = setup(canvasOf([widget('w1', {visibility: 'friends'})]));
+        const before = JSON.stringify(editor.draft());
+
+        clickPreview(fixture, 'friend');
+        clickPreview(fixture, 'mutual');
+        clickPreview(fixture, 'stranger');
+        clickPreview(fixture, 'me');
+
+        expect(JSON.stringify(editor.draft())).toBe(before);
     });
 });

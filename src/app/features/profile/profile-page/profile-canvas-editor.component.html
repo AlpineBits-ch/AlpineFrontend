@@ -1,19 +1,36 @@
 @if (canvas(); as arranged) {
     <div class="mx-auto w-full max-w-3xl px-6 py-6">
-        @if (editing()) {
-            <div class="mb-3 flex justify-end">
-                <button
-                    (click)="openWidgetMenu($event)"
-                    class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                    data-testid="add-widget"
-                    type="button"
-                >
-                    <i class="pi pi-plus text-xs" aria-hidden="true"></i>
-                    {{ 'PROFILE.CANVAS.EDITOR.ADD' | translate }}
-                </button>
-                <app-context-menu #widgetMenu [model]="addWidgetItems()" />
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div [attr.aria-label]="'PROFILE.CANVAS.EDITOR.PREVIEW_AS' | translate" class="flex flex-wrap gap-1.5" role="group">
+                @for (viewer of previewViewers; track viewer) {
+                    <button
+                        (click)="setPreviewAs(viewer)"
+                        [attr.aria-pressed]="previewAs() === viewer"
+                        [class.border-brand]="previewAs() === viewer"
+                        class="cursor-pointer rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        data-testid="preview-viewer"
+                        type="button"
+                    >
+                        {{ previewViewerKey(viewer) | translate }}
+                    </button>
+                }
             </div>
-        }
+
+            @if (editing()) {
+                <div class="relative">
+                    <button
+                        (click)="openWidgetMenu($event)"
+                        class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        data-testid="add-widget"
+                        type="button"
+                    >
+                        <i class="pi pi-plus text-xs" aria-hidden="true"></i>
+                        {{ 'PROFILE.CANVAS.EDITOR.ADD' | translate }}
+                    </button>
+                    <app-context-menu #widgetMenu [model]="addWidgetItems()" />
+                </div>
+            }
+        </div>
 
         <div #canvasHost class="relative">
             <app-canvas-lattice
@@ -31,6 +48,21 @@
                 [selectedId]="selectedWidgetId()"
                 class="relative z-10 block"
             />
+        </div>
+
+        @if (hiddenCount(); as count) {
+            <p [attr.data-hidden-count]="count" class="mt-2 text-xs text-text-muted" data-testid="preview-hidden-count">
+                {{
+                    (count === 1 ? 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT_ONE' : 'PROFILE.CANVAS.EDITOR.PREVIEW_HIDDEN_COUNT')
+                        | translate: {count}
+                }}
+            </p>
+        }
+
+        <div class="sr-only">
+            @for (widget of hiddenWidgets(); track widget.id) {
+                <p data-testid="preview-hidden-widget">{{ hiddenWidgetAnnouncement(widget) }}</p>
+            }
         </div>
     </div>
 }
