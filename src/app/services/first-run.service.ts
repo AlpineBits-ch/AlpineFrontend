@@ -6,7 +6,10 @@ import {SignupPasswordHolder} from './signup-password-holder';
 import {FirstRunStep, owedSteps} from './first-run-steps';
 
 export interface FirstRunOptions {
-    /** A gated action is waiting on a master key, whatever the picker's stored answer was. */
+    /**
+     * This caller needs a master key, whatever the picker's stored answer was. It also decides the
+     * answer to {@link FirstRunService.abandon}: no key written means no.
+     */
     keyRequired?: boolean;
 }
 
@@ -30,7 +33,7 @@ export class FirstRunService {
     /** Snapshotted at {@link open}, so the progress rail cannot resize under someone mid-answer. */
     readonly steps: Signal<FirstRunStep[]> = this.owed.asReadonly();
 
-    private waiting: ((done: boolean) => void)[] = [];
+    private waiting: {resolve: (done: boolean) => void; keyRequired: boolean}[] = [];
 
     /** Resolves true once the run has finished and the account may proceed. */
     open(options: FirstRunOptions = {}): Promise<boolean> {
@@ -40,16 +43,32 @@ export class FirstRunService {
             this.owed.set(steps);
             this.shown.set(true);
         }
-        return new Promise<boolean>(resolve => this.waiting.push(resolve));
+        return new Promise<boolean>(resolve =>
+            this.waiting.push({resolve, keyRequired: !!options.keyRequired}),
+        );
     }
 
     /** Called by the shell when the last owed step is done. */
     complete(): void {
+        this.close(() => true);
+    }
+
+    /**
+     * Called by the shell when the run ended with no key written.
+     *
+     * A caller that asked for a key is told no, since its action still has none to work with. The
+     * launch sequence did not, and must not lose the client over a write it cannot make.
+     */
+    abandon(): void {
+        this.close(waiter => !waiter.keyRequired);
+    }
+
+    private close(answer: (waiter: {keyRequired: boolean}) => boolean): void {
         this.shown.set(false);
         this.owed.set([]);
         const waiting = this.waiting;
         this.waiting = [];
-        for (const resolve of waiting) resolve(true);
+        for (const waiter of waiting) waiter.resolve(answer(waiter));
     }
 
     private snapshot(options: FirstRunOptions): FirstRunStep[] {

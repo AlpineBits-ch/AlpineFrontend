@@ -5,7 +5,7 @@ import {firstValueFrom} from 'rxjs';
 import {FirstRunService} from '../../services/first-run.service';
 import {FirstRunStep} from '../../services/first-run-steps';
 import {OnboardingService} from '../../services/onboarding.service';
-import {MasterKeySetupService} from '../../services/master-key-setup.service';
+import {isRetryableFailure, MasterKeySetupService} from '../../services/master-key-setup.service';
 import {DeviceRegistrationService} from '../../services/device-registration.service';
 import {SignupPasswordHolder} from '../../services/signup-password-holder';
 import {resolveDeviceName} from '../../services/device-description';
@@ -14,6 +14,8 @@ import {UserInterest} from '../../dtos/response/UserDto';
 import {FirstRunPickStepComponent} from './first-run-pick-step.component';
 import {FirstRunPasswordStepComponent} from './first-run-password-step.component';
 import {FirstRunCodeStepComponent} from './first-run-code-step.component';
+
+const MAX_SETUP_RETRIES = 2;
 
 function randomWordIndex(code: string): number {
     const words = code.split(/\s+/).filter(Boolean);
@@ -118,6 +120,12 @@ function randomWordIndex(code: string): number {
                                     <i class="pi pi-exclamation-circle mr-1.5"></i>{{ codeError() }}
                                 </p>
                             }
+
+                            @if (stuck()) {
+                                <p class="m-0 text-sm text-text-secondary" data-testid="first-run-void">
+                                    {{ 'FIRST_RUN.CODE.VOID' | translate }}
+                                </p>
+                            }
                         }
                     }
                 </div>
@@ -125,15 +133,27 @@ function randomWordIndex(code: string): number {
 
             <div class="shrink-0 border-t border-border-subtle px-6 py-4">
                 <div class="mx-auto flex max-w-3xl items-center justify-end">
-                    <p-button
-                        (onClick)="advance()"
-                        [disabled]="!canAdvance()"
-                        [label]="advanceLabel() | translate"
-                        data-testid="first-run-continue"
-                        icon="pi pi-arrow-right"
-                        iconPos="right"
-                        size="small"
-                    />
+                    @if (stuck()) {
+                        <p-button
+                            (onClick)="exit()"
+                            [label]="'FIRST_RUN.CODE.EXIT' | translate"
+                            data-testid="first-run-exit"
+                            icon="pi pi-arrow-right"
+                            iconPos="right"
+                            severity="secondary"
+                            size="small"
+                        />
+                    } @else {
+                        <p-button
+                            (onClick)="advance()"
+                            [disabled]="!canAdvance()"
+                            [label]="advanceLabel() | translate"
+                            data-testid="first-run-continue"
+                            icon="pi pi-arrow-right"
+                            iconPos="right"
+                            size="small"
+                        />
+                    }
                 </div>
             </div>
         </div>
@@ -163,6 +183,10 @@ export class FirstRunComponent {
     protected readonly codeError = signal<string | null>(null);
     protected readonly confirmed = signal(false);
     protected readonly written = signal(false);
+    /** Setup cannot land, by classification or by spent budget. The only button left is the exit. */
+    protected readonly stuck = signal(false);
+
+    private retriesUsed = 0;
 
     private readonly passwordStep = viewChild(FirstRunPasswordStepComponent);
 
@@ -279,6 +303,7 @@ export class FirstRunComponent {
     }
 
     private retryCode(): void {
+        this.retriesUsed++;
         this.codeError.set(null);
         // A code that was never shown can be minted again; one the user has written down cannot.
         if (!this.code()) {
@@ -286,6 +311,18 @@ export class FirstRunComponent {
             return;
         }
         this.write();
+    }
+
+    /**
+     * Leaves without a key. The account keeps working, and `SocialKeyGateService` asks again at the
+     * first action that needs one.
+     */
+    protected exit(): void {
+        // The code on screen was never sealed to anything. Letting them keep it fails at a restore.
+        this.setup.discard();
+        this.heldPassword.take();
+        this.password = null;
+        this.firstRun.abandon();
     }
 
     private next(): void {
@@ -309,7 +346,7 @@ export class FirstRunComponent {
             this.code.set(code);
             this.wordIndex.set(randomWordIndex(code));
         } catch (err) {
-            this.codeError.set(this.setupFailed(err));
+            this.onFailure(err);
             return;
         } finally {
             this.busy.set(false);
@@ -323,7 +360,7 @@ export class FirstRunComponent {
         this.password ??= this.heldPassword.take();
         const password = this.password;
         if (!password) {
-            this.codeError.set(this.setupFailed(new Error('No password held for master-key setup')));
+            this.onFailure(new Error('No password held for master-key setup'));
             return;
         }
 
@@ -332,17 +369,26 @@ export class FirstRunComponent {
         void this.setup
             .run(password)
             .then(() => this.written.set(true))
-            .catch((err: unknown) => this.codeError.set(this.setupFailed(err)));
+            .catch((err: unknown) => this.onFailure(err));
     }
 
     /**
-     * The lead has to stay: someone who has written the code down needs telling it still works.
-     * A refusal detail goes after it, and nothing goes after it when there is no detail to add.
+     * A retry is offered only where one could work, and only while the budget lasts. A server that
+     * keeps refusing locks the account out just as thoroughly as a 400 does, only slower.
      */
-    private setupFailed(err: unknown): string {
-        const lead = this.translate.instant('FIRST_RUN.CODE.SETUP_FAILED') as string;
+    private onFailure(err: unknown): void {
+        const canRetry = isRetryableFailure(err) && this.retriesUsed < MAX_SETUP_RETRIES;
+        this.stuck.set(!canRetry);
+
+        // The retryable lead promises the code still works, so it must not survive the exit path.
+        // Spelled out rather than picked in the argument: `i18n-keys.spec` only sees literal keys.
+        const lead = (
+            canRetry
+                ? this.translate.instant('FIRST_RUN.CODE.SETUP_FAILED')
+                : this.translate.instant('FIRST_RUN.CODE.SETUP_BLOCKED')
+        ) as string;
         const detail = this.setup.describeFailure(err);
-        return detail ? `${lead} ${detail}` : lead;
+        this.codeError.set(detail ? `${lead} ${detail}` : lead);
     }
 
     private finish(): void {

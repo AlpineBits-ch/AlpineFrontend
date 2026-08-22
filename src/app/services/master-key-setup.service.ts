@@ -1,8 +1,22 @@
 import {inject, Injectable} from '@angular/core';
+import {HttpErrorResponse} from '@angular/common/http';
 import {firstValueFrom, take} from 'rxjs';
 import {UserService} from './user.service';
 import {MasterKeyEngineError, MasterKeyService} from './master-key.service';
 import {BackupService, PutRecoveryKeyResultDto, serverRefusalDetail, toWrappingDto} from './backup.service';
+
+/**
+ * Whether asking again could plausibly work.
+ *
+ * A 4xx about envelope shape is deterministic for that account, and a device that cannot prepare
+ * keys will not start being able to. Everything else, including an unrecognised failure, counts as
+ * retryable: offering a retry that fails again is cheaper than refusing one that would have worked.
+ */
+export function isRetryableFailure(err: unknown): boolean {
+    if (err instanceof MasterKeyEngineError) return false;
+    if (err instanceof HttpErrorResponse) return err.status < 400 || err.status >= 500;
+    return true;
+}
 
 /**
  * First-time master-key setup: generate a recovery code, wrap the key under both credentials,

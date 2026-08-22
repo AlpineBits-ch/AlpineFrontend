@@ -14,7 +14,13 @@ import {OsInfo} from '../../platform/ports/os-info.port';
 
 const CODE = 'anchor breeze cinder dapple ember fathom';
 
-function deferred<T>() {
+interface Deferred<T> {
+    promise: Promise<T>;
+    resolve: (value: T) => void;
+    reject: (reason?: unknown) => void;
+}
+
+function deferred<T>(): Deferred<T> {
     let resolve!: (value: T) => void;
     let reject!: (reason?: unknown) => void;
     const promise = new Promise<T>((res, rej) => {
@@ -29,13 +35,24 @@ function setup(steps: FirstRunStep[], options: {submitFails?: boolean} = {}) {
     vi.spyOn(Math, 'random').mockReturnValue(0);
 
     const complete = vi.fn();
+    const abandon = vi.fn();
     const submit = vi.fn(async () =>
         options.submitFails ? Promise.reject(new Error('nope')) : Promise.resolve(),
     );
     const register = vi.fn(() => of('handle'));
     const generateRecoveryCode = vi.fn(async () => CODE);
-    const write = deferred<{version: number}>();
-    const run = vi.fn(() => write.promise);
+    const discard = vi.fn();
+    // One deferred per attempt, so a retry can be answered differently from the write before it.
+    const writes: Deferred<{version: number}>[] = [];
+    const run = vi.fn(() => {
+        const attempt = deferred<{version: number}>();
+        writes.push(attempt);
+        return attempt.promise;
+    });
+    const write = {
+        resolve: (value: {version: number}) => writes[writes.length - 1]!.resolve(value),
+        reject: (err: unknown) => writes[writes.length - 1]!.reject(err),
+    };
     const verifyPassword = vi.fn(async () => true);
 
     TestBed.configureTestingModule({
@@ -43,7 +60,7 @@ function setup(steps: FirstRunStep[], options: {submitFails?: boolean} = {}) {
         providers: [
             {
                 provide: FirstRunService,
-                useValue: {visible: signal(true), steps: signal(steps), complete},
+                useValue: {visible: signal(true), steps: signal(steps), complete, abandon},
             },
             {
                 provide: OnboardingService,
@@ -55,7 +72,7 @@ function setup(steps: FirstRunStep[], options: {submitFails?: boolean} = {}) {
                     verifyPassword,
                     generateRecoveryCode,
                     run,
-                    discard: vi.fn(),
+                    discard,
                     // The real one. It reads no `this`, and which branch it picks is under test.
                     describeFailure: MasterKeySetupService.prototype.describeFailure,
                 },
@@ -78,7 +95,18 @@ function setup(steps: FirstRunStep[], options: {submitFails?: boolean} = {}) {
     const fixture = TestBed.createComponent(FirstRunComponent);
     fixture.detectChanges();
 
-    return {fixture, complete, submit, register, generateRecoveryCode, run, write, verifyPassword};
+    return {
+        fixture,
+        complete,
+        submit,
+        register,
+        generateRecoveryCode,
+        run,
+        write,
+        discard,
+        verifyPassword,
+        abandon,
+    };
 }
 
 async function settle(fixture: ComponentFixture<FirstRunComponent>): Promise<void> {
@@ -92,6 +120,18 @@ function continueButton(fixture: ComponentFixture<FirstRunComponent>): HTMLButto
     const button = fixture.nativeElement.querySelector('[data-testid="first-run-continue"] button');
     expect(button).toBeTruthy();
     return button as HTMLButtonElement;
+}
+
+function retryOffered(fixture: ComponentFixture<FirstRunComponent>): boolean {
+    return !!fixture.nativeElement.querySelector('[data-testid="first-run-continue"]');
+}
+
+function exitButton(fixture: ComponentFixture<FirstRunComponent>): HTMLButtonElement | null {
+    return fixture.nativeElement.querySelector('[data-testid="first-run-exit"] button');
+}
+
+function refusal(status: number): HttpErrorResponse {
+    return new HttpErrorResponse({status, error: {detail: `boom ${status}`}});
 }
 
 function text(fixture: ComponentFixture<FirstRunComponent>, testid: string): string {
@@ -165,11 +205,11 @@ describe('FirstRunComponent recovery-code step', () => {
         const {fixture, write} = setup(['recovery-code']);
         await settle(fixture);
 
-        write.reject(new HttpErrorResponse({status: 400, error: {detail: 'publicVerifier is required'}}));
+        write.reject(new HttpErrorResponse({status: 503, error: {detail: 'envelope store offline'}}));
         await settle(fixture);
 
         expect(text(fixture, 'first-run-error')).toBe(
-            'FIRST_RUN.CODE.SETUP_FAILED The server refused the setup: publicVerifier is required',
+            'FIRST_RUN.CODE.SETUP_FAILED The server refused the setup: envelope store offline',
         );
     });
 
@@ -220,5 +260,82 @@ describe('FirstRunComponent recovery-code step', () => {
         await settle(fixture);
 
         expect(complete).toHaveBeenCalled();
+    });
+});
+
+describe('FirstRunComponent setup that cannot land', () => {
+    /** A 400 about envelope shape is the same 400 next time. Offering a retry would be a lie. */
+    it('offers the way out and no retry when the server refuses outright', async () => {
+        const {fixture, write} = setup(['recovery-code']);
+        await settle(fixture);
+
+        write.reject(refusal(400));
+        await settle(fixture);
+
+        expect(retryOffered(fixture)).toBe(false);
+        expect(exitButton(fixture)).toBeTruthy();
+        expect(text(fixture, 'first-run-error')).toContain('FIRST_RUN.CODE.SETUP_BLOCKED');
+        expect(text(fixture, 'first-run-void')).toContain('FIRST_RUN.CODE.VOID');
+    });
+
+    /** A server that keeps 500ing locks the account out as thoroughly as a 400, only slower. */
+    it('offers a retry for a 500 and stops after the budget is spent', async () => {
+        const {fixture, write, run} = setup(['recovery-code']);
+        await settle(fixture);
+
+        write.reject(refusal(500));
+        await settle(fixture);
+        expect(retryOffered(fixture)).toBe(true);
+
+        continueButton(fixture).click();
+        await settle(fixture);
+        write.reject(refusal(500));
+        await settle(fixture);
+        expect(retryOffered(fixture)).toBe(true);
+
+        continueButton(fixture).click();
+        await settle(fixture);
+        write.reject(refusal(500));
+        await settle(fixture);
+
+        expect(run).toHaveBeenCalledTimes(3);
+        expect(retryOffered(fixture)).toBe(false);
+        expect(exitButton(fixture)).toBeTruthy();
+    });
+
+    it('carries on normally when a retry succeeds', async () => {
+        const {fixture, write, complete, generateRecoveryCode} = setup(['recovery-code']);
+        await settle(fixture);
+
+        write.reject(refusal(500));
+        await settle(fixture);
+        continueButton(fixture).click();
+        await settle(fixture);
+
+        write.resolve({version: 1});
+        typeConfirmWord(fixture, 'anchor');
+        await settle(fixture);
+
+        continueButton(fixture).click();
+        await settle(fixture);
+
+        expect(generateRecoveryCode).toHaveBeenCalledTimes(1);
+        expect(complete).toHaveBeenCalled();
+        expect(exitButton(fixture)).toBeNull();
+    });
+
+    /** Believing you hold a working recovery code is worse than the lockout: it fails at restore. */
+    it('discards the code it showed when the user leaves', async () => {
+        const {fixture, write, discard, abandon, complete} = setup(['recovery-code']);
+        await settle(fixture);
+
+        write.reject(refusal(400));
+        await settle(fixture);
+        exitButton(fixture)!.click();
+        await settle(fixture);
+
+        expect(discard).toHaveBeenCalled();
+        expect(abandon).toHaveBeenCalled();
+        expect(complete).not.toHaveBeenCalled();
     });
 });

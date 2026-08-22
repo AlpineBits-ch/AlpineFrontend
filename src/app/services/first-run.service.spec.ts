@@ -93,6 +93,22 @@ describe('FirstRunService.open', () => {
         expect(service.steps()).toEqual(['password', 'recovery-code']);
     });
 
+    /**
+     * Leaving without a key must not cost the launch caller the client, and must not tell a gated
+     * action to go ahead with a key it does not have.
+     */
+    it('answers an abandoned run per caller', async () => {
+        const {service} = setup();
+
+        const launch = service.open();
+        const gated = service.open({keyRequired: true});
+        service.abandon();
+
+        await expect(launch).resolves.toBe(true);
+        await expect(gated).resolves.toBe(false);
+        expect(service.visible()).toBe(false);
+    });
+
     it('owes no key steps without a local key engine', () => {
         const {service} = setup({needsOnboarding: true, engineAvailable: false});
 
