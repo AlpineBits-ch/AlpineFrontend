@@ -6,7 +6,7 @@ import {CanvasVisibility, CanvasWidgetDto} from '../../../../../../dtos/response
 import {CanvasEditorService} from '../../../../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../../../../services/profile-canvas-api.service';
 import {definitionFor, WidgetField} from '../../../../../../components/profile-canvas/widget-registry';
-import {Footprint} from '../../../../../../models/profile-canvas';
+import {Footprint, MAX_CARD_WIDGETS} from '../../../../../../models/profile-canvas';
 
 const VISIBILITIES: readonly CanvasVisibility[] = ['everyone', 'friends', 'mutuals'];
 
@@ -49,6 +49,14 @@ export class WidgetPropertiesComponent {
         return this.zoneIds.length > 0;
     }
 
+    /** Locked once two OTHER widgets already wear the badge; never locked against releasing this widget's own. */
+    protected readonly cardLimitReached = computed(() => {
+        const widgets = this.editorSvc.draft()?.widgets ?? [];
+        const id = this.widget().id;
+        const others = widgets.filter(w => w.id !== id && w.card).length;
+        return others >= MAX_CARD_WIDGETS;
+    });
+
     protected readonly timeZoneOptions = computed(() => {
         const options = this.zoneIds.map(id => ({label: id, value: id}));
         const current = this.config()['timeZone'];
@@ -73,9 +81,11 @@ export class WidgetPropertiesComponent {
         return typeof value === 'string' ? value : '';
     }
 
-    protected rowsOf(field: WidgetField): Record<string, string>[] {
+    /** Values are optional, not just `string`: an older client or a future registry column can
+     * store a row missing one of the current columns, and the template must not print "undefined". */
+    protected rowsOf(field: WidgetField): Record<string, string | undefined>[] {
         const value = this.config()[field.key];
-        return Array.isArray(value) ? (value as Record<string, string>[]) : [];
+        return Array.isArray(value) ? (value as Record<string, string | undefined>[]) : [];
     }
 
     protected imagesOf(field: WidgetField): CanvasImage[] {
@@ -118,6 +128,15 @@ export class WidgetPropertiesComponent {
         this.editorSvc.patchConfig(this.widget().id, {[field.key]: items});
     }
 
+    /** Reads the editor's own current draft, not this component's `widget` input: two uploads
+     * started before either resolves would otherwise both see the input's stale item count and
+     * both append, blowing past the cap. */
+    private currentImages(field: WidgetField): CanvasImage[] {
+        const widget = this.editorSvc.draft()?.widgets.find(w => w.id === this.widget().id);
+        const value = (widget?.config as Record<string, unknown> | undefined)?.[field.key];
+        return Array.isArray(value) ? (value as CanvasImage[]) : [];
+    }
+
     protected upload(field: WidgetField, event: Event): void {
         const input = event.target as HTMLInputElement;
         const file = input.files?.[0];
@@ -127,10 +146,12 @@ export class WidgetPropertiesComponent {
         this.api.uploadImage(file).subscribe({
             next: image => {
                 if (field.kind === 'images') {
-                    const items = this.imagesOf(field);
-                    this.editorSvc.patchConfig(this.widget().id, {
-                        [field.key]: [...items, {imageId: image.imageId, alt: ''}],
-                    });
+                    const items = this.currentImages(field);
+                    if (items.length < field.max) {
+                        this.editorSvc.patchConfig(this.widget().id, {
+                            [field.key]: [...items, {imageId: image.imageId, alt: ''}],
+                        });
+                    }
                 } else {
                     this.editorSvc.patchConfig(this.widget().id, {[field.key]: image.imageId});
                 }

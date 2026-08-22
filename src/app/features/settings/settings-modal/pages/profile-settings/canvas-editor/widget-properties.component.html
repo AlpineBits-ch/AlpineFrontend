@@ -1,7 +1,11 @@
 <div class="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
     @for (field of fields(); track field.key) {
         <div class="flex flex-col gap-1.5" data-testid="field">
-            <label [for]="fieldId(field)" class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+            <label
+                [attr.for]="field.kind === 'rows' ? null : fieldId(field)"
+                [id]="field.kind === 'rows' ? fieldId(field) : null"
+                class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted"
+            >
                 {{ field.labelKey | translate }}
             </label>
 
@@ -39,23 +43,24 @@
                     }
                 }
                 @case ('rows') {
-                    <div class="flex flex-col gap-2" role="group">
-                        @for (row of rowsOf(field); track $index) {
-                            <div class="flex items-center gap-1.5">
+                    <div [attr.aria-labelledby]="fieldId(field)" class="flex flex-col gap-2" role="group">
+                        @for (row of rowsOf(field); track $index; let rowIndex = $index) {
+                            <div class="flex items-center gap-1.5" data-testid="row">
                                 @for (column of field.columns; track column.key) {
                                     <input
-                                        (input)="setCell(field, $index, column.key, $event)"
+                                        (input)="setCell(field, rowIndex, column.key, $event)"
                                         [attr.aria-label]="column.labelKey | translate"
                                         [attr.maxlength]="column.maxLength"
                                         [placeholder]="column.labelKey | translate"
-                                        [value]="row[column.key]"
+                                        [value]="row[column.key] ?? ''"
                                         class="min-w-0 flex-1 rounded-lg border border-border bg-app-bg px-2 py-1.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
                                     />
                                 }
                                 <button
-                                    (click)="removeRow(field, $index)"
+                                    (click)="removeRow(field, rowIndex)"
                                     [attr.aria-label]="'PROFILE.CANVAS.EDITOR.REMOVE_ROW' | translate"
                                     class="cursor-pointer rounded border-0 bg-transparent p-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    data-testid="remove-row"
                                     type="button"
                                 >
                                     <i class="pi pi-times"></i>
@@ -66,6 +71,7 @@
                             (click)="addRow(field)"
                             [disabled]="rowsOf(field).length >= field.max"
                             class="cursor-pointer self-start rounded-lg border border-border bg-transparent px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+                            data-testid="add-row"
                             type="button"
                         >
                             {{ 'PROFILE.CANVAS.EDITOR.ADD_ROW' | translate }}
@@ -173,13 +179,23 @@
         </div>
     </div>
 
-    <label class="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-        <input
-            (change)="toggleCard()"
-            [checked]="widget().card"
-            class="focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-            type="checkbox"
-        />
-        {{ 'PROFILE.CANVAS.EDITOR.CARD' | translate }}
-    </label>
+    <div class="flex flex-col gap-1">
+        <label
+            [class.cursor-not-allowed]="cardLimitReached()"
+            [class.cursor-pointer]="!cardLimitReached()"
+            class="flex items-center gap-2 text-sm text-text-secondary"
+        >
+            <input
+                (change)="toggleCard()"
+                [checked]="widget().card"
+                [disabled]="cardLimitReached()"
+                class="focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                type="checkbox"
+            />
+            {{ 'PROFILE.CANVAS.EDITOR.CARD' | translate }}
+        </label>
+        @if (cardLimitReached()) {
+            <p class="text-xs text-text-muted">{{ 'PROFILE.CANVAS.EDITOR.CARD_FULL' | translate }}</p>
+        }
+    </div>
 </div>
