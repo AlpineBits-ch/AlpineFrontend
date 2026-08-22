@@ -31,7 +31,7 @@ export interface ListingDto {
     state: ListingState;
     publishedAt: string | null;
     lastBumpedAt: string | null;
-    /** When {@link bump} stops answering `409`. Null once it is available. */
+    /** When bumping stops answering `409`. Null once it is available. */
     bumpAvailableAt: string | null;
     /** Set only while {@link state} is `Suspended`. */
     suspendedReason: string | null;

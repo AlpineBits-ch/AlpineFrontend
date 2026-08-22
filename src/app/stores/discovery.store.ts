@@ -2,7 +2,7 @@ import {inject} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, defer, Observable, of, tap, throwError} from 'rxjs';
 import {patchState, signalStore, type, withHooks, withMethods, withState} from '@ngrx/signals';
-import {removeEntity, updateEntity, withEntities} from '@ngrx/signals/entities';
+import {removeEntity, withEntities} from '@ngrx/signals/entities';
 import {
     DiscoveryCardDto,
     DiscoveryFeedDto,
@@ -82,7 +82,9 @@ export const DiscoveryStore = signalStore(
         },
     }),
 
-    withOptimisticEntities<DiscoveryCardDto>(card => card.listingId),
+    // Named for `ListingDto`: the unnamed collection above is cards, and `withOptimisticEntities`
+    // reaches only one collection per call - see its own doc.
+    withOptimisticEntities<ListingDto, 'listingRow'>('listingRow'),
 
     withState<DiscoveryInterestsState>({interests: null, interestsLoading: false}),
 
@@ -91,53 +93,47 @@ export const DiscoveryStore = signalStore(
 
         const rowOf = (guildId: string): ListingDto | null => store.listingFor(guildId)()[0] ?? null;
 
-        /**
-         * Patches a listing row in place and hands back its undo. Hand-rolled rather than
-         * `withOptimisticEntities`, which only reaches the store's one unnamed collection and this
-         * row lives in the named `listingRow` collection.
-         */
-        const patchListing = (id: string, changes: Partial<ListingDto>): (() => void) => {
-            const before = store.listingRowEntityMap()[id];
-            if (!before) return () => undefined;
-
-            const restore: Partial<ListingDto> = {};
-            for (const field of Object.keys(changes) as (keyof ListingDto)[]) {
-                (restore as Record<string, unknown>)[field] = before[field];
-            }
-            patchState(store, updateEntity({id, changes}, {collection: 'listingRow'}));
-            return () => patchState(store, updateEntity({id, changes: restore}, {collection: 'listingRow'}));
-        };
-
         /** A suspended or unlisted card must stop showing in Discover, wherever it is loaded. */
         const dropCard = (listingId: string): void => {
             if (!(listingId in store.entityMap())) return;
-            store.bumpGeneration(listingId);
             patchState(store, removeEntity(listingId));
+        };
+
+        const loadInterests = (): void => {
+            if (store.interestsLoading()) return;
+            patchState(store, {interestsLoading: true});
+            api.getInterests().subscribe({
+                next: interests => patchState(store, {interests, interestsLoading: false}),
+                error: () => patchState(store, {interestsLoading: false}),
+            });
         };
 
         return {
             /**
              * Cold, like `ScheduledEventStore.toggleInterest`: the optimistic patch only happens on
              * subscribe, so building the call and never subscribing touches nothing. Draft-only
-             * guilds have no row yet, so there is nothing to patch optimistically.
+             * guilds have no row yet, so there is nothing to patch optimistically - the response
+             * just attaches the first one.
              */
             saveDraft(guildId: string, dto: ListingWriteDto): Observable<ListingDto> {
                 return defer(() => {
                     const current = rowOf(guildId);
-                    const rollback = current
-                        ? patchListing(current.id, {
+                    const write = current
+                        ? store.optimisticListingRow(current.id, {
                               headline: dto.headline,
                               pitch: dto.pitch,
                               language: dto.language,
                               joinPolicy: dto.joinPolicy,
                               links: dto.links,
                           })
-                        : () => undefined;
+                        : null;
 
                     return api.saveListing(guildId, dto).pipe(
-                        tap(listing => store.attachToListing(guildId, listing)),
+                        tap(listing =>
+                            write ? write.settle(listing) : store.attachToListing(guildId, listing),
+                        ),
                         catchError(err => {
-                            rollback();
+                            write?.rollback();
                             return throwError(() => err);
                         }),
                     );
@@ -148,18 +144,26 @@ export const DiscoveryStore = signalStore(
              * Flips `state` to `Published` on screen the instant it is asked for. A refused publish
              * (the guild's plan does not include Discovery) rolls only that field back - the
              * headline and pitch a person might still be mid-edit on are never touched here.
+             *
+             * The generation `optimisticListingRow` carries is what keeps this safe against a
+             * realtime `ListingPublished`/`Updated`/`Unlisted` landing for the same row while this
+             * request is still in flight: `applyListingChanged` bumps the row's generation before it
+             * refetches, so a settle or rollback that lands after loses to the newer server truth
+             * rather than overwriting it.
              */
             publish(guildId: string): Observable<ListingDto> {
                 return defer(() => {
                     const current = rowOf(guildId);
-                    const rollback = current
-                        ? patchListing(current.id, {state: 'Published'})
-                        : () => undefined;
+                    const write = current
+                        ? store.optimisticListingRow(current.id, {state: 'Published'})
+                        : null;
 
                     return api.publish(guildId).pipe(
-                        tap(listing => store.attachToListing(guildId, listing)),
+                        tap(listing =>
+                            write ? write.settle(listing) : store.attachToListing(guildId, listing),
+                        ),
                         catchError(err => {
-                            rollback();
+                            write?.rollback();
                             return throwError(() => err);
                         }),
                     );
@@ -169,14 +173,16 @@ export const DiscoveryStore = signalStore(
             unlist(guildId: string): Observable<ListingDto> {
                 return defer(() => {
                     const current = rowOf(guildId);
-                    const rollback = current
-                        ? patchListing(current.id, {state: 'Unlisted'})
-                        : () => undefined;
+                    const write = current
+                        ? store.optimisticListingRow(current.id, {state: 'Unlisted'})
+                        : null;
 
                     return api.unlist(guildId).pipe(
-                        tap(listing => store.attachToListing(guildId, listing)),
+                        tap(listing =>
+                            write ? write.settle(listing) : store.attachToListing(guildId, listing),
+                        ),
                         catchError(err => {
-                            rollback();
+                            write?.rollback();
                             return throwError(() => err);
                         }),
                     );
@@ -188,14 +194,7 @@ export const DiscoveryStore = signalStore(
                 return api.bump(guildId).pipe(tap(listing => store.attachToListing(guildId, listing)));
             },
 
-            loadInterests(): void {
-                if (store.interestsLoading()) return;
-                patchState(store, {interestsLoading: true});
-                api.getInterests().subscribe({
-                    next: interests => patchState(store, {interests, interestsLoading: false}),
-                    error: () => patchState(store, {interestsLoading: false}),
-                });
-            },
+            loadInterests,
 
             saveInterests(dto: SaveInterestsDto): Observable<InterestsDto> {
                 return api.saveInterests(dto).pipe(tap(interests => patchState(store, {interests})));
@@ -209,6 +208,9 @@ export const DiscoveryStore = signalStore(
             // Partial payload (id, guild, state only): refetch rather than patch a guess in place.
             applyListingChanged(event: WsListingChanged): void {
                 if (store.listingHeld(event.guildId)) {
+                    // Bumped before the refetch: a write already in flight for this row must not
+                    // settle or roll back over whatever the refetch is about to establish as truth.
+                    store.bumpGenerationListingRow(event.listingId);
                     store.invalidateListing(event.guildId);
                     store.loadListing(event.guildId);
                 }
@@ -217,6 +219,7 @@ export const DiscoveryStore = signalStore(
 
             applyListingSuspended(event: WsListingSuspended): void {
                 if (store.listingHeld(event.guildId)) {
+                    store.bumpGenerationListingRow(event.listingId);
                     store.invalidateListing(event.guildId);
                     store.loadListing(event.guildId);
                 }
@@ -226,10 +229,12 @@ export const DiscoveryStore = signalStore(
             /**
              * Only the caller's own interests change the feed's `matchedTopics`, and the server has
              * no notion of a client-side feed key - so every held key is requeued rather than one
-             * addressed by the event.
+             * addressed by the event. The interests panel itself is refetched too, but only if it
+             * has ever been loaded - a window that never opened it has nothing stale to fix.
              */
             applyInterestsChanged(event: WsInterestsChanged): void {
                 if (event.userId !== ownUserId()) return;
+                if (store.interests() !== null) loadInterests();
                 for (const key of Object.keys(store.feedRequests())) {
                     if (!store.feedHeld(key)) continue;
                     store.invalidateFeed(key);

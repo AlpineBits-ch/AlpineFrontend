@@ -202,4 +202,35 @@ describe('DiscoveryStore', () => {
         expect(row.headline).toBe('My guild');
         expect(row.pitch).toBe('Come hang out');
     });
+
+    it('lets a realtime refetch outrun an in-flight publish, keeping the newer server truth', () => {
+        const {api, ws, store} = setup();
+
+        store.loadListing('g1');
+        api.listingPending[0].next(listing('lst1', {state: 'Draft', headline: 'Original headline'}));
+        api.listingPending[0].complete();
+
+        // Publish starts - optimistic flip applied, its own request still in flight.
+        store.publish('g1').subscribe();
+        expect(store.listingFor('g1')()[0].state).toBe('Published');
+
+        // The broadcast for this same publish (or someone else's edit) arrives first and triggers a
+        // refetch, which must be able to overwrite the optimistic guess.
+        ws.emit('discovery.ListingPublished', {listingId: 'lst1', guildId: 'g1', state: 'Published'});
+        expect(api.listingPending.length).toBe(2);
+
+        api.listingPending[1].next(
+            listing('lst1', {state: 'Published', headline: 'Edited elsewhere', publishedAt: 'now'}),
+        );
+        api.listingPending[1].complete();
+
+        // The original publish request finally resolves with what is now a stale echo of its own
+        // call - it must lose to the refetch above, not overwrite it.
+        api.publishPending[0].next(listing('lst1', {state: 'Published', headline: 'Original headline'}));
+        api.publishPending[0].complete();
+
+        const row = store.listingFor('g1')()[0];
+        expect(row.headline).toBe('Edited elsewhere');
+        expect(row.publishedAt).toBe('now');
+    });
 });

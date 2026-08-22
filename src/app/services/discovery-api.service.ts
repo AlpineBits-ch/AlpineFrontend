@@ -19,9 +19,8 @@ import {
  * The Discovery HTTP surface, and nothing else. Caching, state and realtime reconciliation live in
  * {@link import('../stores/discovery.store').DiscoveryStore}.
  *
- * <p>The `/discovery` segment in {@link base} is correct even though the gateway strips it before
- * the request reaches the service: the gateway consumes that segment, and the client must still send
- * it.</p>
+ * The `/discovery` segment in {@link base} is correct even though the gateway strips it before the
+ * request reaches the service: the gateway consumes that segment, and the client must still send it.
  */
 @Injectable({providedIn: 'root'})
 export class DiscoveryApiService {
