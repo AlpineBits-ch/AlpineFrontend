@@ -206,4 +206,42 @@ describe('ProfileCanvasStore', () => {
 
         expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
     });
+
+    it('applies an event for a different profile while another one is saving', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+        store.ensureLoaded('p2');
+        api.gets[1].next(canvas('p2', 1));
+
+        store.save(canvas('p1', 5)).subscribe();
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p2', canvas: canvas('p2', 3)});
+
+        expect(store.canvasFor('p2')?.widgets).toHaveLength(3);
+    });
+
+    it('still ignores an event for the profile that is itself saving, with another profile also held', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+        store.ensureLoaded('p2');
+        api.gets[1].next(canvas('p2', 1));
+
+        store.save(canvas('p1', 5)).subscribe();
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 2)});
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
+    });
+
+    it('applies an event for a profile again once its own save has failed', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        api.saveFails = true;
+        store.save(canvas('p1', 5)).subscribe({error: () => undefined});
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 3)});
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(3);
+    });
 });

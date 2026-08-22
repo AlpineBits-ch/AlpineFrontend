@@ -1,5 +1,5 @@
-import {inject} from '@angular/core';
-import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
+import {computed, inject} from '@angular/core';
+import {patchState, signalStore, withComputed, withHooks, withMethods, withState} from '@ngrx/signals';
 import {catchError, Observable, tap, throwError} from 'rxjs';
 import {ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {normalise} from '../models/profile-canvas';
@@ -15,12 +15,17 @@ interface CanvasEntry {
 
 interface ProfileCanvasState {
     byProfile: Record<string, CanvasEntry>;
-    saving: boolean;
+    savingProfiles: Record<string, true>;
 }
 
 export const ProfileCanvasStore = signalStore(
     {providedIn: 'root'},
-    withState<ProfileCanvasState>({byProfile: {}, saving: false}),
+    withState<ProfileCanvasState>({byProfile: {}, savingProfiles: {}}),
+
+    withComputed(store => ({
+        /** True while any profile has a save in flight. Save-button disabled state binds to this. */
+        saving: computed(() => Object.keys(store.savingProfiles()).length > 0),
+    })),
 
     withMethods((store, api = inject(ProfileCanvasApiService)) => {
         function put(profileId: string, entry: CanvasEntry): void {
@@ -31,6 +36,16 @@ export const ProfileCanvasStore = signalStore(
         function remove(profileId: string): void {
             const {[profileId]: _dropped, ...rest} = store.byProfile();
             patchState(store, {byProfile: rest});
+        }
+
+        function startSaving(profileId: string): void {
+            patchState(store, {savingProfiles: {...store.savingProfiles(), [profileId]: true}});
+        }
+
+        // Called on every exit path of save(): a profile left in here is deaf to its own realtime events forever.
+        function stopSaving(profileId: string): void {
+            const {[profileId]: _dropped, ...rest} = store.savingProfiles();
+            patchState(store, {savingProfiles: rest});
         }
 
         return {
@@ -65,17 +80,17 @@ export const ProfileCanvasStore = signalStore(
                 const requestId = (previous?.requestId ?? 0) + 1;
 
                 put(profileId, {canvas: normalise(canvas), loading: false, requestId});
-                patchState(store, {saving: true});
+                startSaving(profileId);
 
                 return api.save({theme: canvas.theme, widgets: canvas.widgets}).pipe(
                     tap(saved => {
-                        patchState(store, {saving: false});
+                        stopSaving(profileId);
                         // A newer save or load has since taken this profile; leave its entry alone.
                         if (store.byProfile()[profileId]?.requestId !== requestId) return;
                         put(profileId, {canvas: normalise(saved), loading: false, requestId});
                     }),
                     catchError((err: unknown) => {
-                        patchState(store, {saving: false});
+                        stopSaving(profileId);
                         if (store.byProfile()[profileId]?.requestId === requestId) {
                             // loading: false always, even when previous was a load still in flight:
                             // that request already dropped itself once this save superseded it.
@@ -96,8 +111,8 @@ export const ProfileCanvasStore = signalStore(
             realtime.stream('social.ProfileCanvasUpdated').subscribe((event: WsProfileCanvasUpdated) => {
                 const entry = store.byProfile()[event.profileId];
                 if (!entry?.canvas) return;
-                // Our own save echoes back as this event, arriving after the optimistic write.
-                if (store.saving()) return;
+                // Our own save for this profile echoes back as this event, arriving after the optimistic write.
+                if (store.savingProfiles()[event.profileId]) return;
 
                 patchState(store, {
                     byProfile: {
