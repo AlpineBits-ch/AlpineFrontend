@@ -1,5 +1,5 @@
 import {Type} from '@angular/core';
-import {Footprint} from '../../models/profile-canvas';
+import {Footprint, MAX_SPACERS} from '../../models/profile-canvas';
 import {CurrentlyWidgetComponent} from './widgets/currently-widget.component';
 import {GalleryWidgetComponent} from './widgets/gallery-widget.component';
 import {InfoboxWidgetComponent} from './widgets/infobox-widget.component';
@@ -9,6 +9,7 @@ import {MutualsWidgetComponent} from './widgets/mutuals-widget.component';
 import {OpenToWidgetComponent} from './widgets/open-to-widget.component';
 import {PhotoWidgetComponent} from './widgets/photo-widget.component';
 import {QuoteWidgetComponent} from './widgets/quote-widget.component';
+import {SpacerWidgetComponent} from './widgets/spacer-widget.component';
 
 /** What the properties panel draws. One panel serves every widget type. */
 export type WidgetField =
@@ -202,6 +203,21 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
         max: 2,
         fields: [{kind: 'images', key: 'items', labelKey: 'PROFILE.CANVAS.FIELD.GALLERY_ITEMS', max: 8}],
         defaultConfig: () => ({items: []}),
+    },
+    {
+        type: 'spacer',
+        component: SpacerWidgetComponent,
+        footprints: [
+            {w: 1, h: 1},
+            {w: 2, h: 1},
+            {w: 2, h: 2},
+            {w: 4, h: 1},
+        ],
+        labelKey: 'PROFILE.CANVAS.WIDGET.SPACER',
+        icon: 'pi-stop',
+        max: MAX_SPACERS,
+        fields: [],
+        defaultConfig: () => ({}),
     },
 ];
 

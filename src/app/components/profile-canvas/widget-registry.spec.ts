@@ -79,4 +79,8 @@ describe('WIDGET_REGISTRY', () => {
         expect(definitionFor('quote')?.type).toBe('quote');
         expect(definitionFor('from-the-future')).toBeUndefined();
     });
+
+    it('gives the spacer no fields, so it can never grow a properties panel', () => {
+        expect(definitionFor('spacer')?.fields).toEqual([]);
+    });
 });

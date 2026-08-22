@@ -2,12 +2,17 @@ import {describe, expect, it} from 'vitest';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {
     CANVAS_COLUMNS,
+    MAX_SPACERS,
     MAX_WIDGETS,
+    SPACER_TYPE,
+    dropAt,
     emptyCanvas,
+    isSpacer,
     normalise,
     parseConfig,
     reflow,
     snapFootprint,
+    trimTrailingSpacers,
 } from './profile-canvas';
 
 function widget(id: string, over: Partial<CanvasWidgetDto> = {}): CanvasWidgetDto {
@@ -154,6 +159,97 @@ describe('normalise', () => {
 
     it('defaults to four columns', () => {
         expect(normalise(canvas([widget('a', {w: 4})])).widgets[0].w).toBe(CANVAS_COLUMNS);
+    });
+
+    it('caps real widgets and spacers separately', () => {
+        const widgets = [
+            ...Array.from({length: MAX_WIDGETS + 1}, (_, i) => widget(`w${i}`, {w: 1, h: 1})),
+            ...Array.from({length: MAX_SPACERS + 1}, (_, i) =>
+                widget(`s${i}`, {type: SPACER_TYPE, w: 1, h: 1}),
+            ),
+        ];
+        const out = normalise(canvas(widgets)).widgets;
+        expect(out.filter(v => !isSpacer(v))).toHaveLength(MAX_WIDGETS);
+        expect(out.filter(isSpacer)).toHaveLength(MAX_SPACERS);
+    });
+
+    it('drops every spacer below four columns', () => {
+        const widgets = [widget('a', {w: 1, h: 1}), widget('s', {type: SPACER_TYPE, w: 1, h: 1})];
+        const out = normalise(canvas(widgets), 2).widgets;
+        expect(out.filter(isSpacer)).toHaveLength(0);
+        expect(out.filter(v => !isSpacer(v))).toHaveLength(1);
+    });
+});
+
+describe('dropAt', () => {
+    function base(): CanvasWidgetDto[] {
+        return [
+            widget('mar', {type: 'marquee', x: 0, y: 0, w: 4, h: 1}),
+            widget('pho', {type: 'photo', x: 0, y: 1, w: 2, h: 1}),
+        ];
+    }
+
+    it('places a widget exactly where it was dropped', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(out.find(v => v.id === 'pho')).toMatchObject({x: 2, y: 2});
+    });
+
+    it('merges the empty cells before it into the fewest legal spacers', () => {
+        const spacers = dropAt(base(), 'pho', {x: 2, y: 2}, 4).filter(isSpacer);
+        expect(spacers).toHaveLength(2);
+        expect(spacers[0]).toMatchObject({x: 0, y: 1, w: 4, h: 1});
+        expect(spacers[1]).toMatchObject({x: 0, y: 2, w: 2, h: 1});
+    });
+
+    it('covers exactly the empty cells, no more and no fewer', () => {
+        const spacers = dropAt(base(), 'pho', {x: 2, y: 2}, 4).filter(isSpacer);
+        expect(spacers.reduce((n, s) => n + s.w * s.h, 0)).toBe(6);
+    });
+
+    it('adds no spacers when the target is the next free cell', () => {
+        const out = dropAt(base(), 'pho', {x: 0, y: 1}, 4);
+        expect(out.filter(isSpacer)).toHaveLength(0);
+    });
+
+    it('leaves a gapless arrangement, so reflow changes nothing', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(reflow(out, 4)).toEqual(out);
+    });
+
+    it('does not move the widgets it did not drag', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(out.find(v => v.id === 'mar')).toMatchObject({x: 0, y: 0, w: 4, h: 1});
+    });
+
+    it('clamps rather than emitting hundreds of spacers for a far drop', () => {
+        const out = dropAt(base(), 'pho', {x: 0, y: 400}, 4);
+        expect(out.filter(isSpacer).length).toBeLessThanOrEqual(MAX_SPACERS);
+    });
+
+    it('is a no-op when the widget is dropped on its own cell', () => {
+        const start = reflow(base(), 4);
+        const pho = start.find(v => v.id === 'pho')!;
+        expect(dropAt(start, 'pho', {x: pho.x, y: pho.y}, 4)).toEqual(start);
+    });
+});
+
+describe('trimTrailingSpacers', () => {
+    it('drops spacers after the last real widget', () => {
+        const out = trimTrailingSpacers([widget('a', {type: 'quote'}), widget('s', {type: SPACER_TYPE})]);
+        expect(out.map(v => v.id)).toEqual(['a']);
+    });
+
+    it('keeps spacers between real widgets', () => {
+        const out = trimTrailingSpacers([
+            widget('a', {type: 'quote'}),
+            widget('s', {type: SPACER_TYPE}),
+            widget('b', {type: 'quote'}),
+        ]);
+        expect(out.map(v => v.id)).toEqual(['a', 's', 'b']);
+    });
+
+    it('empties a canvas of nothing but spacers', () => {
+        expect(trimTrailingSpacers([widget('s', {type: SPACER_TYPE})])).toEqual([]);
     });
 });
 
