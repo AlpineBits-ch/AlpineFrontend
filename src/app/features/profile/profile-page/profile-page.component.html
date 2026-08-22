@@ -1,36 +1,194 @@
-@if (profile(); as p) {
-    <div class="flex flex-col w-full h-full overflow-y-auto bg-app-bg">
-        <div [style.background]="!bannerUrl() ? bannerFallback() : null" class="relative h-48 sm:h-60 bg-card shrink-0">
-            @if (bannerUrl(); as url) {
-                <img [src]="url" alt="" class="w-full h-full object-cover" />
-            }
-        </div>
+<div class="flex h-full w-full flex-col overflow-hidden bg-app-bg">
+    <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
+        <button
+            (click)="goBack()"
+            class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-sm text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+            data-testid="profile-back"
+            type="button"
+        >
+            <i class="pi pi-arrow-left text-xs"></i>
+            {{ 'COMMON.BACK' | translate }}
+        </button>
+    </header>
 
-        <div class="relative px-6">
-            <div class="absolute -top-12 left-6">
-                <app-avatar [userId]="p.userId" size="xlarge" />
+    <div class="flex-1 overflow-y-auto">
+        @if (profile(); as p) {
+            <div class="flex w-full flex-col">
+                <div [style.background]="!bannerUrl() ? bannerFallback() : null" class="relative h-48 sm:h-60 bg-card shrink-0">
+                    @if (bannerUrl(); as url) {
+                        <img [src]="url" alt="" class="w-full h-full object-cover" />
+                    }
+
+                    <div class="absolute top-3 right-3 flex items-center gap-2">
+                        @if (editing()) {
+                            <div class="flex items-center gap-2 rounded-lg bg-black/60 px-2 py-1.5">
+                                <label class="sr-only" for="profile-accent">{{ 'PROFILE_PAGE.ACCENT_LABEL' | translate }}</label>
+                                <p-colorpicker
+                                    (ngModelChange)="onAccentChange($event)"
+                                    [ngModel]="accentColorHex()"
+                                    appendTo="body"
+                                    format="hex"
+                                    inputId="profile-accent"
+                                />
+                                <label class="sr-only" for="profile-font">{{ 'PROFILE_PAGE.FONT_LABEL' | translate }}</label>
+                                <select
+                                    (ngModelChange)="textDraft.setFont($event)"
+                                    [ngModel]="textDraft.draft()?.font"
+                                    class="cursor-pointer rounded-md border-0 bg-white/10 px-2 py-1 text-xs text-white outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    data-testid="font-select"
+                                    id="profile-font"
+                                >
+                                    @for (option of fontOptions; track option.value) {
+                                        <option [value]="option.value">{{ option.label }}</option>
+                                    }
+                                </select>
+                            </div>
+                            <button
+                                (click)="cancel()"
+                                class="cursor-pointer rounded-lg border-0 bg-black/60 px-3 py-1.5 text-sm text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                data-testid="cancel-edit"
+                                type="button"
+                            >
+                                {{ 'COMMON.CANCEL' | translate }}
+                            </button>
+                            <button
+                                (click)="save()"
+                                [disabled]="canvasStore.saving()"
+                                class="cursor-pointer rounded-lg border-0 bg-brand px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+                                data-testid="save-profile"
+                                type="button"
+                            >
+                                {{ 'COMMON.SAVE' | translate }}
+                            </button>
+                        } @else {
+                            <button
+                                (click)="startEdit()"
+                                class="cursor-pointer rounded-lg border-0 bg-black/60 px-3 py-1.5 text-sm text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                data-testid="edit-profile"
+                                type="button"
+                            >
+                                {{ 'PROFILE_PAGE.EDIT' | translate }}
+                            </button>
+                        }
+                    </div>
+
+                    @if (editing()) {
+                        <input #bannerFileInput (change)="onBannerFileSelected($event)" accept="image/*" class="hidden" type="file" />
+                        <button
+                            (click)="pickBannerFile()"
+                            [attr.aria-label]="'PROFILE_PAGE.CHANGE_BANNER' | translate"
+                            class="absolute bottom-3 right-3 flex cursor-pointer items-center justify-center rounded-lg border-0 bg-black/60 p-2 text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                            data-testid="change-banner"
+                            type="button"
+                        >
+                            <i class="pi pi-camera"></i>
+                        </button>
+                        @if (uploadingBanner()) {
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/50">
+                                <i class="pi pi-spin pi-spinner text-xl text-white"></i>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="relative px-6">
+                    <div class="absolute -top-12 left-6">
+                        <app-avatar [userId]="p.userId" size="xlarge" />
+                        @if (editing()) {
+                            <input #avatarFileInput (change)="onAvatarFileSelected($event)" accept="image/*" class="hidden" type="file" />
+                            <button
+                                (click)="pickAvatarFile()"
+                                [attr.aria-label]="'PROFILE_PAGE.CHANGE_AVATAR' | translate"
+                                class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full border-0 bg-black/0 text-transparent transition-colors hover:bg-black/50 hover:text-white focus-visible:bg-black/50 focus-visible:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                data-testid="change-avatar"
+                                type="button"
+                            >
+                                <i class="pi pi-camera"></i>
+                            </button>
+                            @if (uploadingAvatar()) {
+                                <div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/60">
+                                    <i class="pi pi-spin pi-spinner text-white"></i>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="px-6 pt-14 pb-6 flex flex-col gap-3">
+                    <div>
+                        <h1 class="text-xl font-bold text-text-primary">{{ p.userName }}</h1>
+                        @if (editing()) {
+                            <textarea
+                                (ngModelChange)="textDraft.setBio($event)"
+                                [ngModel]="textDraft.draft()?.bio ?? ''"
+                                [attr.aria-label]="'PROFILE_PAGE.BIO_LABEL' | translate"
+                                class="mt-1 w-full resize-none rounded-lg border border-border bg-app-bg px-3 py-2 text-sm text-text-primary outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                data-testid="bio-field"
+                                placeholder="{{ 'PROFILE_PAGE.BIO_PLACEHOLDER' | translate }}"
+                                rows="2"
+                            ></textarea>
+                        } @else if (p.bio) {
+                            <p class="text-sm text-text-secondary mt-1">{{ p.bio }}</p>
+                        }
+                    </div>
+
+                    @if (canvas(); as arranged) {
+                        <app-profile-canvas [canvas]="arranged" [columns]="4" [owner]="p" />
+                    }
+                </div>
             </div>
-        </div>
 
-        <div class="px-6 pt-14 pb-6 flex flex-col gap-3">
-            <div>
-                <h1 class="text-xl font-bold text-text-primary">{{ p.userName }}</h1>
-                @if (p.bio) {
-                    <p class="text-sm text-text-secondary mt-1">{{ p.bio }}</p>
+            <p-dialog
+                [(visible)]="avatarCropVisible"
+                [draggable]="false"
+                [modal]="true"
+                [resizable]="false"
+                [style]="{width: '380px'}"
+                appendTo="body"
+                header="{{ 'PROFILE_PAGE.CROP_AVATAR' | translate }}"
+            >
+                @if (avatarCropVisible() && avatarCropSrc()) {
+                    <app-image-cropper
+                        (cancelled)="avatarCropVisible.set(false)"
+                        (confirmed)="onAvatarCropConfirmed($event)"
+                        [circular]="true"
+                        [imageSrc]="avatarCropSrc()"
+                        [outputHeight]="400"
+                        [outputWidth]="400"
+                    />
                 }
-            </div>
+            </p-dialog>
 
-            @if (canvas(); as arranged) {
-                <app-profile-canvas [canvas]="arranged" [columns]="4" [owner]="p" />
-            }
-        </div>
+            <p-dialog
+                [(visible)]="bannerCropVisible"
+                [draggable]="false"
+                [modal]="true"
+                [resizable]="false"
+                [style]="{width: '620px'}"
+                appendTo="body"
+                header="{{ 'PROFILE_PAGE.CROP_BANNER' | translate }}"
+            >
+                @if (bannerCropVisible() && bannerCropSrc()) {
+                    <app-image-cropper
+                        (cancelled)="bannerCropVisible.set(false)"
+                        (confirmed)="onBannerCropConfirmed($event)"
+                        [circular]="false"
+                        [imageSrc]="bannerCropSrc()"
+                        [outputHeight]="400"
+                        [outputWidth]="1200"
+                    />
+                }
+            </p-dialog>
+
+            <p-confirmdialog appendTo="body" />
+        } @else {
+            <div class="flex w-full flex-col" role="status">
+                <span class="sr-only">{{ 'COMMON.LOADING' | translate }}</span>
+                <div class="h-48 sm:h-60 bg-card shrink-0 animate-pulse"></div>
+                <div class="px-6 pt-14 pb-6">
+                    <div class="h-5 w-40 rounded-md bg-white/[0.08] animate-pulse"></div>
+                </div>
+            </div>
+        }
     </div>
-} @else {
-    <div class="flex flex-col w-full h-full overflow-y-auto bg-app-bg" role="status">
-        <span class="sr-only">{{ 'COMMON.LOADING' | translate }}</span>
-        <div class="h-48 sm:h-60 bg-card shrink-0 animate-pulse"></div>
-        <div class="px-6 pt-14 pb-6">
-            <div class="h-5 w-40 rounded-md bg-white/[0.08] animate-pulse"></div>
-        </div>
-    </div>
-}
+</div>
