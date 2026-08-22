@@ -150,10 +150,36 @@ function spacer(x: number, y: number, w: number): CanvasWidgetDto {
     };
 }
 
+/** Legal 1-high spacer widths, largest first: the only shapes a row fill ever needs. */
+const ROW_SPACER_WIDTHS = [4, 2, 1];
+
+/** Splits one row-run of empty cells into the fewest legal spacers, largest piece first. */
+function decomposeRun(x: number, y: number, length: number): CanvasWidgetDto[] {
+    const pieces: CanvasWidgetDto[] = [];
+    let rx = x;
+    let remaining = length;
+    while (remaining > 0) {
+        const width = ROW_SPACER_WIDTHS.find(candidate => candidate <= remaining) ?? 1;
+        pieces.push(spacer(rx, y, width));
+        rx += width;
+        remaining -= width;
+    }
+    return pieces;
+}
+
+function occupantAt(rest: CanvasWidgetDto[], x: number, y: number): CanvasWidgetDto | undefined {
+    return rest.find(
+        widget => x >= widget.x && x < widget.x + widget.w && y >= widget.y && y < widget.y + widget.h,
+    );
+}
+
 /**
  * Lifts the dragged widget out, reflows the rest, then walks reading order toward `target`
  * counting unoccupied cells. Those cells become spacers, merged per row into the fewest legal
  * footprints, so the widget lands exactly on the dropped cell and the grid stays gapless.
+ *
+ * The target column is clamped to what the dragged widget's own width allows, not just the grid
+ * width: a 4-wide widget can only ever land at x=0 on a 4-column grid.
  */
 export function dropAt(
     widgets: CanvasWidgetDto[],
@@ -176,8 +202,21 @@ export function dropAt(
         }
     }
 
-    const targetX = Math.min(Math.max(Math.floor(target.x), 0), columns - 1);
+    const draggedWidth = sanitiseDimension(dragged.w, columns);
+    const targetX = Math.min(Math.max(Math.floor(target.x), 0), columns - draggedWidth);
     const targetY = Math.max(Math.floor(target.y), 0);
+
+    // Dropping on a cell that is already covered is a reorder, not a placement: the widget takes
+    // that reading-order slot and everything from there on repacks around it. No spacer represents
+    // "make room among existing content", only "there was nothing here yet".
+    if (taken.has(`${targetX},${targetY}`)) {
+        const occupant = occupantAt(rest, targetX, targetY);
+        if (occupant) {
+            const index = rest.indexOf(occupant);
+            const placed: CanvasWidgetDto = {...dragged, x: occupant.x, y: occupant.y};
+            return reflow([...rest.slice(0, index), placed, ...rest.slice(index)], columns);
+        }
+    }
 
     const spacers: CanvasWidgetDto[] = [];
     let landX = targetX;
@@ -202,15 +241,12 @@ export function dropAt(
                 runEnd++;
             }
 
-            let rx = x;
-            while (rx < runEnd) {
-                const width = runEnd - rx >= 4 ? 4 : runEnd - rx >= 2 ? 2 : 1;
-                spacers.push(spacer(rx, y, width));
-                rx += width;
-
+            for (const piece of decomposeRun(x, y, runEnd - x)) {
+                spacers.push(piece);
                 if (spacers.length >= MAX_SPACERS) {
-                    landX = rx < columns ? rx : 0;
-                    landY = rx < columns ? y : y + 1;
+                    const next = piece.x + piece.w;
+                    landX = next < columns ? next : 0;
+                    landY = next < columns ? y : y + 1;
                     break rows;
                 }
             }

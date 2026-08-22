@@ -231,6 +231,47 @@ describe('dropAt', () => {
         const pho = start.find(v => v.id === 'pho')!;
         expect(dropAt(start, 'pho', {x: pho.x, y: pho.y}, 4)).toEqual(start);
     });
+
+    it('clamps a 4-wide drop to x=0 instead of overflowing the grid', () => {
+        const out = dropAt([widget('z', {type: 'marquee', w: 4, h: 1, x: 0, y: 0})], 'z', {x: 2, y: 0}, 4);
+        expect(out.find(v => v.id === 'z')).toMatchObject({x: 0, y: 0});
+        expect(out.filter(isSpacer)).toHaveLength(0);
+    });
+
+    it('clamps a 2-wide drop at x=3 to x=2', () => {
+        const out = dropAt([widget('p', {type: 'photo', w: 2, h: 1, x: 0, y: 0})], 'p', {x: 3, y: 0}, 4);
+        expect(out.find(v => v.id === 'p')).toMatchObject({x: 2, y: 0});
+    });
+
+    it('covers a contiguous block with no gaps when the dragged width forces a clamp', () => {
+        const out = dropAt([widget('z', {type: 'marquee', w: 4, h: 1, x: 0, y: 0})], 'z', {x: 2, y: 0}, 4);
+        const covered = new Set<string>();
+        for (const v of out) {
+            for (let dy = 0; dy < v.h; dy++) {
+                for (let dx = 0; dx < v.w; dx++) covered.add(`${v.x + dx},${v.y + dy}`);
+            }
+        }
+        const last = out[out.length - 1];
+        const lastCell = last.y * 4 + (last.x + last.w - 1);
+        for (let i = 0; i <= lastCell; i++) {
+            expect(covered.has(`${i % 4},${Math.floor(i / 4)}`), `cell index ${i}`).toBe(true);
+        }
+    });
+
+    it('reorders instead of overflowing when the target cell is already occupied', () => {
+        const widgets = [
+            widget('a', {type: 'quote', x: 0, y: 0, w: 2, h: 1}),
+            widget('b', {type: 'quote', x: 2, y: 0, w: 2, h: 1}),
+        ];
+        const out = dropAt(widgets, 'b', {x: 0, y: 0}, 4);
+        expect(out.filter(isSpacer)).toHaveLength(0);
+        expect(out.map(v => v.id)).toEqual(['b', 'a']);
+    });
+
+    it('still emits spacers when the target is beyond the content', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(out.filter(isSpacer).length).toBeGreaterThan(0);
+    });
 });
 
 describe('trimTrailingSpacers', () => {

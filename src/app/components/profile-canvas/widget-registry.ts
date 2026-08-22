@@ -205,6 +205,8 @@ export const WIDGET_REGISTRY: readonly WidgetDefinition[] = [
         defaultConfig: () => ({items: []}),
     },
     {
+        // TODO(task 5, anchored widget editor): selection currently has to infer "not
+        // selectable" from fields.length === 0. Decide there whether that needs its own flag.
         type: 'spacer',
         component: SpacerWidgetComponent,
         footprints: [
