@@ -83,50 +83,92 @@ Read spec section 2b of the canvas design first. It defines the whole mechanic.
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `profile-canvas.spec.ts`. These are the behaviours, written as assertions:
+Add to `profile-canvas.spec.ts`, reusing the `widget()` factory already in that file. The expected
+values below were derived by running the algorithm; they are correct, do not adjust them to match
+whatever your implementation happens to produce.
+
+The shared fixture is one `4x1` marquee at row 0 and a `2x1` photo being dragged to cell `(2, 2)`.
+Six cells are empty before that target: all four of row 1, and cells 0 and 1 of row 2.
 
 ```ts
 describe('dropAt', () => {
+    function base(): CanvasWidgetDto[] {
+        return [
+            widget('mar', {type: 'marquee', x: 0, y: 0, w: 4, h: 1}),
+            widget('pho', {type: 'photo', x: 0, y: 1, w: 2, h: 1}),
+        ];
+    }
+
     it('places a widget exactly where it was dropped', () => {
-        // one 4x1 at row 0; drop a 2x1 at cell (2, 2)
-        // expect the dropped widget at x 2, y 2
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(out.find(v => v.id === 'pho')).toMatchObject({x: 2, y: 2});
     });
 
-    it('fills the cells before it with spacers', () => {
-        // same setup: 6 cells are empty before (2,2)
-        // expect spacers covering exactly those 6 cells, no more, no fewer
+    it('merges the empty cells before it into the fewest legal spacers', () => {
+        const spacers = dropAt(base(), 'pho', {x: 2, y: 2}, 4).filter(isSpacer);
+        expect(spacers).toHaveLength(2);
+        expect(spacers[0]).toMatchObject({x: 0, y: 1, w: 4, h: 1});
+        expect(spacers[1]).toMatchObject({x: 0, y: 2, w: 2, h: 1});
     });
 
-    it('merges a run of empty cells in one row into the largest legal footprint', () => {
-        // 6 empty cells across a full row and half the next
-        // expect 2 spacers, a 4x1 and a 2x1, not 6 of 1x1
+    it('covers exactly the empty cells, no more and no fewer', () => {
+        const spacers = dropAt(base(), 'pho', {x: 2, y: 2}, 4).filter(isSpacer);
+        expect(spacers.reduce((n, s) => n + s.w * s.h, 0)).toBe(6);
     });
 
-    it('adds no spacers when the drop target is the next free cell', () => {
-        // dropping immediately after the content needs no filler
+    it('adds no spacers when the target is the next free cell', () => {
+        const out = dropAt(base(), 'pho', {x: 0, y: 1}, 4);
+        expect(out.filter(isSpacer)).toHaveLength(0);
     });
 
-    it('leaves a gapless arrangement, so reflow is a no-op afterwards', () => {
-        // reflow(result) deep-equals result
+    it('leaves a gapless arrangement, so reflow changes nothing', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(reflow(out, 4)).toEqual(out);
     });
 
-    it('does not move the other widgets', () => {
-        // every widget that was not dragged keeps its position
+    it('does not move the widgets it did not drag', () => {
+        const out = dropAt(base(), 'pho', {x: 2, y: 2}, 4);
+        expect(out.find(v => v.id === 'mar')).toMatchObject({x: 0, y: 0, w: 4, h: 1});
     });
 
-    it('refuses to exceed MAX_SPACERS', () => {
-        // a drop far below the content is clamped rather than emitting hundreds
+    it('clamps rather than emitting hundreds of spacers for a far drop', () => {
+        const out = dropAt(base(), 'pho', {x: 0, y: 400}, 4);
+        expect(out.filter(isSpacer).length).toBeLessThanOrEqual(MAX_SPACERS);
+    });
+
+    it('is a no-op when the widget is dropped on its own cell', () => {
+        const start = reflow(base(), 4);
+        const pho = start.find(v => v.id === 'pho')!;
+        expect(dropAt(start, 'pho', {x: pho.x, y: pho.y}, 4)).toEqual(start);
     });
 });
 
 describe('trimTrailingSpacers', () => {
-    it('drops spacers after the last real widget', () => {});
-    it('keeps spacers between real widgets', () => {});
-    it('returns an empty array for a canvas of only spacers', () => {});
+    it('drops spacers after the last real widget', () => {
+        const out = trimTrailingSpacers([
+            widget('a', {type: 'quote'}),
+            widget('s', {type: SPACER_TYPE}),
+        ]);
+        expect(out.map(v => v.id)).toEqual(['a']);
+    });
+
+    it('keeps spacers between real widgets', () => {
+        const out = trimTrailingSpacers([
+            widget('a', {type: 'quote'}),
+            widget('s', {type: SPACER_TYPE}),
+            widget('b', {type: 'quote'}),
+        ]);
+        expect(out.map(v => v.id)).toEqual(['a', 's', 'b']);
+    });
+
+    it('empties a canvas of nothing but spacers', () => {
+        expect(trimTrailingSpacers([widget('s', {type: SPACER_TYPE})])).toEqual([]);
+    });
 });
 ```
 
-Fill each body in. Every one must fail before the implementation exists.
+Every one must fail before the implementation exists. If `widget()` does not accept a `type`
+override, widen it rather than writing a second factory.
 
 - [ ] **Step 2: Run them and watch them fail**
 
