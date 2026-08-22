@@ -1,7 +1,7 @@
 # Profile page
 
 Your profile becomes a page you visit and edit on the thing itself. Everything about how you look
-moves off the settings form: banner, avatar, name, bio, accent, font and the canvas.
+moves off the settings form: banner, avatar, bio, accent, font and the canvas.
 Settings keeps account and security.
 
 Companion to `2026-08-22-profile-canvas-design.md`, which owns the canvas model, the layout engine,
@@ -23,7 +23,7 @@ a different hat.
 
 | Question | Answer |
 | --- | --- |
-| What moves | Banner, avatar, name, bio, accent, font, canvas |
+| What moves | Banner, avatar, bio, accent, font, canvas |
 | What stays in settings | Account, Connections, Sessions, Change Password, Danger Zone |
 | Edit model | Explicit mode. View, then Edit, then Save or Cancel |
 | Widget editing | Anchored to the selected tile, not a side panel |
@@ -43,7 +43,7 @@ canvas at four columns through the same `ProfileCanvasComponent` every other sur
 button.
 
 **Editing** turns the same layout into a workshop in place. Nothing reflows into a form. Banner and
-avatar gain a change affordance, name and bio become fields where they already sit, and the
+avatar gain a change affordance, bio becomes a field where it already sits, and the
 grid becomes draggable. Save and Cancel replace Edit.
 
 The identity strip stays fixed relative to the canvas in both states, the way the canvas spec
@@ -88,7 +88,7 @@ checkable, and it is the reason to build it rather than a flourish.
 | --- | --- | --- |
 | Banner | Settings section, file input, crop dialog | Click the banner itself, same crop dialog |
 | Avatar | Settings section, file input, crop dialog | Click the avatar itself, same crop dialog |
-| Display name | Settings text input | Inline field where the name is drawn |
+| Display name | Settings input, DISABLED, "coming soon" | Plain text. Not editable, see below |
 | Bio | Settings textarea | Inline field where the bio is drawn |
 | Accent | Settings colour picker | Edit-mode control in the page header |
 | Font | Settings select | Edit-mode control in the page header |
@@ -109,7 +109,7 @@ Unchanged from the canvas spec, and worth restating because the page changes wha
 | The saved canvas | `ProfileCanvasStore` |
 | The unsaved canvas draft | `CanvasEditorService` |
 | The profile row | `ProfileService.ownProfile` |
-| Unsaved name, bio, accent, font | The page component, a signal per field |
+| Unsaved bio, accent, font | Must survive navigation, like the canvas draft |
 | Which widget is selected, which viewer is previewed | The page component |
 
 ### The trap this page makes worse
@@ -157,12 +157,24 @@ which is what made the mount untested last time. The page gets one.
 
 ## 8. Out of scope
 
-- **Pronouns.** Earlier drafts of this spec listed them, and the mockups showed them. They do not
-  exist. `ProfileDto` has no `pronouns` field; the only `pronouns` in the codebase belongs to
-  personas, the roleplay characters, which is where the idea was pattern-matched from. Adding one to
-  an account needs a column, a DTO field and PATCH support, which is backend work this spec
-  explicitly does not take on. Worth doing as its own piece; rendering a field with no data source
-  is worse than not having it.
+Two fields this spec originally claimed were moving turn out not to be editable at all. Both were
+written from reading the settings page's section headings rather than checking what each control
+actually does. The page renders both as plain text.
+
+- **Pronouns.** Earlier drafts listed them and the mockups showed them. They do not exist.
+  `ProfileDto` has no `pronouns` field; the only `pronouns` in the codebase belongs to personas, the
+  roleplay characters, which is where the idea was pattern-matched from.
+- **Display name.** The settings control for it is `disabled` and captioned "coming soon", and
+  `ProfileService.updateProfile` accepts only `{bio, accentColor, font}`. There is no write path.
+  Moving a disabled input to a new page would just relocate a promise nobody can keep.
+
+Both need a column, a DTO field and PATCH support, which is backend work this spec explicitly does
+not take on. Each is worth doing as its own small piece. Rendering a field with no data source is
+worse than not having it: it invites either silent data loss on save, or invented UI that blocks
+save for a reason the user cannot act on.
+
+What IS editable on this page, and all of it verified against a real write path: bio, accent colour
+and font through `updateProfile`, plus avatar and banner through `uploadAvatar` and `uploadBanner`.
 - Editing anyone else's profile, obviously.
 - A public web view of a profile.
 - Themes and backdrops. That is the canvas spec's phase for it, and it lands as an edit-mode control

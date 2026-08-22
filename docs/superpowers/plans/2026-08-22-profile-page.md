@@ -356,7 +356,7 @@ Banner, avatar, name, bio, then `<app-profile-canvas [columns]="4">`. Call `Prof
 
 - [ ] **Step 2: Implement**
 
-`editing = signal(false)`. In edit mode the banner and avatar gain a change affordance opening the existing crop dialogs unchanged, and name and bio become inline fields backed by a signal each.
+`editing = signal(false)`. In edit mode the banner and avatar gain a change affordance opening the existing crop dialogs unchanged, and bio becomes an inline field.
 
 Save writes the profile fields through `ProfileService.updateProfile` and the canvas through `ProfileCanvasStore.save`, then calls `CanvasEditorService.begin(saved)` so the draft goes clean. Note this is exactly the write that triggers the trap: `updateProfile` replaces `ownProfile`, so the id-keyed effect must not re-begin.
 
