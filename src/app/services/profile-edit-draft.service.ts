@@ -40,12 +40,6 @@ export class ProfileEditDraftService {
         this.baseline.set(fields);
     }
 
-    /** No caller since autosave replaced the Save/Cancel boundary. Kept for undo. */
-    discard(): void {
-        const baseline = this.baseline();
-        if (baseline) this.current.set(baseline);
-    }
-
     setBio(bio: string): void {
         const current = this.current();
         if (current) this.current.set({...current, bio});

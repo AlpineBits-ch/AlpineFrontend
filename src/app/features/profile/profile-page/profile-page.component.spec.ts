@@ -5,12 +5,13 @@ import {Router} from '@angular/router';
 import {provideTranslateService} from '@ngx-translate/core';
 import {ConfirmationService, MessageService} from 'primeng/api';
 import {Select} from 'primeng/select';
-import {Observable, of, Subject, throwError} from 'rxjs';
+import {finalize, Observable, of, Subject, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {ProfilePageComponent} from './profile-page.component';
 import {ProfileService} from '../../../services/profile.service';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileEditDraftService} from '../../../services/profile-edit-draft.service';
+import {ProfileEditHistoryService} from '../../../services/profile-edit-history.service';
 import {ProfileCanvasStore} from '../../../stores/profile-canvas.store';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
@@ -44,6 +45,9 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
     const saveCanvasCalls: unknown[] = [];
     const navigateCalls: unknown[] = [];
     const removeAvatarCalls: unknown[] = [];
+    // A real signal, toggled by the mocked save() itself, so the single-flight guard
+    // (`!canvasStore.saving()`) is exercised for real rather than always reading false.
+    const canvasSaving = signal(false);
 
     TestBed.configureTestingModule({
         imports: [ProfilePageComponent],
@@ -79,11 +83,12 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
                 useValue: {
                     canvasFor: () => undefined,
                     ensureLoaded: (id: string) => ensureLoadedCalls.push(id),
-                    saving: signal(false),
+                    saving: canvasSaving,
                     save: (canvas: unknown) => {
                         saveCanvasCalls.push(canvas);
-                        if (overrides.saveCanvas) return overrides.saveCanvas(canvas);
-                        return of(canvas);
+                        canvasSaving.set(true);
+                        const response = overrides.saveCanvas ? overrides.saveCanvas(canvas) : of(canvas);
+                        return response.pipe(finalize(() => canvasSaving.set(false)));
                     },
                 },
             },
@@ -98,6 +103,7 @@ function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
         ownProfile,
         editor: TestBed.inject(CanvasEditorService),
         textDraft: TestBed.inject(ProfileEditDraftService),
+        history: TestBed.inject(ProfileEditHistoryService),
         ensureLoadedCalls,
         updateProfileCalls,
         saveCanvasCalls,
@@ -371,6 +377,63 @@ describe('ProfilePageComponent', () => {
             expect(status(fixture)).toBe('error');
         });
 
+        it('a failed text autosave toasts, not just the status pill', async () => {
+            vi.useFakeTimers();
+            const addSpy = vi.spyOn(MessageService.prototype, 'add');
+            addSpy.mockClear();
+            const {fixture} = setup(OWN, {updateProfile: () => throwError(() => new Error('refused'))});
+
+            typeBio(fixture, 'x');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(addSpy).toHaveBeenCalledOnce();
+            expect(addSpy.mock.calls[0][0]).toMatchObject({severity: 'error'});
+        });
+
+        it('a failed canvas autosave toasts too', () => {
+            const addSpy = vi.spyOn(MessageService.prototype, 'add');
+            addSpy.mockClear();
+            const {fixture, editor} = setup(OWN, {saveCanvas: () => throwError(() => new Error('refused'))});
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+
+            expect(addSpy).toHaveBeenCalledOnce();
+            expect(addSpy.mock.calls[0][0]).toMatchObject({severity: 'error'});
+        });
+
+        // C1: ProfileCanvasStore.save() calls stopSaving() on every exit path, failure included,
+        // so `saving()` alone re-arms the effect on a rejected payload just as it would after a
+        // success. Without the latch this resends the identical payload forever.
+        it('a failing canvas save does not retry forever', () => {
+            const {fixture, editor, saveCanvasCalls} = setup(OWN, {
+                saveCanvas: () => throwError(() => new Error('refused')),
+            });
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+
+            expect(saveCanvasCalls).toHaveLength(1);
+            expect(editor.dirty()).toBe(true);
+        });
+
+        it('a genuinely new edit after a latched canvas failure is attempted, unlike a retry of the same one', () => {
+            let fail = true;
+            const {fixture, editor, saveCanvasCalls} = setup(OWN, {
+                saveCanvas: (canvas: unknown) => (fail ? throwError(() => new Error('refused')) : of(canvas)),
+            });
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+            expect(saveCanvasCalls).toHaveLength(1);
+
+            fail = false;
+            editor.insert('quote');
+            fixture.detectChanges();
+
+            expect(saveCanvasCalls).toHaveLength(2);
+        });
+
         it('destroying the page flushes a bio edit the debounce has not fired yet', () => {
             const {fixture, updateProfileCalls} = setup(OWN);
 
@@ -384,18 +447,39 @@ describe('ProfilePageComponent', () => {
             ]);
         });
 
-        it('destroying the page flushes a canvas edit the effect has not caught up with', () => {
-            const {fixture, editor, saveCanvasCalls} = setup(OWN);
+        // C2: flushText() does not re-baseline until its response returns, so dirty() alone stays
+        // true for the whole round trip. Without an in-flight guard on this branch too, pressing
+        // Back while request A is still open fires an identical request B.
+        it('destroying the page does not duplicate a text write already in flight', async () => {
+            vi.useFakeTimers();
+            const response = new Subject<ProfileDto>();
+            const {fixture, updateProfileCalls} = setup(OWN, {updateProfile: () => response});
 
-            editor.insert('marquee');
-            fixture.detectChanges();
+            typeBio(fixture, 'first');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            expect(updateProfileCalls).toHaveLength(1);
 
-            expect(saveCanvasCalls.length).toBeGreaterThan(0);
             fixture.destroy();
 
-            // Already clean by the time destroy runs, since the mock resolves synchronously;
-            // the guard is that destroy never throws and never double-sends once clean.
-            expect(editor.dirty()).toBe(false);
+            expect(updateProfileCalls).toHaveLength(1);
+        });
+
+        // C3: with a synchronously-resolving mock, the reactive effect's own save already
+        // re-baselines the draft before destroy runs, so the destroy-side flush never has
+        // anything to do and the test proved nothing. Holding the response open, and never
+        // giving the reactive effect a `detectChanges()` to run on, is what makes the edit
+        // genuinely still pending when destroy fires - the destroy flush is the only thing that
+        // can send it, and this fails if that branch is removed.
+        it('destroying the page flushes a canvas edit the effect has not caught up with', () => {
+            const saveResponse = new Subject<unknown>();
+            const {fixture, editor, saveCanvasCalls} = setup(OWN, {saveCanvas: () => saveResponse});
+
+            editor.insert('marquee');
+            expect(saveCanvasCalls).toHaveLength(0);
+
+            fixture.destroy();
+
+            expect(saveCanvasCalls).toHaveLength(1);
         });
 
         // Section 5's trap, autosave edition: updateProfile() re-baselines textDraft on success,
@@ -497,5 +581,176 @@ describe('ProfilePageComponent', () => {
 
         expect(editor.draft()!.widgets).toHaveLength(0);
         expect(popover(fixture)).toBeNull();
+    });
+
+    // ── Undo and redo ────────────────────────────────────────────────────────
+
+    function onKeydown(fixture: ComponentFixture<ProfilePageComponent>, event: Partial<KeyboardEvent>): void {
+        (fixture.componentInstance as unknown as {onKeydown: (e: KeyboardEvent) => void}).onKeydown(
+            event as KeyboardEvent,
+        );
+    }
+
+    describe('undo and redo', () => {
+        afterEach(() => vi.useRealTimers());
+
+        it('starts with nothing to undo', () => {
+            const {fixture} = setup(OWN);
+            expect(fixture.nativeElement.querySelector('[data-testid="undo-button"]')!.disabled).toBe(true);
+        });
+
+        it('a burst of typing coalesces into one undo entry, and undo restores the pre-burst bio', async () => {
+            vi.useFakeTimers();
+            const {fixture, history, textDraft} = setup(OWN);
+
+            for (const value of ['a', 'ab', 'abc']) typeBio(fixture, value);
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+            expect(history.canUndo()).toBe(true);
+
+            click(fixture, 'undo-button');
+
+            // The draft, not the rendered textarea: ngModel's own dirty-check against a fake-timer
+            // clock is a separate concern from whether undo restored the right value.
+            expect(textDraft.draft()?.bio).toBe('');
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('undo restores a canvas move', () => {
+            const {fixture, editor} = setup(OWN);
+
+            editor.insert('quote');
+            editor.insert('photo');
+            fixture.detectChanges();
+            const [first, second] = editor.draft()!.widgets;
+
+            editor.move(second.id, -1);
+            fixture.detectChanges();
+            expect(editor.draft()!.widgets.map(w => w.id)).toEqual([second.id, first.id]);
+
+            click(fixture, 'undo-button');
+
+            expect(editor.draft()!.widgets.map(w => w.id)).toEqual([first.id, second.id]);
+        });
+
+        it('undo writes: the restored bio autosaves like any other edit', async () => {
+            vi.useFakeTimers();
+            const {fixture, updateProfileCalls} = setup(OWN);
+
+            typeBio(fixture, 'oops');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+            expect(updateProfileCalls).toEqual([{bio: 'oops', accentColor: OWN.accentColor, font: OWN.font}]);
+
+            click(fixture, 'undo-button');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(updateProfileCalls).toEqual([
+                {bio: 'oops', accentColor: OWN.accentColor, font: OWN.font},
+                {bio: '', accentColor: OWN.accentColor, font: OWN.font},
+            ]);
+        });
+
+        it('redo replays what undo just reversed', async () => {
+            vi.useFakeTimers();
+            const {fixture, textDraft} = setup(OWN);
+
+            typeBio(fixture, 'oops');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            click(fixture, 'undo-button');
+            expect(textDraft.draft()?.bio).toBe('');
+
+            click(fixture, 'redo-button');
+            expect(textDraft.draft()?.bio).toBe('oops');
+        });
+
+        it('names the action rather than leaving Undo generic', async () => {
+            vi.useFakeTimers();
+            const {fixture} = setup(OWN);
+            const component = fixture.componentInstance as unknown as {undoLabel: () => string};
+
+            expect(component.undoLabel()).toBe('');
+
+            typeBio(fixture, 'oops');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            expect(component.undoLabel()).not.toBe('');
+        });
+
+        it('Ctrl+Z while a text field is focused does not trigger undo, so the browser keeps its own text undo', async () => {
+            vi.useFakeTimers();
+            const {fixture, textDraft} = setup(OWN);
+
+            typeBio(fixture, 'a');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            const preventDefault = vi.fn();
+            onKeydown(fixture, {ctrlKey: true, key: 'z', target: bioField(fixture), preventDefault});
+
+            expect(preventDefault).not.toHaveBeenCalled();
+            expect(textDraft.draft()?.bio).toBe('a');
+        });
+
+        it('Ctrl+Z outside a text field undoes, and Ctrl+Shift+Z redoes', async () => {
+            vi.useFakeTimers();
+            const {fixture, textDraft} = setup(OWN);
+
+            typeBio(fixture, 'a');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            onKeydown(fixture, {
+                ctrlKey: true,
+                key: 'z',
+                target: fixture.nativeElement,
+                preventDefault: () => undefined,
+            });
+            expect(textDraft.draft()?.bio).toBe('');
+
+            onKeydown(fixture, {
+                ctrlKey: true,
+                shiftKey: true,
+                key: 'z',
+                target: fixture.nativeElement,
+                preventDefault: () => undefined,
+            });
+            expect(textDraft.draft()?.bio).toBe('a');
+        });
+
+        // Section 5's trap, undo edition: undo's own write goes out, its response replaces
+        // ownProfile with a fresh object at the same id, and the mount effect runs again on it.
+        it('the trap: an autosave response from an undo does not clobber the redo stack or the undone value', async () => {
+            vi.useFakeTimers();
+            const {fixture, ownProfile, textDraft, history} = setup(OWN, {
+                updateProfile: (patch: unknown) => {
+                    // Exactly what the real ProfileService.updateProfile does: replaces ownProfile
+                    // with a fresh object at the same id.
+                    const saved = {...ownProfile(), ...(patch as object)} as ProfileDto;
+                    ownProfile.set(saved);
+                    return of(saved);
+                },
+            });
+
+            typeBio(fixture, 'oops');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+            expect(textDraft.draft()?.bio).toBe('oops');
+
+            click(fixture, 'undo-button');
+            expect(textDraft.draft()?.bio).toBe('');
+
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            expect(textDraft.draft()?.bio).toBe('');
+            expect(history.canRedo()).toBe(true);
+
+            click(fixture, 'redo-button');
+            expect(textDraft.draft()?.bio).toBe('oops');
+        });
     });
 });
