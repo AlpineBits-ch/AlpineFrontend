@@ -1,0 +1,185 @@
+<div class="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
+    @for (field of fields(); track field.key) {
+        <div class="flex flex-col gap-1.5" data-testid="field">
+            <label [for]="fieldId(field)" class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+                {{ field.labelKey | translate }}
+            </label>
+
+            @switch (field.kind) {
+                @case ('textarea') {
+                    <textarea
+                        (input)="setText(field, $event)"
+                        [attr.maxlength]="field.maxLength"
+                        [id]="fieldId(field)"
+                        [value]="valueOf(field)"
+                        class="thin-scrollbar min-h-20 rounded-lg border border-border bg-app-bg p-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    ></textarea>
+                }
+                @case ('timezone') {
+                    @if (timeZonePickerAvailable) {
+                        <p-select
+                            (ngModelChange)="setTimeZone(field, $event)"
+                            [filter]="true"
+                            [inputId]="fieldId(field)"
+                            [ngModel]="valueOf(field)"
+                            [options]="timeZoneOptions()"
+                            appendTo="body"
+                            optionLabel="label"
+                            optionValue="value"
+                            styleClass="w-full"
+                        />
+                    } @else {
+                        <input
+                            (input)="setText(field, $event)"
+                            [id]="fieldId(field)"
+                            [value]="valueOf(field)"
+                            class="rounded-lg border border-border bg-app-bg px-2 py-1.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                            type="text"
+                        />
+                    }
+                }
+                @case ('rows') {
+                    <div class="flex flex-col gap-2" role="group">
+                        @for (row of rowsOf(field); track $index) {
+                            <div class="flex items-center gap-1.5">
+                                @for (column of field.columns; track column.key) {
+                                    <input
+                                        (input)="setCell(field, $index, column.key, $event)"
+                                        [attr.aria-label]="column.labelKey | translate"
+                                        [attr.maxlength]="column.maxLength"
+                                        [placeholder]="column.labelKey | translate"
+                                        [value]="row[column.key]"
+                                        class="min-w-0 flex-1 rounded-lg border border-border bg-app-bg px-2 py-1.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    />
+                                }
+                                <button
+                                    (click)="removeRow(field, $index)"
+                                    [attr.aria-label]="'PROFILE.CANVAS.EDITOR.REMOVE_ROW' | translate"
+                                    class="cursor-pointer rounded border-0 bg-transparent p-1 text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    type="button"
+                                >
+                                    <i class="pi pi-times"></i>
+                                </button>
+                            </div>
+                        }
+                        <button
+                            (click)="addRow(field)"
+                            [disabled]="rowsOf(field).length >= field.max"
+                            class="cursor-pointer self-start rounded-lg border border-border bg-transparent px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+                            type="button"
+                        >
+                            {{ 'PROFILE.CANVAS.EDITOR.ADD_ROW' | translate }}
+                        </button>
+                    </div>
+                }
+                @case ('image') {
+                    <div class="flex flex-col gap-2">
+                        @if (valueOf(field); as imageId) {
+                            <img [alt]="field.labelKey | translate" [src]="imageUrl(imageId)" class="h-24 w-full rounded-lg object-cover" />
+                        }
+                        <input
+                            (change)="upload(field, $event)"
+                            [id]="fieldId(field)"
+                            accept="image/*"
+                            class="text-sm text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                            type="file"
+                        />
+                    </div>
+                }
+                @case ('images') {
+                    <div class="flex flex-col gap-2">
+                        @if (imagesOf(field).length > 0) {
+                            <div class="flex flex-wrap gap-2">
+                                @for (item of imagesOf(field); track item.imageId + $index) {
+                                    <div class="relative">
+                                        <img [alt]="item.alt" [src]="imageUrl(item.imageId)" class="h-16 w-16 rounded-lg object-cover" />
+                                        <button
+                                            (click)="removeImage(field, $index)"
+                                            [attr.aria-label]="'PROFILE.CANVAS.EDITOR.REMOVE_ROW' | translate"
+                                            class="absolute -right-1 -top-1 flex size-5 cursor-pointer items-center justify-center rounded-full border-0 bg-card text-xs text-text-muted transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                            type="button"
+                                        >
+                                            <i class="pi pi-times"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <input
+                            (change)="upload(field, $event)"
+                            [disabled]="imagesOf(field).length >= field.max"
+                            [id]="fieldId(field)"
+                            accept="image/*"
+                            class="text-sm text-text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                            type="file"
+                        />
+                    </div>
+                }
+                @default {
+                    <input
+                        (input)="setText(field, $event)"
+                        [attr.maxlength]="field.maxLength"
+                        [id]="fieldId(field)"
+                        [value]="valueOf(field)"
+                        class="rounded-lg border border-border bg-app-bg px-2 py-1.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                        type="text"
+                    />
+                }
+            }
+        </div>
+    }
+
+    @if (uploadFailed()) {
+        <p class="text-xs text-offline">{{ 'PROFILE.CANVAS.EDITOR.UPLOAD_FAILED' | translate }}</p>
+    }
+
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+            {{ 'PROFILE.CANVAS.EDITOR.SIZE' | translate }}
+        </span>
+        <div class="flex flex-wrap gap-1.5">
+            @for (footprint of footprints(); track footprint.w + 'x' + footprint.h) {
+                <button
+                    (click)="resize(footprint)"
+                    [attr.aria-pressed]="widget().w === footprint.w && widget().h === footprint.h"
+                    [class.border-brand]="widget().w === footprint.w && widget().h === footprint.h"
+                    class="cursor-pointer rounded-lg border border-border bg-app-bg px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    data-testid="footprint"
+                    type="button"
+                >
+                    {{ footprint.w }} &times; {{ footprint.h }}
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-text-muted">
+            {{ 'PROFILE.CANVAS.EDITOR.VISIBILITY' | translate }}
+        </span>
+        <div class="flex flex-wrap gap-1.5">
+            @for (visibility of visibilities; track visibility) {
+                <button
+                    (click)="setVisibility(visibility)"
+                    [attr.aria-pressed]="widget().visibility === visibility"
+                    [class.border-brand]="widget().visibility === visibility"
+                    class="cursor-pointer rounded-lg border border-border bg-app-bg px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    data-testid="visibility"
+                    type="button"
+                >
+                    {{ visibilityKey(visibility) | translate }}
+                </button>
+            }
+        </div>
+    </div>
+
+    <label class="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+        <input
+            (change)="toggleCard()"
+            [checked]="widget().card"
+            class="focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+            type="checkbox"
+        />
+        {{ 'PROFILE.CANVAS.EDITOR.CARD' | translate }}
+    </label>
+</div>
