@@ -311,6 +311,28 @@ because `register()` deletes the device identifier before its own retry and `run
 re-entered by both `relaunchOnSessionTakeover` and `retryUnlock()`. The modal had been an
 accidental mutex.
 
+## Getting out of a refused setup
+
+The takeover is `fixed inset-0` with no close affordance, so a setup that cannot succeed would
+otherwise lock the account out of the client behind a retry button that provably cannot work. The
+dialog this replaces had the same dead end.
+
+`isRetryableFailure` in `master-key-setup.service.ts` splits the two cases. A 4xx or a
+`MasterKeyEngineError` is permanent: a 400 about envelope shape is deterministic for that account,
+and a device that cannot prepare keys will not start being able to. Status 0, 5xx and anything
+unrecognised are retryable, capped at two retries. The cap carries as much weight as the split: a
+server that 500s persistently locks the account out just as thoroughly, only slower.
+
+A permanent failure drops the retry button entirely and offers an exit. Exiting discards the code
+and says so, because leaving someone believing they hold a working recovery code fails silently
+until a restore, which is worse than the lockout.
+
+`abandon()` answers per waiter rather than per run, and that distinction is load-bearing. A run the
+launch sequence opened resolves true, so failing to write a key does not cost the user the client.
+A run `SocialKeyGateService.require()` opened resolves false, so the gated action does nothing at
+all: no partial write, no local echo. `isSatisfied()` stays false either way, so the next encrypted
+action asks again, which is what the copy promises.
+
 ## Known defects this does not fix
 
 Found while extracting, all pre-existing, all now pinned by characterization tests:
