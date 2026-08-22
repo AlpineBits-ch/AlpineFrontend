@@ -99,7 +99,7 @@ export class WidgetPropertiesComponent {
 
     protected setText(field: WidgetField, event: Event): void {
         const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
-        this.editorSvc.patchConfig(this.widget().id, {[field.key]: value});
+        this.editorSvc.patchConfigText(this.widget().id, field.key, {[field.key]: value});
     }
 
     protected setTimeZone(field: WidgetField, value: string): void {
@@ -120,7 +120,7 @@ export class WidgetPropertiesComponent {
     protected setCell(field: WidgetField, index: number, key: string, event: Event): void {
         const value = (event.target as HTMLInputElement).value;
         const rows = this.rowsOf(field).map((row, i) => (i === index ? {...row, [key]: value} : row));
-        this.editorSvc.patchConfig(this.widget().id, {[field.key]: rows});
+        this.editorSvc.patchConfigText(this.widget().id, field.key, {[field.key]: rows});
     }
 
     protected removeImage(field: WidgetField, index: number): void {

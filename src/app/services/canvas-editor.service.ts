@@ -11,6 +11,7 @@ import {
     snapFootprint,
 } from '../models/profile-canvas';
 import {CanvasHistoryKind, ProfileEditHistoryService} from './profile-edit-history.service';
+import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
 
 /** Unique enough for a draft; the server assigns the real id on save. */
 function draftId(): string {
@@ -25,6 +26,11 @@ export class CanvasEditorService {
     private readonly baseline = signal<string>('');
     private readonly current = signal<ProfileCanvasDto | null>(null);
 
+    /** Keyed on `${widgetId}:${fieldKey}`; the widgets array as it stood before the first
+     * keystroke of the burst still in progress for that field. */
+    private readonly pendingConfigText = new Map<string, {widgetType: string; before: CanvasWidgetDto[]}>();
+    private readonly configTextTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
     readonly draft = this.current.asReadonly();
 
     readonly dirty = computed(() => {
@@ -36,12 +42,9 @@ export class CanvasEditorService {
         const packed = normalise(canvas);
         this.current.set(packed);
         this.baseline.set(JSON.stringify(packed.widgets));
-    }
-
-    /** Reverts every widget to the last-saved baseline in one step. */
-    discard(): void {
-        if (!this.current()) return;
-        this.write(JSON.parse(this.baseline()) as CanvasWidgetDto[]);
+        for (const timer of this.configTextTimers.values()) clearTimeout(timer);
+        this.configTextTimers.clear();
+        this.pendingConfigText.clear();
     }
 
     /** Lands a widgets array from a history entry. Unlike every method below, this never
@@ -142,6 +145,45 @@ export class CanvasEditorService {
         this.patch(id, 'config', widget => ({
             config: {...(widget.config as Record<string, unknown>), ...patch},
         }));
+    }
+
+    /** For a config field driven by typing rather than a discrete choice. Applies every
+     * keystroke to the draft immediately, same as `patchConfig`, but defers the history push:
+     * the widgets array from before the burst's first keystroke is the `before` a later,
+     * unrelated pause commits against, the same first-write-wins latch `ProfileEditHistoryService`
+     * uses for the bio. */
+    patchConfigText(id: string, fieldKey: string, patch: Record<string, unknown>): void {
+        const canvas = this.current();
+        const widget = canvas?.widgets.find(w => w.id === id);
+        if (!canvas || !widget) return;
+
+        const key = `${id}:${fieldKey}`;
+        if (!this.pendingConfigText.has(key)) {
+            this.pendingConfigText.set(key, {widgetType: widget.type, before: canvas.widgets});
+        }
+        this.write(
+            canvas.widgets.map(w =>
+                w.id === id ? {...w, config: {...(w.config as Record<string, unknown>), ...patch}} : w,
+            ),
+        );
+
+        clearTimeout(this.configTextTimers.get(key));
+        this.configTextTimers.set(
+            key,
+            setTimeout(() => this.commitConfigText(key), AUTOSAVE_DEBOUNCE_MS),
+        );
+    }
+
+    private commitConfigText(key: string): void {
+        this.configTextTimers.delete(key);
+        const pending = this.pendingConfigText.get(key);
+        this.pendingConfigText.delete(key);
+        if (!pending) return;
+
+        const canvas = this.current();
+        if (canvas && JSON.stringify(canvas.widgets) !== JSON.stringify(pending.before)) {
+            this.history.pushCanvas('config', pending.widgetType, pending.before, canvas.widgets);
+        }
     }
 
     private patch(

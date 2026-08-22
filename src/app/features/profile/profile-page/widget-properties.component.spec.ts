@@ -1,11 +1,14 @@
 import {TestBed} from '@angular/core/testing';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {provideTranslateService} from '@ngx-translate/core';
 import {Subject, throwError} from 'rxjs';
 import {WidgetPropertiesComponent} from './widget-properties.component';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
+import {ProfileEditHistoryService} from '../../../services/profile-edit-history.service';
 import {emptyCanvas} from '../../../models/profile-canvas';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
+import {CanvasWidgetDto} from '../../../dtos/response/profile-canvas.dto';
 
 function setup(type: string, api: Partial<ProfileCanvasApiService> = {}) {
     TestBed.configureTestingModule({
@@ -251,6 +254,32 @@ describe('WidgetPropertiesComponent', () => {
             input.value = 'Europe/Zurich';
             input.dispatchEvent(new Event('input'));
             expect((editor.draft()!.widgets[0].config as {timeZone: string}).timeZone).toBe('Europe/Zurich');
+        });
+    });
+
+    describe('config text history coalescing', () => {
+        afterEach(() => vi.useRealTimers());
+
+        it('typing several characters into a text field pushes one history entry for the whole burst', async () => {
+            vi.useFakeTimers();
+            const {fixture} = setup('quote');
+            const history = TestBed.inject(ProfileEditHistoryService);
+            history.reset(); // isolate the burst from the insert entry setup() left on the stack
+            const textarea: HTMLTextAreaElement = fixture.nativeElement.querySelector('textarea');
+
+            for (const value of ['a', 'ab', 'abc']) {
+                textarea.value = value;
+                textarea.dispatchEvent(new Event('input'));
+            }
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(history.canUndo()).toBe(true);
+            const entry = history.undo();
+            expect(history.canUndo()).toBe(false);
+            const before = (entry as {before: CanvasWidgetDto[]}).before[0].config as {text: string};
+            const after = (entry as {after: CanvasWidgetDto[]}).after[0].config as {text: string};
+            expect(before.text).toBe('');
+            expect(after.text).toBe('abc');
         });
     });
 

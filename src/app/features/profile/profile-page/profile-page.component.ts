@@ -147,10 +147,9 @@ export class ProfilePageComponent {
         // this page's primary exit. Both branches guard on their own in-flight flag, or a
         // request already sent but not yet answered would go out a second time.
         inject(DestroyRef).onDestroy(() => {
-            if (this.textDraft.dirty() && !this.textSaving()) {
-                this.commitTextHistory();
-                this.flushText();
-            }
+            // history.reset() below wipes both stacks a few lines down, so committing here would
+            // only push an entry it immediately discards.
+            if (this.textDraft.dirty() && !this.textSaving()) this.flushText();
             const canvas = this.canvasEditor.draft();
             if (canvas && this.canvasEditor.dirty() && !this.canvasStore.saving()) this.saveCanvasNow(canvas);
             // Undo does not survive leaving the page.
@@ -185,7 +184,10 @@ export class ProfilePageComponent {
     protected onKeydown(event: KeyboardEvent): void {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
         const target = event.target as HTMLElement | null;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        if (
+            target &&
+            (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        ) {
             return;
         }
         event.preventDefault();

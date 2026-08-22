@@ -1,9 +1,10 @@
 import {TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {CanvasEditorService} from './canvas-editor.service';
-import {ProfileEditHistoryService} from './profile-edit-history.service';
+import {CanvasHistoryEntry, ProfileEditHistoryService} from './profile-edit-history.service';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../dtos/response/profile-canvas.dto';
 import {emptyCanvas, MAX_WIDGETS} from '../models/profile-canvas';
+import {AUTOSAVE_DEBOUNCE_MS} from '../features/discovery/listing-editor/listing-editor.component';
 
 function service(): CanvasEditorService {
     TestBed.configureTestingModule({});
@@ -164,13 +165,6 @@ describe('CanvasEditorService', () => {
         expect(editor.dirty()).toBe(false);
     });
 
-    it('discard returns to the baseline and goes clean', () => {
-        editor.insert('quote');
-        editor.discard();
-        expect(editor.draft()?.widgets).toEqual([]);
-        expect(editor.dirty()).toBe(false);
-    });
-
     it('begin replaces the baseline, so a saved canvas is clean again', () => {
         editor.insert('quote');
         editor.begin(editor.draft()!);
@@ -232,7 +226,7 @@ describe('CanvasEditorService', () => {
             expect((entry as {before: CanvasWidgetDto[]}).before).toEqual([]);
         });
 
-        it('remove pushes a remove entry naming the removed widget\'s type', () => {
+        it("remove pushes a remove entry naming the removed widget's type", () => {
             const history = TestBed.inject(ProfileEditHistoryService);
             editor.insert('quote');
             history.undo(); // discard the insert entry, isolate remove
@@ -269,6 +263,79 @@ describe('CanvasEditorService', () => {
             editor.restore([]);
 
             expect(editor.draft()?.widgets).toEqual([]);
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('patchConfig, a discrete change, pushes its own entry per call', () => {
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo(); // discard the insert entry, isolate patchConfig
+
+            const id = editor.draft()!.widgets[0].id;
+            editor.patchConfig(id, {attribution: 'Ada'});
+            editor.patchConfig(id, {attribution: 'Ada L'});
+
+            history.undo();
+            expect(history.canUndo()).toBe(true); // the first call's entry is still there
+            history.undo();
+            expect(history.canUndo()).toBe(false);
+        });
+    });
+
+    describe('patchConfigText', () => {
+        afterEach(() => vi.useRealTimers());
+
+        it('coalesces a burst into one entry whose before is the pre-burst value', () => {
+            vi.useFakeTimers();
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.undo();
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.patchConfigText(id, 'text', {text: 'a'});
+            editor.patchConfigText(id, 'text', {text: 'ab'});
+            editor.patchConfigText(id, 'text', {text: 'abc'});
+            vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(history.canUndo()).toBe(true);
+            const entry = history.undo() as CanvasHistoryEntry;
+            expect(history.canUndo()).toBe(false);
+            expect((entry.before[0].config as {text: string}).text).toBe('');
+            expect((entry.after[0].config as {text: string}).text).toBe('abc');
+        });
+
+        it('keys the burst per widget: a second widget commits a separate entry', () => {
+            vi.useFakeTimers();
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            editor.insert('quote');
+            history.reset();
+            const [first, second] = editor.draft()!.widgets;
+
+            editor.patchConfigText(first.id, 'text', {text: 'one'});
+            editor.patchConfigText(second.id, 'text', {text: 'two'});
+            vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+
+            history.undo();
+            expect(history.canUndo()).toBe(true);
+            history.undo();
+            expect(history.canUndo()).toBe(false);
+        });
+
+        it('keys the burst per field: a second field on the same widget commits a separate entry', () => {
+            vi.useFakeTimers();
+            const history = TestBed.inject(ProfileEditHistoryService);
+            editor.insert('quote');
+            history.reset();
+            const id = editor.draft()!.widgets[0].id;
+
+            editor.patchConfigText(id, 'text', {text: 'hello'});
+            editor.patchConfigText(id, 'attribution', {attribution: 'Ada'});
+            vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
+
+            history.undo();
+            expect(history.canUndo()).toBe(true);
+            history.undo();
             expect(history.canUndo()).toBe(false);
         });
     });

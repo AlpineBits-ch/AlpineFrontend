@@ -417,6 +417,20 @@ describe('ProfilePageComponent', () => {
             expect(editor.dirty()).toBe(true);
         });
 
+        it('a widget config text edit still autosaves immediately, coalescing only affects history', () => {
+            const {fixture, editor, saveCanvasCalls} = setup(OWN);
+
+            editor.insert('quote');
+            fixture.detectChanges();
+            expect(saveCanvasCalls).toHaveLength(1);
+
+            const id = editor.draft()!.widgets[0].id;
+            editor.patchConfigText(id, 'text', {text: 'hello'});
+            fixture.detectChanges();
+
+            expect(saveCanvasCalls).toHaveLength(2);
+        });
+
         it('a genuinely new edit after a latched canvas failure is attempted, unlike a retry of the same one', () => {
             let fail = true;
             const {fixture, editor, saveCanvasCalls} = setup(OWN, {
@@ -445,6 +459,16 @@ describe('ProfilePageComponent', () => {
             expect(updateProfileCalls).toEqual([
                 {bio: 'about to leave', accentColor: OWN.accentColor, font: OWN.font},
             ]);
+        });
+
+        it('destroying the page does not commit a text history entry only to wipe it a moment later', () => {
+            const {fixture, history} = setup(OWN);
+            const commitSpy = vi.spyOn(history, 'commitText');
+
+            typeBio(fixture, 'about to leave');
+            fixture.destroy();
+
+            expect(commitSpy).not.toHaveBeenCalled();
         });
 
         // C2: flushText() does not re-baseline until its response returns, so dirty() alone stays
