@@ -20,6 +20,8 @@ export type MainView =
     | {type: 'house'; guildId: string}
     /** The Discover feed. Global, unlike the guild-scoped views around it: no guildId. */
     | {type: 'discover'}
+    /** A guild's own public listing: composed here, published against the entitlement. */
+    | {type: 'listing-editor'; guildId: string}
     /** The guild's cast list, and the approval queue behind it. */
     | {type: 'personas'; guildId: string}
     | {type: 'character'; guildId: string; personaId: string}
@@ -43,6 +45,7 @@ interface PersistedNav {
         | 'server-house'
         | 'server-personas'
         | 'server-scenes'
+        | 'server-listing-editor'
         | 'discover';
     guildId?: string;
     channelId?: string;
@@ -155,7 +158,8 @@ export class NavigationService {
                 state.kind !== 'server-wiki' &&
                 state.kind !== 'server-house' &&
                 state.kind !== 'server-personas' &&
-                state.kind !== 'server-scenes'
+                state.kind !== 'server-scenes' &&
+                state.kind !== 'server-listing-editor'
             )
                 return false;
             const guild = guilds.find(g => g.id === state.guildId);
@@ -168,6 +172,9 @@ export class NavigationService {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
             } else if (state.kind === 'server-house' && hasHouseholdModule(guild)) {
                 this.mainView.set({type: 'house', guildId: guild.id});
+            } else if (state.kind === 'server-listing-editor') {
+                // No module gate: entitlement-gated, not module-gated - spec 13.5.
+                this.mainView.set({type: 'listing-editor', guildId: guild.id});
             } else if (state.kind === 'server-personas' && guildHasFeature(guild, GuildFeature.Personas)) {
                 this.mainView.set({type: 'personas', guildId: guild.id});
             } else if (state.kind === 'server-scenes' && guildHasFeature(guild, GuildFeature.Scenes)) {
@@ -329,6 +336,16 @@ export class NavigationService {
         const current = this.mainView();
         if (current.type !== 'house' || current.guildId !== guildId) {
             this.mainView.set({type: 'house', guildId});
+            this.saveNav();
+        }
+        this.mobileNavOpen.set(false);
+    }
+
+    /** A guild's own listing. Guild-scoped like the wiki, and for the same reason. */
+    openListingEditor(guildId: string): void {
+        const current = this.mainView();
+        if (current.type !== 'listing-editor' || current.guildId !== guildId) {
+            this.mainView.set({type: 'listing-editor', guildId});
             this.saveNav();
         }
         this.mobileNavOpen.set(false);
@@ -538,6 +555,8 @@ export class NavigationService {
                 return `${ws}|house:${view.guildId}`;
             case 'discover':
                 return `${ws}|discover`;
+            case 'listing-editor':
+                return `${ws}|listing-editor:${view.guildId}`;
             case 'personas':
                 return `${ws}|personas:${view.guildId}`;
             case 'character':
@@ -613,6 +632,8 @@ export class NavigationService {
                 };
             } else if (view.type === 'house') {
                 state = {kind: 'server-house', guildId: ws.guild.id};
+            } else if (view.type === 'listing-editor') {
+                state = {kind: 'server-listing-editor', guildId: ws.guild.id};
             } else if (view.type === 'channel') {
                 state = {kind: 'server-channel', guildId: ws.guild.id, channelId: view.channel.id};
             } else {

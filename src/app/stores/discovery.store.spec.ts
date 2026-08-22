@@ -237,11 +237,7 @@ describe('DiscoveryStore', () => {
         expect(row.publishedAt).toBe('now');
     });
 
-    /**
-     * `interests: null` means "never loaded"; the page reads that to decide whether it is still
-     * waiting to find out if onboarding applies. A clear-to-zero must land as a real empty object,
-     * or a deliberate clear would be indistinguishable from a fetch that never happened.
-     */
+    /** `interests: null` means "never loaded"; a clear-to-zero must land as a real empty object. */
     it('holds an empty set rather than null after saving interests down to zero', () => {
         const {api, store} = setup();
 

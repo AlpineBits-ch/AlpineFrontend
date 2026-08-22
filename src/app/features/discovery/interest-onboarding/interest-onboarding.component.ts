@@ -13,6 +13,7 @@ import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {TopicPickerComponent} from '../topic-picker/topic-picker.component';
 import {TopicDto} from '../../../dtos/response/discovery.dto';
+import {topicRefWire} from '../../../dtos/request/discovery.dto';
 import {DiscoveryStore} from '../../../stores/discovery.store';
 import {ToastService} from '../../../services/toast.service';
 
@@ -51,11 +52,7 @@ export class InterestOnboardingComponent {
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
-    /**
-     * Onboarding requires at least one topic; picking nothing and saving there is not a
-     * meaningful action, and Skip is the escape hatch. Edit must allow zero: clearing every chip
-     * and saving is how a user turns interests off after having set them.
-     */
+    /** Edit allows saving zero topics; onboarding does not, since Skip is its escape hatch. */
     protected readonly canSave = computed(() => {
         if (this.saving()) return false;
         return this.mode() === 'edit' || this.topics().length > 0;
@@ -66,7 +63,7 @@ export class InterestOnboardingComponent {
         this.saving.set(true);
         this.store
             .saveInterests({
-                topics: this.topics().map(t => ({kind: t.kind, id: t.id})),
+                topics: this.topics().map(topicRefWire),
                 visible: this.visible(),
             })
             .subscribe({

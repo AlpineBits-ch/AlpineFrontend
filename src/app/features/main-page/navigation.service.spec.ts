@@ -138,6 +138,20 @@ describe('NavigationService restoring from the cached layout', () => {
         expect(cold.tryRestoreGuildNav([])).toBe(true);
         expect(cold.mainView().type).toBe('discover');
     });
+
+    /** Guild-scoped, unlike Discover: needs the guild resolved, and carries no module gate. */
+    it('restores the listing editor against the guild it points at', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openListingEditor('g1');
+
+        const cold = relaunch();
+        expect(cold.tryRestoreGuildNav([guild])).toBe(true);
+
+        const view = cold.mainView();
+        expect(view.type === 'listing-editor' && view.guildId).toBe('g1');
+        expect(cold.workspace().type).toBe('server');
+    });
 });
 
 describe('NavigationService scenes shell', () => {

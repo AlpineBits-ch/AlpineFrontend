@@ -193,6 +193,7 @@ export const ENTITLEMENT_KEYS = {
     guildBotsInstalled: 'guild.bots_installed',
     guildVanityUrl: 'guild.vanity_url',
     guildAuditLogDays: 'guild.audit_log_days',
+    guildPublicListing: 'guild.public_listing',
     userUploadMaxBytes: 'user.upload_max_bytes',
     userMaxDevices: 'user.max_devices',
     /** Characters, not bytes. Read against the guild subject: the ceiling is plan-derived. */

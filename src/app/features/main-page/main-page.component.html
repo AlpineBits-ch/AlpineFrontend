@@ -77,6 +77,9 @@
                 @case ('discover') {
                     <app-discover-page />
                 }
+                @case ('listing-editor') {
+                    <app-listing-editor [guildId]="view.guildId" />
+                }
             }
         </div>
 

@@ -1,0 +1,205 @@
+<div class="flex h-full flex-col overflow-hidden">
+    <header class="app-header flex shrink-0 items-center gap-3 border-b border-white/[0.06] bg-app-bg px-4">
+        <i class="pi pi-megaphone shrink-0 text-sm text-brand-dim"></i>
+        <span class="shrink-0 text-[0.8125rem] font-semibold text-text-primary">{{ 'DISCOVERY.LISTING.TITLE' | translate }}</span>
+        <span class="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[0.625rem] font-medium text-text-muted">{{
+            stateKey() | translate
+        }}</span>
+
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+            @if (listing()?.state === 'Published') {
+                @if (!bumpReady()) {
+                    <span class="text-[0.6875rem] text-text-muted">
+                        {{ 'DISCOVERY.LISTING.BUMP_AVAILABLE' | translate: {date: (bumpAvailableAt() | relativeTime: clock.now())} }}
+                    </span>
+                }
+                <p-button
+                    (onClick)="bump()"
+                    [disabled]="!bumpReady()"
+                    [label]="'DISCOVERY.LISTING.BUMP' | translate"
+                    [loading]="bumping()"
+                    severity="secondary"
+                    size="small"
+                />
+                <p-button
+                    (onClick)="unlist()"
+                    [label]="'DISCOVERY.LISTING.UNLIST' | translate"
+                    [loading]="unlisting()"
+                    severity="secondary"
+                    size="small"
+                />
+            }
+            <p-button
+                (onClick)="publish()"
+                [label]="'DISCOVERY.LISTING.PUBLISH' | translate"
+                [loading]="publishing()"
+                severity="primary"
+                size="small"
+            />
+        </div>
+    </header>
+
+    <div class="min-h-0 flex-1 overflow-y-auto thin-scrollbar px-4 py-5 sm:px-6">
+        @if (!listingLoaded()) {
+            <div class="flex justify-center py-16">
+                <i class="pi pi-spin pi-spinner text-text-muted"></i>
+            </div>
+        } @else {
+            @if (suspendedReasonKey(); as reasonKey) {
+                <div class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3">
+                    <p class="m-0 text-[0.8125rem] text-amber-200">{{ reasonKey | translate }}</p>
+                </div>
+            }
+            @if (publishErrorKey(); as errorKey) {
+                <div class="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/[0.06] px-4 py-3">
+                    <p class="m-0 text-[0.8125rem] text-rose-300">{{ errorKey | translate }}</p>
+                </div>
+            }
+
+            <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <label
+                            class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted"
+                            for="listing-headline"
+                        >
+                            {{ 'DISCOVERY.LISTING.HEADLINE_LABEL' | translate }}
+                        </label>
+                        <input
+                            (ngModelChange)="setHeadline($event)"
+                            [maxlength]="headlineLimit"
+                            [ngModel]="headline()"
+                            [placeholder]="'DISCOVERY.LISTING.HEADLINE_PLACEHOLDER' | translate"
+                            class="w-full"
+                            id="listing-headline"
+                            pInputText
+                        />
+                        <span class="mt-1 block text-right text-[0.625rem] text-text-faint tabular-nums"
+                            >{{ headline().length }}/{{ headlineLimit }}</span
+                        >
+                    </div>
+
+                    <div>
+                        <label
+                            class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted"
+                            for="listing-pitch"
+                        >
+                            {{ 'DISCOVERY.LISTING.PITCH_LABEL' | translate }}
+                        </label>
+                        <textarea
+                            (ngModelChange)="setPitch($event)"
+                            [maxlength]="pitchLimit"
+                            [ngModel]="pitch()"
+                            [placeholder]="'DISCOVERY.LISTING.PITCH_PLACEHOLDER' | translate"
+                            class="w-full resize-none"
+                            id="listing-pitch"
+                            pTextarea
+                            rows="4"
+                        ></textarea>
+                        <span class="mt-1 block text-right text-[0.625rem] text-text-faint tabular-nums"
+                            >{{ pitch().length }}/{{ pitchLimit }}</span
+                        >
+                    </div>
+
+                    <div>
+                        <span class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
+                            {{ 'DISCOVERY.LISTING.TOPICS_LABEL' | translate }}
+                        </span>
+                        <app-topic-picker (selectedChange)="setTopics($event)" [cap]="topicCap" [selected]="topics()" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label
+                                class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted"
+                                for="listing-language"
+                            >
+                                {{ 'DISCOVERY.LISTING.LANGUAGE_LABEL' | translate }}
+                            </label>
+                            <input
+                                (ngModelChange)="setLanguage($event)"
+                                [ngModel]="language()"
+                                [placeholder]="'DISCOVERY.LISTING.LANGUAGE_PLACEHOLDER' | translate"
+                                class="w-full"
+                                id="listing-language"
+                                pInputText
+                            />
+                        </div>
+                        <div>
+                            <label
+                                class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted"
+                                for="listing-join-policy"
+                            >
+                                {{ 'DISCOVERY.LISTING.JOIN_POLICY_LABEL' | translate }}
+                            </label>
+                            <p-select
+                                (ngModelChange)="setJoinPolicy($event)"
+                                [ngModel]="joinPolicy()"
+                                [options]="joinPolicyOptions()"
+                                inputId="listing-join-policy"
+                                optionLabel="label"
+                                optionValue="value"
+                                styleClass="w-full"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="mb-1.5 block text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
+                            {{ 'DISCOVERY.LISTING.LINKS_LABEL' | translate }}
+                        </span>
+                        <div class="flex flex-col gap-1.5">
+                            @for (link of links(); track link + $index) {
+                                <div class="flex items-center gap-2">
+                                    <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-text-secondary">{{ link }}</span>
+                                    <button
+                                        (click)="removeLink($index)"
+                                        class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-text-muted hover:text-text-secondary"
+                                        type="button"
+                                    >
+                                        <i class="pi pi-times text-[0.6875rem]"></i>
+                                    </button>
+                                </div>
+                            }
+                            @if (links().length < linksCap) {
+                                <div class="flex items-center gap-2">
+                                    <input
+                                        [(ngModel)]="newLink"
+                                        [placeholder]="'DISCOVERY.LISTING.LINKS_PLACEHOLDER' | translate"
+                                        class="min-w-0 flex-1"
+                                        pInputText
+                                    />
+                                    <button
+                                        (click)="addLink()"
+                                        class="shrink-0 cursor-pointer rounded-lg border border-white/[0.10] bg-transparent px-2.5 py-1.5 text-[0.75rem] text-text-secondary hover:bg-white/[0.04]"
+                                        type="button"
+                                    >
+                                        {{ 'DISCOVERY.LISTING.LINKS_ADD' | translate }}
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <span class="text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">{{
+                        'DISCOVERY.LISTING.PREVIEW' | translate
+                    }}</span>
+                    <app-discovery-community-card [card]="previewCard()" />
+
+                    @if (showUpgradeBar()) {
+                        <div class="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3">
+                            <p class="m-0 text-[0.75rem] text-text-secondary">{{ 'DISCOVERY.LISTING.UPGRADE_NOTICE' | translate }}</p>
+                            @if (upgradeRemedy().ctaKey; as cta) {
+                                <p class="m-0 mt-1 text-[0.75rem] font-medium text-text-primary">{{ cta | translate }}</p>
+                            } @else if (upgradeRemedy().hintKey; as hint) {
+                                <p class="m-0 mt-1 text-[0.75rem] text-text-muted">{{ hint | translate }}</p>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>

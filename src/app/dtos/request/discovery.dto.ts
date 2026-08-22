@@ -1,21 +1,21 @@
-import {JoinPolicy, TopicKind} from '../response/discovery.dto';
+import {JoinPolicy, TopicDto} from '../response/discovery.dto';
 
-export interface TopicRefDto {
-    kind: TopicKind;
-    id: string;
+/** `"game:<id>"` or `"tag:<id>"`, the wire grammar `TopicRef.TryParse` requires server-side. */
+export function topicRefWire(topic: Pick<TopicDto, 'kind' | 'id'>): string {
+    return `${topic.kind}:${topic.id}`;
 }
 
 export interface ListingWriteDto {
     headline: string;
     pitch: string;
-    topics: TopicRefDto[];
+    topics: string[];
     language: string;
     joinPolicy: JoinPolicy;
     links: string[];
 }
 
 export interface SaveInterestsDto {
-    topics: TopicRefDto[];
+    topics: string[];
     visible: boolean;
 }
 
