@@ -982,7 +982,7 @@ export class QuoteWidgetComponent {
 Create `src/app/components/profile-canvas/profile-canvas.component.ts`:
 
 ```ts
-import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, Type} from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {CanvasWidgetDto, ProfileCanvasDto} from '../../dtos/response/profile-canvas.dto';
 import {ProfileDto} from '../../dtos/response/profile.dto';
@@ -991,7 +991,9 @@ import {definitionFor} from './widget-registry';
 
 interface PlacedWidget {
     widget: CanvasWidgetDto;
-    component: unknown;
+    component: Type<unknown>;
+    /** Built once per recompute. A fresh object per change detection re-sets every input. */
+    inputs: Record<string, unknown>;
 }
 
 /** Somebody's arranged profile. Read only: the editor renders this too, from its draft. */
@@ -1009,17 +1011,15 @@ export class ProfileCanvasComponent {
     readonly cardOnly = input(false);
 
     protected readonly placed = computed((): PlacedWidget[] => {
+        const owner = this.owner();
         const packed = normalise(this.canvas(), this.columns());
         const wanted = this.cardOnly() ? packed.widgets.filter(w => w.card) : packed.widgets;
 
-        return wanted
-            .map(widget => ({widget, component: definitionFor(widget.type)?.component ?? null}))
-            .filter((entry): entry is PlacedWidget => entry.component !== null);
+        return wanted.flatMap(widget => {
+            const component = definitionFor(widget.type)?.component;
+            return component ? [{widget, component, inputs: {widget, owner}}] : [];
+        });
     });
-
-    protected inputsFor(widget: CanvasWidgetDto): Record<string, unknown> {
-        return {widget, owner: this.owner()};
-    }
 }
 ```
 
@@ -1036,7 +1036,7 @@ Create `src/app/components/profile-canvas/profile-canvas.component.html`:
             [style.grid-row]="'span ' + entry.widget.h"
             class="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3"
         >
-            <ng-container [ngComponentOutlet]="$any(entry.component)" [ngComponentOutletInputs]="inputsFor(entry.widget)" />
+            <ng-container [ngComponentOutlet]="entry.component" [ngComponentOutletInputs]="entry.inputs" />
         </div>
     }
 </div>
@@ -2480,6 +2480,7 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {ProfileCanvasApiService} from '../../../../../../services/profile-canvas-api.service';
 import {emptyCanvas} from '../../../../../../models/profile-canvas';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../../../../dtos/response/profile.dto';
+import {ConfirmationService, MessageService} from 'primeng/api';
 import {signal} from '@angular/core';
 
 function profile(): ProfileDto {
@@ -2509,6 +2510,8 @@ function setup() {
     TestBed.configureTestingModule({
         providers: [
             provideTranslateService(),
+            MessageService,
+            ConfirmationService,
             {provide: ProfileService, useValue: {ownProfile: signal(profile())}},
             {provide: ProfileCanvasApiService, useValue: new FakeCanvasApi()},
             {
@@ -3219,21 +3222,87 @@ export type ProfileModalTab = 'canvas' | 'activity' | 'friends' | 'servers';
 
 - [ ] **Step 2: Write the failing tests**
 
-Append to `profile-modal.component.spec.ts`, following the file's existing setup helper:
+`profile-modal.component.spec.ts` already has a `profile()` factory, an `openOn(tab)` helper and a
+`tabLabels()` helper. Reuse them; do not write new ones.
+
+First widen the existing helper's signature so it can open on the new tab:
 
 ```ts
-    it('opens on the canvas tab when the subject has widgets', () => {
-        // Arrange the store to answer a canvas with one widget for the subject, then open the modal.
-        // Expect effectiveTab() to be 'canvas'.
+    function openOn(tab: 'canvas' | 'activity' | 'friends' | 'servers' = 'activity'): void {
+```
+
+Add to the imports and to the `beforeEach` providers, alongside the existing fakes:
+
+```ts
+import {ProfileCanvasStore} from '../../stores/profile-canvas.store';
+import {ProfileCanvasApiService} from '../../services/profile-canvas-api.service';
+import {ProfileCanvasDto} from '../../dtos/response/profile-canvas.dto';
+```
+
+```ts
+    let canvas: ProfileCanvasDto;
+
+    function canvasWith(widgetCount: number): ProfileCanvasDto {
+        return {
+            profileId: 'prfl_1',
+            updatedAt: '',
+            version: 1,
+            theme: {accent: null, backdrop: null},
+            widgets: Array.from({length: widgetCount}, (_, i) => ({
+                id: `w${i}`,
+                type: 'quote',
+                x: 0,
+                y: i,
+                w: 2,
+                h: 1,
+                visibility: 'everyone' as const,
+                card: false,
+                config: {text: 'a line'},
+            })),
+        };
+    }
+```
+
+In `beforeEach`, before `TestBed.configureTestingModule`, add `canvas = canvasWith(0);` and add these
+two providers:
+
+```ts
+                {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+                {
+                    provide: ProfileCanvasStore,
+                    useValue: {canvasFor: () => canvas, ensureLoaded: () => undefined},
+                },
+```
+
+Then the two cases:
+
+```ts
+    it('shows the canvas tab and draws it when the subject has widgets', () => {
+        canvas = canvasWith(1);
+        openOn();
+
+        expect(tabLabels()).toContain('PROFILE.CANVAS.TAB');
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).not.toBeNull();
     });
 
-    it('falls back to activity when the canvas is empty', () => {
-        // Arrange the store to answer an empty canvas, then open the modal.
-        // Expect effectiveTab() to be 'activity'.
+    it('offers no canvas tab when the subject has never arranged one', () => {
+        canvas = canvasWith(0);
+        openOn();
+
+        expect(tabLabels()).not.toContain('PROFILE.CANVAS.TAB');
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+    });
+
+    it('falls back to activity when a canvas tab is asked for and there is none', () => {
+        canvas = canvasWith(0);
+        openOn('canvas');
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('PROFILE.NO_ACTIVITY');
     });
 ```
 
-Replace both comment bodies with real arrangement using the spec file's existing helpers. The store is provided as a fake exposing `canvasFor`, `ensureLoaded` and `saving`, the same shape Task 10's spec uses.
+With no translations loaded, ngx-translate renders the key itself, which is what these assertions match.
 
 - [ ] **Step 3: Run to verify they fail**
 
@@ -3337,26 +3406,90 @@ The popout must not become a fan-out on hover. It reads what the store already h
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `profile-popout.component.spec.ts`, using its existing setup helper and a fake store:
+`profile-popout.component.spec.ts` already has a `PROFILE` constant and a `beforeEach` that provides
+the fakes. Add to its imports:
+
+```ts
+import {ProfileCanvasStore} from '../../stores/profile-canvas.store';
+import {ProfileCanvasApiService} from '../../services/profile-canvas-api.service';
+import {ProfileCanvasDto} from '../../dtos/response/profile-canvas.dto';
+```
+
+Declare beside the other `let` bindings, and reset both in `beforeEach`:
+
+```ts
+    let canvas: ProfileCanvasDto | undefined;
+    let ensureLoaded: ReturnType<typeof vi.fn>;
+
+    function canvasWith(card: boolean): ProfileCanvasDto {
+        return {
+            profileId: 'prfl_1',
+            updatedAt: '',
+            version: 1,
+            theme: {accent: null, backdrop: null},
+            widgets: [
+                {
+                    id: 'w0',
+                    type: 'quote',
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 1,
+                    visibility: 'everyone',
+                    card,
+                    config: {text: 'a line'},
+                },
+            ],
+        };
+    }
+```
+
+In `beforeEach`: `canvas = undefined;` and `ensureLoaded = vi.fn();`, then add the providers:
+
+```ts
+                {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+                {provide: ProfileCanvasStore, useValue: {canvasFor: () => canvas, ensureLoaded}},
+```
+
+Then the three cases. Open the popout the way the file's existing tests do:
 
 ```ts
     it('draws card widgets the store already holds', () => {
-        // Fake store answers a canvas with one card widget for the subject.
-        // Expect app-profile-canvas to be present.
+        canvas = canvasWith(true);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).not.toBeNull();
     });
 
-    it('draws no canvas when the store is cold', () => {
-        // Fake store answers undefined.
-        // Expect app-profile-canvas to be absent.
+    it('draws nothing when the canvas has no card widgets', () => {
+        canvas = canvasWith(false);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
     });
 
-    it('never calls ensureLoaded', () => {
-        // Spy on the fake store's ensureLoaded; open the popout.
-        // Expect the spy not to have been called.
+    it('draws nothing when the store is cold', () => {
+        canvas = undefined;
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-profile-canvas')).toBeNull();
+    });
+
+    it('never asks the store to load a canvas', () => {
+        canvas = canvasWith(true);
+        popoutSvc.open(USER_ID);
+        fixture.detectChanges();
+
+        expect(ensureLoaded).not.toHaveBeenCalled();
     });
 ```
 
-Fill each body in against the spec file's existing helpers. The third case is the one that matters: it is the guard against a hover storm, and it is the reason this component reads the cache rather than asking for it.
+The last case is the one that matters. It is the guard against a hover storm across a member list,
+and it is the whole reason this component reads the cache instead of asking for it. If a later change
+makes the popout fetch, this test is what says so.
 
 - [ ] **Step 2: Run to verify they fail**
 
