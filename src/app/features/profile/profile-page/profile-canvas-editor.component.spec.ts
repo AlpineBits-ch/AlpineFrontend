@@ -2,7 +2,13 @@ import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {columnAt, ProfileCanvasEditorComponent, rowAt, rowTopAt} from './profile-canvas-editor.component';
+import {
+    columnAt,
+    ProfileCanvasEditorComponent,
+    rowAt,
+    rowGeometryAt,
+    rowTopAt,
+} from './profile-canvas-editor.component';
 import {CanvasEditorService} from '../../../services/canvas-editor.service';
 import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.service';
 import {WIDGET_REGISTRY} from '../../../components/profile-canvas/widget-registry';
@@ -105,6 +111,45 @@ describe('grid geometry (pure)', () => {
     it('columnAt clamps to the last column rather than reading past the grid', () => {
         expect(columnAt(10_000, 100, 8, 4)).toBe(3);
         expect(columnAt(-10, 100, 8, 4)).toBe(0);
+    });
+});
+
+// The row-source choice measureGrid() relies on, isolated from the DOM: a fake rectOf stands in
+// for getBoundingClientRect so this exercises the selection logic without a real grid layout.
+describe('rowGeometryAt (pure)', () => {
+    it('an h > 1 widget alone resolves every row it covers by splitting its rect evenly', () => {
+        const widgets = [widget('tall', {w: 2, h: 2})];
+        const rectOf = (w: CanvasWidgetDto) => (w.id === 'tall' ? {top: 0, height: 312} : null);
+
+        expect(rowGeometryAt(0, widgets, rectOf)).toEqual({top: 0, height: 156});
+        expect(rowGeometryAt(1, widgets, rectOf)).toEqual({top: 156, height: 156});
+    });
+
+    it('two widgets side by side both resolve the row they share', () => {
+        const widgets = [widget('left', {w: 2, h: 2}), widget('right', {x: 2, w: 2, h: 2})];
+        const rectOf = () => ({top: 0, height: 312});
+
+        expect(rowGeometryAt(0, widgets, rectOf)).not.toBeNull();
+        expect(rowGeometryAt(1, widgets, rectOf)).not.toBeNull();
+    });
+
+    it("prefers an h === 1 starter's exact rect over an even split, and splits for the row it does not cover", () => {
+        const widgets = [widget('tall', {w: 2, h: 2}), widget('short', {x: 2, w: 1, h: 1})];
+        const rectOf = (w: CanvasWidgetDto) => {
+            if (w.id === 'tall') return {top: 0, height: 312};
+            if (w.id === 'short') return {top: 10, height: 50};
+            return null;
+        };
+
+        expect(rowGeometryAt(0, widgets, rectOf)).toEqual({top: 10, height: 50});
+        expect(rowGeometryAt(1, widgets, rectOf)).toEqual({top: 156, height: 156});
+    });
+
+    it('a row nothing covers is unmeasurable', () => {
+        const widgets = [widget('a', {w: 1, h: 1})];
+        const rectOf = (w: CanvasWidgetDto) => (w.id === 'a' ? {top: 0, height: 40} : null);
+
+        expect(rowGeometryAt(1, widgets, rectOf)).toBeNull();
     });
 });
 

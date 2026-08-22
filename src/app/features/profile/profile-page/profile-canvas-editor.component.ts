@@ -106,6 +106,34 @@ export function columnAt(offsetX: number, columnWidth: number, gap: number, colu
     return Math.min(Math.max(Math.floor(offsetX / stride), 0), columns - 1);
 }
 
+/** A widget's own measured rect, in the same coordinate space as `MeasuredGrid.rowTops`. */
+export interface TileRect {
+    top: number;
+    height: number;
+}
+
+/**
+ * Row `r`'s own top and height: an exact `h === 1` starter's rect if one exists, otherwise an even
+ * split across whichever widget's footprint covers the row. Null when no widget covers the row, or
+ * its rect could not be measured, signalling the caller to fall back for the whole grid instead.
+ */
+export function rowGeometryAt(
+    r: number,
+    widgets: readonly CanvasWidgetDto[],
+    rectOf: (widget: CanvasWidgetDto) => TileRect | null,
+): TileRect | null {
+    const exact = widgets.find(w => w.y === r && w.h === 1);
+    const source = exact ?? widgets.find(w => w.y <= r && r < w.y + w.h);
+    if (!source) return null;
+
+    const rect = rectOf(source);
+    if (!rect || rect.height <= 0) return null;
+    if (source.h === 1) return rect;
+
+    const height = rect.height / source.h;
+    return {top: rect.top + (r - source.y) * height, height};
+}
+
 /**
  * The canvas, the lattice, tile selection and the visitor preview. Inserting a widget and picking
  * types both go through CanvasEditorService directly, the same way WidgetPropertiesComponent and
@@ -370,10 +398,9 @@ export class ProfileCanvasEditorComponent {
     }
 
     /**
-     * Measures the real grid whenever it can: one tile per row is enough to know that row's own
-     * top and height, because `reflow` packs contiguously, so every rendered row has a starter.
-     * Falls back to evenly spaced square cells (same as before this measurement existed) only when
-     * there is nothing to measure yet, e.g. an empty canvas, or a host with no real layout.
+     * Measures the real grid whenever it can, row by row via `rowGeometryAt`. Falls back to evenly
+     * spaced square cells (same as before this measurement existed) only when a row is unmeasurable,
+     * e.g. an empty canvas, or a host with no real layout.
      */
     private measureGrid(): MeasuredGrid | null {
         const host = this.canvasHost()?.nativeElement;
@@ -389,17 +416,20 @@ export class ProfileCanvasEditorComponent {
         const gridRect = grid?.getBoundingClientRect();
 
         if (gridRect && gridRect.width > 0) {
+            const rectOf = (widget: CanvasWidgetDto): TileRect | null => {
+                const el = host.querySelector<HTMLElement>(`[data-widget-id="${widget.id}"]`);
+                if (!el) return null;
+                const tileRect = el.getBoundingClientRect();
+                return {top: tileRect.top - hostRect.top, height: tileRect.height};
+            };
+
             const rowTops: number[] = [];
             const rowHeights: number[] = [];
             for (let r = 0; r < rows; r++) {
-                const starter = widgets.find(w => w.y === r);
-                const el = starter && host.querySelector<HTMLElement>(`[data-widget-id="${starter.id}"]`);
-                if (!el || !starter) break; // Missing a row's starter tile: bail to the fallback below.
-                const tileRect = el.getBoundingClientRect();
-                rowTops.push(tileRect.top - hostRect.top);
-                // A starter spanning h > 1 rows reports its own combined height; divide it back
-                // down so a tall widget doesn't make its first row look as tall as the whole span.
-                rowHeights.push(tileRect.height / starter.h);
+                const geometry = rowGeometryAt(r, widgets, rectOf);
+                if (!geometry) break;
+                rowTops.push(geometry.top);
+                rowHeights.push(geometry.height);
             }
             if (rowTops.length === rows) {
                 const columnWidth = (gridRect.width - GRID_GAP_PX * (columns - 1)) / columns;
