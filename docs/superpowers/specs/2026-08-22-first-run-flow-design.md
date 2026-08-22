@@ -286,6 +286,45 @@ New coverage after the move:
 Note the `vitest-base.config.ts` batching effect: adding spec files can surface an unrelated
 failure elsewhere. A new failure in a component this work does not touch is usually that, not this.
 
+## As built
+
+Five things came out different, and the design above is the intent rather than the record.
+
+`FirstRunService.open()` takes `{keyRequired?: boolean}`. Without it the design's own "Isle account
+opens its first DM" row produces no steps at all, because `owedSteps` gates the key steps on
+`wantsSocial(interests)` and an Isle-only account answers false. `require()` would then wait on a
+run that never had anything to do. `open()` with no argument is what the launch sequence calls.
+
+`FirstRunService.complete()` exists so the shell can end the run and resolve the promise.
+
+The steps snapshot is taken with `interests: undefined` while `pick` is owed, so the rail reads
+"of 2" and never resizes under the user. A pick that turns out to be Isle alone ends the run after
+the submit rather than walking to a step it no longer owes.
+
+The key steps are dropped entirely when `MasterKeyService.isAvailable()` is false, or a browser
+build reaching `open()` sits on a ceremony it cannot finish.
+
+Device registration is headless and unattended, so two things the modal used to provide had to be
+rebuilt: a `deviceRegistrationFailed` banner with a retry, because nothing else reported the
+failure once the modal was gone, and a shared-promise re-entry guard on `registerThisDevice()`,
+because `register()` deletes the device identifier before its own retry and `runDeviceLaunch()` is
+re-entered by both `relaunchOnSessionTakeover` and `retryUnlock()`. The modal had been an
+accidental mutex.
+
+## Known defects this does not fix
+
+Found while extracting, all pre-existing, all now pinned by characterization tests:
+
+The registration retry wraps the whole pipeline rather than `registerDevice` alone. A
+`persistSigningKey` failure after the server accepted the registration deletes the identifier and
+registers again under a new one, orphaning the accepted row with key packages sealed to a key
+nothing holds. Every first failure burns a device identifier, including a plain network fault. A
+rejected `deleteDeviceIdentifier()` silently cancels the retry, and only the second error
+propagates.
+
+`key-setup-dialog`'s failed write left the user holding a code the retry then replaced. That one is
+fixed here by construction: `MasterKeySetupService` keeps the code when the write fails.
+
 ## Out of scope
 
 - Changing what the picker asks or what `UserInterests` means
