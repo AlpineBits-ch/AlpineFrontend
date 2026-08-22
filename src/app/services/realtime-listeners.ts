@@ -8,6 +8,7 @@ import {BillStore} from '../stores/bill.store';
 import {ChoreStore} from '../stores/chore.store';
 import {ConversationStore} from '../stores/conversation.store';
 import {DecisionStore} from '../stores/decision.store';
+import {DiscoveryStore} from '../stores/discovery.store';
 import {EntitlementStore} from '../stores/entitlement.store';
 import {GuildEmojiStore} from '../stores/guild-emoji.store';
 import {LedgerStore} from '../stores/ledger.store';
@@ -44,6 +45,7 @@ const LISTENERS: ProviderToken<unknown>[] = [
     ChoreStore,
     ConversationStore,
     DecisionStore,
+    DiscoveryStore,
     EntitlementStore,
     GuildEmojiStore,
     LedgerStore,

@@ -155,6 +155,7 @@ import {
     MaintenanceRecordUpdated,
 } from '../dtos/response/maintenance.dto';
 import {AbsenceCreated, AbsenceDeleted, AbsenceUpdated} from '../dtos/response/absence.dto';
+import {WsInterestsChanged, WsListingChanged, WsListingSuspended} from '../dtos/response/discovery.dto';
 
 /**
  * Every server → client event this client subscribes to through
@@ -372,6 +373,13 @@ export interface RealtimeEventMap {
      * `POST /bots/guilds/{g}/channels/{c}/modal-submit`, carrying the `customId` from this event.
      */
     'guild.ModalOpen': WsBotModalOpen;
+
+    // Discovery.
+    'discovery.ListingPublished': WsListingChanged;
+    'discovery.ListingUpdated': WsListingChanged;
+    'discovery.ListingUnlisted': WsListingChanged;
+    'discovery.ListingSuspended': WsListingSuspended;
+    'discovery.InterestsChanged': WsInterestsChanged;
 }
 
 export type RealtimeEvent = keyof RealtimeEventMap;
