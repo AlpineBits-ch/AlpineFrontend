@@ -244,4 +244,20 @@ describe('ProfileCanvasStore', () => {
 
         expect(store.canvasFor('p1')?.widgets).toHaveLength(3);
     });
+
+    it('does not let an event clobber a second save while its predecessor is still resolving', () => {
+        const {api, realtime, store} = setup();
+        store.ensureLoaded('p1');
+        api.gets[0].next(canvas('p1', 1));
+
+        store.save(canvas('p1', 2)).subscribe();
+        store.save(canvas('p1', 5)).subscribe();
+
+        api.saves[0].next(canvas('p1', 2));
+        api.saves[0].complete();
+
+        realtime.emit('social.ProfileCanvasUpdated', {profileId: 'p1', canvas: canvas('p1', 9)});
+
+        expect(store.canvasFor('p1')?.widgets).toHaveLength(5);
+    });
 });

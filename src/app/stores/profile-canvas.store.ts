@@ -15,7 +15,9 @@ interface CanvasEntry {
 
 interface ProfileCanvasState {
     byProfile: Record<string, CanvasEntry>;
-    savingProfiles: Record<string, true>;
+    // profileId -> the requestId of the save currently guarding it, so a superseded save cannot
+    // release a guard it no longer owns.
+    savingProfiles: Record<string, number>;
 }
 
 export const ProfileCanvasStore = signalStore(
@@ -38,12 +40,15 @@ export const ProfileCanvasStore = signalStore(
             patchState(store, {byProfile: rest});
         }
 
-        function startSaving(profileId: string): void {
-            patchState(store, {savingProfiles: {...store.savingProfiles(), [profileId]: true}});
+        function startSaving(profileId: string, requestId: number): void {
+            patchState(store, {savingProfiles: {...store.savingProfiles(), [profileId]: requestId}});
         }
 
-        // Called on every exit path of save(): a profile left in here is deaf to its own realtime events forever.
-        function stopSaving(profileId: string): void {
+        // Called on every exit path of save(). Only releases the guard if it still belongs to this
+        // requestId: a superseded save must not clear the entry a newer save owns, or that profile
+        // goes deaf to its own realtime events while the newer save is still in flight.
+        function stopSaving(profileId: string, requestId: number): void {
+            if (store.savingProfiles()[profileId] !== requestId) return;
             const {[profileId]: _dropped, ...rest} = store.savingProfiles();
             patchState(store, {savingProfiles: rest});
         }
@@ -80,17 +85,17 @@ export const ProfileCanvasStore = signalStore(
                 const requestId = (previous?.requestId ?? 0) + 1;
 
                 put(profileId, {canvas: normalise(canvas), loading: false, requestId});
-                startSaving(profileId);
+                startSaving(profileId, requestId);
 
                 return api.save({theme: canvas.theme, widgets: canvas.widgets}).pipe(
                     tap(saved => {
-                        stopSaving(profileId);
+                        stopSaving(profileId, requestId);
                         // A newer save or load has since taken this profile; leave its entry alone.
                         if (store.byProfile()[profileId]?.requestId !== requestId) return;
                         put(profileId, {canvas: normalise(saved), loading: false, requestId});
                     }),
                     catchError((err: unknown) => {
-                        stopSaving(profileId);
+                        stopSaving(profileId, requestId);
                         if (store.byProfile()[profileId]?.requestId === requestId) {
                             // loading: false always, even when previous was a load still in flight:
                             // that request already dropped itself once this save superseded it.
