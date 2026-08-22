@@ -106,11 +106,13 @@ export class ProfilePopoutComponent {
             }
         });
 
-        // The card's height depends on the bio and the mutual line, so it is measured rather than
-        // assumed. Placement compares by value, which is what stops this re-running forever.
+        // The card's height depends on the bio, the mutual line and the card widgets, so it is
+        // measured rather than assumed. Placement compares by value, which is what stops this
+        // re-running forever.
         afterRenderEffect(() => {
             this.profile();
             this.popoutSvc.popout();
+            this.cardCanvas();
             this.reposition();
         });
 

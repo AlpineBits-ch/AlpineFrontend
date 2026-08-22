@@ -213,6 +213,10 @@ describe('ProfilePopoutComponent', () => {
         expect(popoutSvc.modal()).toEqual({userId: USER_ID, tab: 'servers'});
     });
 
+    // Each case below reopens the popout (beforeEach already opened it once): ProfileService's
+    // cache returns the same profile object every time, so profile() only changes reference
+    // across two open() calls, which is what makes cardCanvas recompute. Removing the second
+    // open() would silently stop testing that.
     it('draws card widgets the store already holds', () => {
         canvas = canvasWith(true);
         popoutSvc.open(USER_ID);
@@ -243,5 +247,83 @@ describe('ProfilePopoutComponent', () => {
         fixture.detectChanges();
 
         expect(ensureLoaded).not.toHaveBeenCalled();
+    });
+
+    it('re-measures the card when the store canvas grows while the popout stays open', () => {
+        // A fresh module with its own reactive canvasFor: profile() and popout() must stay
+        // unchanged here, so this cannot reuse the plain-variable store mock the tests above rely on.
+        const realWidth = window.innerWidth;
+        const realHeight = window.innerHeight;
+        Object.defineProperty(window, 'innerWidth', {value: 800, configurable: true, writable: true});
+        Object.defineProperty(window, 'innerHeight', {value: 300, configurable: true, writable: true});
+
+        const liveCanvas = signal<ProfileCanvasDto | undefined>(undefined);
+
+        TestBed.resetTestingModule();
+        TestBed.configureTestingModule({
+            providers: [
+                provideTranslateService(),
+                {
+                    provide: ProfileService,
+                    useValue: {
+                        getCachedByUserId: () => PROFILE,
+                        getByUserId: () => of(PROFILE),
+                        resolveByUserId: () => undefined,
+                        ownProfile: signal({userId: 'user-own'}),
+                    },
+                },
+                {provide: DirectMessageService, useValue: {openOrCreate: vi.fn(), reportFailure: vi.fn()}},
+                {provide: MessagingService, useValue: {createMessage: vi.fn()}},
+                {provide: NavigationService, useValue: {openConversation: vi.fn()}},
+                {
+                    provide: RelationshipStore,
+                    useValue: {blocked: signal([]), block: vi.fn(), unblock: vi.fn()},
+                },
+                {provide: ReportDialogService, useValue: {open: vi.fn()}},
+                {provide: ToastService, useValue: {success: vi.fn(), error: vi.fn(), httpError: vi.fn()}},
+                {provide: BrokenImageService, useValue: {isBroken: () => false, markBroken: vi.fn()}},
+                {provide: OsInfo, useValue: {isMobile: false}},
+                {provide: ProfileCanvasApiService, useValue: {imageUrl: (id: string) => `img/${id}`}},
+                {
+                    provide: ProfileCanvasStore,
+                    useValue: {canvasFor: () => liveCanvas(), ensureLoaded: vi.fn()},
+                },
+            ],
+        });
+
+        const localPopoutSvc = TestBed.inject(ProfilePopoutService);
+        const localFixture = TestBed.createComponent(ProfilePopoutComponent);
+
+        const anchor = document.createElement('div');
+        anchor.getBoundingClientRect = () =>
+            ({left: 500, right: 600, top: 290, bottom: 340, width: 100, height: 50}) as DOMRect;
+
+        localPopoutSvc.open(USER_ID, anchor);
+        localFixture.detectChanges();
+
+        const component = localFixture.componentInstance as unknown as {
+            placement: () => {top: number} | null;
+        };
+        const firstTop = component.placement()?.top;
+
+        const card = localFixture.nativeElement.querySelector('[role="dialog"]') as HTMLElement;
+        Object.defineProperty(card, 'offsetHeight', {value: 400, configurable: true});
+        liveCanvas.set(canvasWith(true));
+        localFixture.detectChanges();
+
+        try {
+            expect(component.placement()?.top).not.toBe(firstTop);
+        } finally {
+            Object.defineProperty(window, 'innerWidth', {
+                value: realWidth,
+                configurable: true,
+                writable: true,
+            });
+            Object.defineProperty(window, 'innerHeight', {
+                value: realHeight,
+                configurable: true,
+                writable: true,
+            });
+        }
     });
 });
