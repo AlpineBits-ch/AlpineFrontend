@@ -58,7 +58,8 @@ const VIEWER_VISIBILITY: Readonly<Record<PreviewViewer, readonly CanvasVisibilit
 export class ProfileCanvasEditorComponent {
     readonly canvas = input<ProfileCanvasDto>();
     readonly owner = input.required<ProfileDto>();
-    readonly editing = input.required<boolean>();
+    /** Drives the lattice: quiet at rest, visible while a tile is being dragged. Drag lands next; nothing sets this yet. */
+    readonly dragging = input(false);
 
     private readonly editor = inject(CanvasEditorService);
     private readonly translate = inject(TranslateService);
@@ -123,12 +124,6 @@ export class ProfileCanvasEditorComponent {
     protected readonly hiddenCount = computed(() => this.hiddenWidgetIds().size);
 
     constructor() {
-        // The page has no other handle on this child's own selection state, so leaving edit mode
-        // is the one external event that clears it.
-        effect(() => {
-            if (!this.editing()) this.clearSelection();
-        });
-
         // Reaches into ProfileCanvasComponent's own tiles by the data-widget-id contract, since
         // that component takes no dimming input. Every widget stays mounted; only opacity and
         // aria-hidden change, so nothing disappears from the layout or the accessibility tree.

@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, inject, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {beforeEach, describe, expect, it} from 'vitest';
@@ -45,22 +45,15 @@ function canvasOf(widgets: CanvasWidgetDto[]): ProfileCanvasDto {
 
 @Component({
     imports: [ProfileCanvasEditorComponent],
-    template: `
-        <app-profile-canvas-editor
-            [canvas]="editor.draft() ?? undefined"
-            [editing]="editing()"
-            [owner]="owner"
-        />
-    `,
+    template: ` <app-profile-canvas-editor [canvas]="editor.draft() ?? undefined" [owner]="owner" /> `,
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class HostComponent {
     readonly editor = inject(CanvasEditorService);
-    readonly editing = signal(true);
     readonly owner = OWNER;
 }
 
-function setup(canvas: ProfileCanvasDto = emptyCanvas('p1'), editing = true) {
+function setup(canvas: ProfileCanvasDto = emptyCanvas('p1')) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
@@ -71,7 +64,6 @@ function setup(canvas: ProfileCanvasDto = emptyCanvas('p1'), editing = true) {
     const fixture: ComponentFixture<HostComponent> = TestBed.createComponent(HostComponent);
     const editor = TestBed.inject(CanvasEditorService);
     editor.begin(canvas);
-    fixture.componentInstance.editing.set(editing);
     fixture.detectChanges();
     return {fixture, editor};
 }
@@ -157,12 +149,9 @@ describe('ProfileCanvasEditorComponent', () => {
         expect(cells.length).toBe(CANVAS_COLUMNS * 2);
     });
 
-    it('the Add widget affordance only appears in edit mode', () => {
-        const editing = setup(emptyCanvas('p1'), true);
-        expect(testId(editing.fixture, 'add-widget')).not.toBeNull();
-
-        const viewing = setup(emptyCanvas('p1'), false);
-        expect(testId(viewing.fixture, 'add-widget')).toBeNull();
+    it('the Add widget affordance is always present', () => {
+        const {fixture} = setup(emptyCanvas('p1'));
+        expect(testId(fixture, 'add-widget')).not.toBeNull();
     });
 
     it('lists every widget registry type in the picker', () => {
@@ -226,15 +215,16 @@ describe('ProfileCanvasEditorComponent', () => {
         expect(tile(fixture, 'w1').getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('leaving edit mode clears the selection', () => {
-        const {fixture} = setup(canvasOf([widget('w1')]));
+    it('deleting the selected widget removes it and clears the selection', () => {
+        const {fixture, editor} = setup(canvasOf([widget('w1')]));
         tile(fixture, 'w1').click();
         fixture.detectChanges();
         expect(testId(fixture, 'widget-editor-popover')).not.toBeNull();
 
-        fixture.componentInstance.editing.set(false);
+        testId(fixture, 'delete-widget')!.click();
         fixture.detectChanges();
 
+        expect(editor.draft()!.widgets).toHaveLength(0);
         expect(testId(fixture, 'widget-editor-popover')).toBeNull();
     });
 
@@ -250,12 +240,9 @@ describe('ProfileCanvasEditorComponent', () => {
         expect(rows.every(row => row.getAttribute('aria-disabled') === 'true')).toBe(true);
     });
 
-    it('the preview control renders in both edit and view mode', () => {
-        const editing = setup(emptyCanvas('p1'), true);
-        expect(previewButtons(editing.fixture)).toHaveLength(4);
-
-        const viewing = setup(emptyCanvas('p1'), false);
-        expect(previewButtons(viewing.fixture)).toHaveLength(4);
+    it('the preview control always renders', () => {
+        const {fixture} = setup(emptyCanvas('p1'));
+        expect(previewButtons(fixture)).toHaveLength(4);
     });
 
     it('a widget the previewed viewer cannot see dims rather than disappears', () => {

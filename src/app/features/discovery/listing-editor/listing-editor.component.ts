@@ -46,8 +46,8 @@ const HEADLINE_LIMIT = 80;
 const PITCH_LIMIT = 600;
 const LINKS_CAP = 3;
 
-/** Matches `draft.service.ts`'s server-autosave cadence. */
-const AUTOSAVE_DEBOUNCE_MS = 1_200;
+/** Matches `draft.service.ts`'s server-autosave cadence. Reused by `profile-page.component.ts`. */
+export const AUTOSAVE_DEBOUNCE_MS = 1_200;
 
 /** Under a minute left, `relativeTime` would render "this minute", which reads as broken on a 72h cooldown. */
 const BUMP_SOON_MS = 60_000;

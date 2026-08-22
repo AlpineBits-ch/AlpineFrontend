@@ -27,6 +27,7 @@ export class CanvasEditorService {
         this.baseline.set(JSON.stringify(packed.widgets));
     }
 
+    /** No caller since autosave replaced the Save/Cancel boundary. Kept for undo. */
     discard(): void {
         if (!this.current()) return;
         this.write(JSON.parse(this.baseline()) as CanvasWidgetDto[]);

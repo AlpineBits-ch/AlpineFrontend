@@ -9,33 +9,45 @@
             <i class="pi pi-arrow-left text-xs"></i>
             {{ 'COMMON.BACK' | translate }}
         </button>
+
+        <span class="text-[0.6875rem] text-text-muted" data-testid="save-status">
+            @switch (saveStatus()) {
+                @case ('saving') {
+                    {{ 'PROFILE_PAGE.SAVE_STATUS.SAVING' | translate }}
+                }
+                @case ('unsaved') {
+                    {{ 'PROFILE_PAGE.SAVE_STATUS.UNSAVED' | translate }}
+                }
+                @case ('error') {
+                    {{ 'PROFILE_PAGE.SAVE_STATUS.ERROR' | translate }}
+                }
+                @default {
+                    {{ 'PROFILE_PAGE.SAVE_STATUS.SAVED' | translate }}
+                }
+            }
+        </span>
     </header>
 
     <div class="flex-1 overflow-y-auto">
         @if (profile(); as p) {
             <app-profile-masthead
-                (accentColorChanged)="textDraft.setAccentColor($event)"
+                (accentColorChanged)="setAccentColor($event)"
                 (avatarCropped)="onAvatarCropped($event)"
                 (avatarRemoveRequested)="onAvatarRemoveRequested()"
                 (bannerCropped)="onBannerCropped($event)"
-                (bioChanged)="textDraft.setBio($event)"
-                (cancelled)="cancel()"
-                (editStarted)="startEdit()"
-                (fontChanged)="textDraft.setFont($event)"
-                (saved)="save()"
+                (bioChanged)="setBio($event)"
+                (fontChanged)="setFont($event)"
                 [accentColor]="textDraft.draft()?.accentColor ?? ''"
                 [bio]="textDraft.draft()?.bio ?? ''"
-                [editing]="editing()"
                 [font]="textDraft.draft()?.font ?? p.font"
                 [profile]="p"
-                [saving]="canvasStore.saving()"
                 [uploadingAvatar]="uploadingAvatar()"
                 [uploadingBanner]="uploadingBanner()"
             />
 
             <div class="border-b border-white/[0.06]"></div>
 
-            <app-profile-canvas-editor [canvas]="canvas()" [editing]="editing()" [owner]="p" />
+            <app-profile-canvas-editor [canvas]="canvas()" [owner]="p" />
 
             <p-confirmdialog appendTo="body" />
         } @else {

@@ -5,7 +5,7 @@ import {Router} from '@angular/router';
 import {provideTranslateService} from '@ngx-translate/core';
 import {ConfirmationService, MessageService} from 'primeng/api';
 import {Select} from 'primeng/select';
-import {of} from 'rxjs';
+import {Observable, of, Subject, throwError} from 'rxjs';
 import {vi} from 'vitest';
 import {ProfilePageComponent} from './profile-page.component';
 import {ProfileService} from '../../../services/profile.service';
@@ -16,6 +16,7 @@ import {ProfileCanvasApiService} from '../../../services/profile-canvas-api.serv
 import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
 import {FONT_OPTIONS, FONT_STACKS} from '../../../models/profile-font.model';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
+import {AUTOSAVE_DEBOUNCE_MS} from '../../discovery/listing-editor/listing-editor.component';
 
 const OWN: ProfileDto = {
     id: 'prfl_own',
@@ -31,7 +32,12 @@ const OWN: ProfileDto = {
     onlineStatus: OnlineStatus.Online,
 };
 
-function setup(initial: ProfileDto | undefined) {
+interface Overrides {
+    updateProfile?: (patch: unknown) => Observable<ProfileDto>;
+    saveCanvas?: (canvas: unknown) => Observable<unknown>;
+}
+
+function setup(initial: ProfileDto | undefined, overrides: Overrides = {}) {
     const ownProfile: WritableSignal<ProfileDto | undefined> = signal(initial);
     const ensureLoadedCalls: string[] = [];
     const updateProfileCalls: unknown[] = [];
@@ -55,6 +61,7 @@ function setup(initial: ProfileDto | undefined) {
                     resolveByUserId: () => undefined,
                     updateProfile: (patch: unknown) => {
                         updateProfileCalls.push(patch);
+                        if (overrides.updateProfile) return overrides.updateProfile(patch);
                         const current = ownProfile();
                         const saved = {...current, ...(patch as object)} as ProfileDto;
                         return of(saved);
@@ -75,6 +82,7 @@ function setup(initial: ProfileDto | undefined) {
                     saving: signal(false),
                     save: (canvas: unknown) => {
                         saveCanvasCalls.push(canvas);
+                        if (overrides.saveCanvas) return overrides.saveCanvas(canvas);
                         return of(canvas);
                     },
                 },
@@ -115,6 +123,21 @@ function tile(fixture: ComponentFixture<unknown>, widgetId: string): HTMLElement
 
 function popover(fixture: ComponentFixture<unknown>): HTMLElement | null {
     return (fixture.nativeElement as HTMLElement).querySelector('[data-testid="widget-editor-popover"]');
+}
+
+function bioField(fixture: ComponentFixture<unknown>): HTMLTextAreaElement {
+    return (fixture.nativeElement as HTMLElement).querySelector('[data-testid="bio-field"]')!;
+}
+
+function typeBio(fixture: ComponentFixture<unknown>, value: string): void {
+    const field = bioField(fixture);
+    field.value = value;
+    field.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+}
+
+function status(fixture: ComponentFixture<ProfilePageComponent>): string {
+    return (fixture.componentInstance as unknown as {saveStatus: () => string}).saveStatus();
 }
 
 describe('ProfilePageComponent', () => {
@@ -171,8 +194,11 @@ describe('ProfilePageComponent', () => {
         expect(fixture.nativeElement.querySelector('[role="status"]')).not.toBeNull();
     });
 
-    it('keeps an unsaved draft when an unrelated profile write lands', () => {
-        const {fixture, ownProfile, editor} = setup(OWN);
+    it('an unrelated profile write does not wipe an in-flight canvas autosave', () => {
+        // Canvas edits write on their own; hold the response open so the save is still
+        // in flight, not yet acknowledged, when the unrelated write lands.
+        const saveResponse = new Subject<unknown>();
+        const {fixture, ownProfile, editor} = setup(OWN, {saveCanvas: () => saveResponse});
         editor.insert('marquee');
         fixture.detectChanges();
         expect(editor.dirty()).toBe(true);
@@ -201,7 +227,7 @@ describe('ProfilePageComponent', () => {
 
     // ── Back affordance ──────────────────────────────────────────────────────
 
-    it('the back button is present in view state and navigates to /overview', () => {
+    it('the back button navigates to /overview', () => {
         const {fixture, navigateCalls} = setup(OWN);
         expect(fixture.nativeElement.querySelector('[data-testid="profile-back"]')).not.toBeNull();
 
@@ -209,31 +235,17 @@ describe('ProfilePageComponent', () => {
         expect(navigateCalls).toEqual([[['/overview']]]);
     });
 
-    it('the back button is present in edit state too', () => {
-        const {fixture, navigateCalls} = setup(OWN);
-        click(fixture, 'edit-profile');
-
-        click(fixture, 'profile-back');
-        expect(navigateCalls).toEqual([[['/overview']]]);
-    });
-
-    it('leaving mid-edit does not prompt, and a dirty bio and canvas draft survive coming back', () => {
+    it('leaving does not prompt, and a dirty bio and canvas draft survive coming back', () => {
         const {fixture, editor, textDraft} = setup(OWN);
-        click(fixture, 'edit-profile');
 
         editor.insert('marquee');
-        const bio: HTMLTextAreaElement = fixture.nativeElement.querySelector('[data-testid="bio-field"]');
-        bio.value = 'a dirty bio';
-        bio.dispatchEvent(new Event('input'));
-        fixture.detectChanges();
-
-        expect(editor.dirty()).toBe(true);
-        expect(textDraft.dirty()).toBe(true);
+        typeBio(fixture, 'a dirty bio');
 
         const confirmSpy = vi.spyOn(ConfirmationService.prototype, 'confirm');
 
         // Leaving the page: the component is destroyed exactly as a route change away from
-        // /profile would destroy it. No confirmation is asked.
+        // /profile would destroy it. No confirmation is asked; the destroy flush autosaves
+        // whatever the debounce had not gotten to yet.
         fixture.destroy();
         expect(confirmSpy).not.toHaveBeenCalled();
 
@@ -242,31 +254,23 @@ describe('ProfilePageComponent', () => {
 
         expect(editor.draft()!.widgets).toHaveLength(1);
         expect(textDraft.draft()?.bio).toBe('a dirty bio');
-        // The mode itself is not part of the draft; a fresh mount starts in view state.
-        expect(revisit.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
+        expect(revisit.nativeElement.querySelector('[data-testid="bio-field"]')).not.toBeNull();
     });
 
-    // ── Edit mode ─────────────────────────────────────────────────────────────
+    // ── Always editable ──────────────────────────────────────────────────────
 
-    it('Edit reveals the bio field, change affordances and accent/font controls', () => {
+    it('the bio field, change affordances and accent/font controls are present with nothing to click first', () => {
         const {fixture} = setup(OWN);
-        expect(fixture.nativeElement.querySelector('[data-testid="bio-field"]')).toBeNull();
-
-        click(fixture, 'edit-profile');
 
         expect(fixture.nativeElement.querySelector('[data-testid="bio-field"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="change-banner"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="change-avatar"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[data-testid="font-select"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('input[type="color"]')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('[data-testid="save-profile"]')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('[data-testid="cancel-edit"]')).not.toBeNull();
-        expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).toBeNull();
     });
 
     it('renders each font option in its own font stack', () => {
         const {fixture} = setup(OWN);
-        click(fixture, 'edit-profile');
 
         const select = fixture.debugElement.query(By.directive(Select)).componentInstance as Select;
         select.show();
@@ -284,89 +288,18 @@ describe('ProfilePageComponent', () => {
         }
     });
 
-    it('the canvas lattice is faded out in view mode and in in edit mode', () => {
+    it('the canvas lattice stays quiet: nothing drags it on yet', () => {
         const {fixture} = setup(OWN);
-        const lattice = () =>
-            (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
-                '[data-testid="canvas-lattice"]',
-            )!;
+        const lattice = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+            '[data-testid="canvas-lattice"]',
+        )!;
 
-        expect(lattice().classList.contains('opacity-0')).toBe(true);
-        expect(lattice().classList.contains('opacity-100')).toBe(false);
-
-        click(fixture, 'edit-profile');
-
-        expect(lattice().classList.contains('opacity-100')).toBe(true);
-        expect(lattice().classList.contains('opacity-0')).toBe(false);
-    });
-
-    it('cancelling with nothing changed exits edit mode without asking', () => {
-        const {fixture} = setup(OWN);
-        click(fixture, 'edit-profile');
-
-        const confirmSpy = vi.spyOn(ConfirmationService.prototype, 'confirm');
-        click(fixture, 'cancel-edit');
-
-        expect(confirmSpy).not.toHaveBeenCalled();
-        expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
-    });
-
-    it('cancelling a dirty draft asks first, and restores what was there on confirm', () => {
-        const {fixture, editor, textDraft} = setup(OWN);
-        click(fixture, 'edit-profile');
-
-        editor.insert('marquee');
-        const bio: HTMLTextAreaElement = fixture.nativeElement.querySelector('[data-testid="bio-field"]');
-        bio.value = 'changed bio';
-        bio.dispatchEvent(new Event('input'));
-        fixture.detectChanges();
-
-        const confirmSpy = vi.spyOn(ConfirmationService.prototype, 'confirm');
-        click(fixture, 'cancel-edit');
-
-        expect(confirmSpy).toHaveBeenCalledOnce();
-        // Nothing discarded yet: this test never accepts the dialog.
-        expect(editor.draft()!.widgets).toHaveLength(1);
-        expect(textDraft.draft()?.bio).toBe('changed bio');
-
-        const config = confirmSpy.mock.calls[0][0];
-        config.accept?.();
-        fixture.detectChanges();
-
-        expect(editor.draft()!.widgets).toHaveLength(0);
-        expect(textDraft.draft()?.bio).toBe(OWN.bio ?? '');
-        expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
-    });
-
-    it('Save calls updateProfile and the canvas store save, then cleans the draft while keeping the saved widgets', () => {
-        const {fixture, editor, textDraft, updateProfileCalls, saveCanvasCalls} = setup(OWN);
-        click(fixture, 'edit-profile');
-
-        editor.insert('marquee');
-        const bio: HTMLTextAreaElement = fixture.nativeElement.querySelector('[data-testid="bio-field"]');
-        bio.value = 'a saved bio';
-        bio.dispatchEvent(new Event('input'));
-        fixture.detectChanges();
-
-        click(fixture, 'save-profile');
-
-        expect(updateProfileCalls).toEqual([
-            {bio: 'a saved bio', accentColor: OWN.accentColor, font: OWN.font},
-        ]);
-        expect(saveCanvasCalls).toHaveLength(1);
-
-        // The trap: updateProfile() hands ownProfile a fresh object with the same id, which the
-        // mount effect deliberately ignores. Only save()'s own begin() calls may clean this up.
-        expect(editor.dirty()).toBe(false);
-        expect(textDraft.dirty()).toBe(false);
-        expect(editor.draft()!.widgets).toHaveLength(1);
-        expect(textDraft.draft()?.bio).toBe('a saved bio');
-        expect(fixture.nativeElement.querySelector('[data-testid="edit-profile"]')).not.toBeNull();
+        expect(lattice.classList.contains('opacity-0')).toBe(true);
+        expect(lattice.classList.contains('opacity-100')).toBe(false);
     });
 
     it('removing the avatar asks first, and only calls removeAvatar on confirm', () => {
         const {fixture, removeAvatarCalls} = setup({...OWN, avatarUrl: 'https://cdn.test.example/a.png'});
-        click(fixture, 'edit-profile');
 
         // vi.spyOn returns the same mock across tests in this file since nothing restores it,
         // so clear it first rather than asserting against calls other tests already made.
@@ -383,10 +316,112 @@ describe('ProfilePageComponent', () => {
         expect(removeAvatarCalls).toHaveLength(1);
     });
 
+    // ── Autosave ──────────────────────────────────────────────────────────────
+
+    describe('autosave', () => {
+        afterEach(() => vi.useRealTimers());
+
+        it('a bio edit autosaves after the debounce', async () => {
+            vi.useFakeTimers();
+            const {fixture, updateProfileCalls} = setup(OWN);
+
+            typeBio(fixture, 'a new bio');
+            expect(updateProfileCalls).toHaveLength(0);
+            expect(status(fixture)).toBe('unsaved');
+
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(updateProfileCalls).toEqual([
+                {bio: 'a new bio', accentColor: OWN.accentColor, font: OWN.font},
+            ]);
+        });
+
+        it('a burst of edits is one write', async () => {
+            vi.useFakeTimers();
+            const {fixture, updateProfileCalls} = setup(OWN);
+
+            for (const value of ['a', 'ab', 'abc']) typeBio(fixture, value);
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+
+            expect(updateProfileCalls).toHaveLength(1);
+            expect(updateProfileCalls[0]).toEqual({bio: 'abc', accentColor: OWN.accentColor, font: OWN.font});
+        });
+
+        it('the status reaches saved once the autosave completes', async () => {
+            vi.useFakeTimers();
+            const {fixture} = setup(OWN);
+
+            typeBio(fixture, 'x');
+            expect(status(fixture)).toBe('unsaved');
+
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            expect(status(fixture)).toBe('saved');
+        });
+
+        it('a failed autosave shows the error status', async () => {
+            vi.useFakeTimers();
+            const {fixture} = setup(OWN, {updateProfile: () => throwError(() => new Error('refused'))});
+
+            typeBio(fixture, 'x');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            fixture.detectChanges();
+
+            expect(status(fixture)).toBe('error');
+        });
+
+        it('destroying the page flushes a bio edit the debounce has not fired yet', () => {
+            const {fixture, updateProfileCalls} = setup(OWN);
+
+            typeBio(fixture, 'about to leave');
+            expect(updateProfileCalls).toHaveLength(0);
+
+            fixture.destroy();
+
+            expect(updateProfileCalls).toEqual([
+                {bio: 'about to leave', accentColor: OWN.accentColor, font: OWN.font},
+            ]);
+        });
+
+        it('destroying the page flushes a canvas edit the effect has not caught up with', () => {
+            const {fixture, editor, saveCanvasCalls} = setup(OWN);
+
+            editor.insert('marquee');
+            fixture.detectChanges();
+
+            expect(saveCanvasCalls.length).toBeGreaterThan(0);
+            fixture.destroy();
+
+            // Already clean by the time destroy runs, since the mock resolves synchronously;
+            // the guard is that destroy never throws and never double-sends once clean.
+            expect(editor.dirty()).toBe(false);
+        });
+
+        // Section 5's trap, autosave edition: updateProfile() re-baselines textDraft on success,
+        // and it now fires on every debounce tick rather than once per Save.
+        it('a save in flight does not let its stale response wipe an edit made after it was sent', async () => {
+            vi.useFakeTimers();
+            const response = new Subject<ProfileDto>();
+            const {fixture, textDraft} = setup(OWN, {updateProfile: () => response});
+
+            typeBio(fixture, 'first');
+            await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+            // The debounce fired; updateProfile() was called and is in flight.
+
+            typeBio(fixture, 'second');
+
+            // The in-flight request's response lands, carrying only what "first" produced.
+            response.next({...OWN, bio: 'first'});
+            response.complete();
+
+            expect(textDraft.draft()?.bio).toBe('second');
+        });
+    });
+
     // ── Widget editor popover ────────────────────────────────────────────────
 
     function selectFirstWidget(fixture: ComponentFixture<ProfilePageComponent>, editor: CanvasEditorService) {
-        click(fixture, 'edit-profile');
         editor.insert('quote');
         fixture.detectChanges();
         const id = editor.draft()!.widgets[0].id;
@@ -440,7 +475,6 @@ describe('ProfilePageComponent', () => {
 
     it('is reachable and dismissible by keyboard alone', () => {
         const {fixture, editor} = setup(OWN);
-        click(fixture, 'edit-profile');
         editor.insert('quote');
         fixture.detectChanges();
         const id = editor.draft()!.widgets[0].id;

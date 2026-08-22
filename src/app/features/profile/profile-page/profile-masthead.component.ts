@@ -20,7 +20,7 @@ import {FONT_OPTIONS, FONT_STACKS, safeAccentColor} from '../../../models/profil
 import {cacheBustedUrl} from '../../../models/profile-image.model';
 import {ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
 
-/** Banner, avatar, name and the appearance controls. Purely controlled: the page decides what "editing" means. */
+/** Banner, avatar, name and the appearance controls. Purely controlled: everything is always editable. */
 @Component({
     selector: 'app-profile-masthead',
     imports: [
@@ -38,17 +38,12 @@ import {ProfileDto, ProfileFont} from '../../../dtos/response/profile.dto';
 })
 export class ProfileMastheadComponent {
     readonly profile = input.required<ProfileDto>();
-    readonly editing = input.required<boolean>();
-    readonly saving = input.required<boolean>();
     readonly uploadingAvatar = input.required<boolean>();
     readonly uploadingBanner = input.required<boolean>();
     readonly bio = input.required<string>();
     readonly accentColor = input.required<string>();
     readonly font = input.required<ProfileFont>();
 
-    readonly editStarted = output<void>();
-    readonly cancelled = output<void>();
-    readonly saved = output<void>();
     readonly bioChanged = output<string>();
     readonly accentColorChanged = output<string>();
     readonly fontChanged = output<ProfileFont>();

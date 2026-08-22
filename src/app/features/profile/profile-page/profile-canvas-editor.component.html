@@ -16,25 +16,23 @@
                 }
             </div>
 
-            @if (editing()) {
-                <div class="relative">
-                    <button
-                        (click)="openWidgetMenu($event)"
-                        class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                        data-testid="add-widget"
-                        type="button"
-                    >
-                        <i class="pi pi-plus text-xs" aria-hidden="true"></i>
-                        {{ 'PROFILE.CANVAS.EDITOR.ADD' | translate }}
-                    </button>
-                    <app-context-menu #widgetMenu [model]="addWidgetItems()" />
-                </div>
-            }
+            <div class="relative">
+                <button
+                    (click)="openWidgetMenu($event)"
+                    class="flex cursor-pointer items-center gap-2 rounded-lg border-0 bg-card px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                    data-testid="add-widget"
+                    type="button"
+                >
+                    <i class="pi pi-plus text-xs" aria-hidden="true"></i>
+                    {{ 'PROFILE.CANVAS.EDITOR.ADD' | translate }}
+                </button>
+                <app-context-menu #widgetMenu [model]="addWidgetItems()" />
+            </div>
         </div>
 
         <div #canvasHost class="relative">
             <app-canvas-lattice
-                [active]="editing()"
+                [active]="dragging()"
                 [columns]="canvasColumns"
                 [rows]="canvasRowCount()"
                 class="pointer-events-none absolute inset-x-0 top-0 block"
@@ -44,7 +42,7 @@
                 [canvas]="arranged"
                 [columns]="canvasColumns"
                 [owner]="owner()"
-                [selectable]="editing()"
+                [selectable]="true"
                 [selectedId]="selectedWidgetId()"
                 class="relative z-10 block"
             />
