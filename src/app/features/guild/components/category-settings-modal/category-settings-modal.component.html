@@ -70,16 +70,19 @@
                     class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0"
                     style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
                 >
-                    @switch (activePage()) {
-                        @case ('overview') {
-                            <app-category-overview (categoryUpdated)="onCategoryUpdated($event)" [category]="category()!" />
-                        }
-                        @case ('permissions') {
-                            <app-permission-overrides
-                                (overridesChanged)="onOverridesChanged($event)"
-                                [guild]="guild()!"
-                                [scope]="scope()!"
-                            />
+                    <!-- Keyed on the id so every page is rebuilt when the modal opens on another category. -->
+                    @for (id of [category()!.id]; track id) {
+                        @switch (activePage()) {
+                            @case ('overview') {
+                                <app-category-overview (categoryUpdated)="onCategoryUpdated($event)" [category]="category()!" />
+                            }
+                            @case ('permissions') {
+                                <app-permission-overrides
+                                    (overridesChanged)="onOverridesChanged($event)"
+                                    [guild]="guild()!"
+                                    [scope]="scope()!"
+                                />
+                            }
                         }
                     }
                 </div>

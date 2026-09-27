@@ -1,4 +1,13 @@
-import {ChangeDetectionStrategy, Component, computed, inject, model, output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    inject,
+    input,
+    model,
+    output,
+    signal,
+} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -15,6 +24,16 @@ interface NavItem {
     id: string;
     label: string;
     icon: string;
+}
+
+/** The channel PATCH can answer without permissions or parent; a wholesale replace would drop them. */
+export function mergeChannelResponse(current: ChannelDto, updated: ChannelDto): ChannelDto {
+    return {
+        ...current,
+        ...updated,
+        permissions: updated.permissions ?? current.permissions,
+        parentChannelId: updated.parentChannelId ?? current.parentChannelId,
+    };
 }
 
 @Component({
@@ -35,10 +54,11 @@ interface NavItem {
 })
 export class ChannelSettingsModalComponent {
     readonly isVisible = model.required<boolean>();
+    readonly guild = input.required<GuildDto>();
 
-    readonly channel = signal<ChannelDto | null>(null);
-    readonly guild = signal<GuildDto | null>(null);
-    readonly categories = computed(() => this.guild()?.categories ?? []);
+    private readonly channelId = signal<string | null>(null);
+    readonly channel = computed(() => this.guild().channels.find(c => c.id === this.channelId()) ?? null);
+    readonly categories = computed(() => this.guild().categories);
 
     channelUpdated = output<ChannelDto>();
     channelDeleted = output<string>();
@@ -60,9 +80,8 @@ export class ChannelSettingsModalComponent {
     });
     private guildService = inject(GuildService);
 
-    open(channel: ChannelDto, guild: GuildDto): void {
-        this.channel.set(channel);
-        this.guild.set(guild);
+    open(channel: ChannelDto): void {
+        this.channelId.set(channel.id);
         this.activePage.set('overview');
         this.isVisible.set(true);
     }
@@ -81,8 +100,8 @@ export class ChannelSettingsModalComponent {
     }
 
     onChannelUpdated(c: ChannelDto): void {
-        this.channel.set(c);
-        this.channelUpdated.emit(c);
+        const current = this.channel();
+        this.channelUpdated.emit(current ? mergeChannelResponse(current, c) : c);
     }
 
     deleteChannel(): void {

@@ -228,7 +228,7 @@
 <app-guild-settings-modal (guildUpdated)="onGuildUpdated($event)" [(isVisible)]="showGuildSettings" [guild]="guild()" />
 
 <!-- ── Channel settings modal ─────────────────────────────────────────────── -->
-<app-channel-settings-modal (channelUpdated)="onChannelUpdated($event)" [(isVisible)]="showChannelSettings" />
+<app-channel-settings-modal (channelUpdated)="onChannelUpdated($event)" [(isVisible)]="showChannelSettings" [guild]="guild()" />
 
 <!-- ── Category settings modal ────────────────────────────────────────────── -->
 <app-category-settings-modal (categoryUpdated)="onCategoryUpdated($event)" [(isVisible)]="showCategorySettings" />

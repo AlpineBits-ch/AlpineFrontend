@@ -36,11 +36,16 @@ export class ChannelOverviewComponent implements OnInit {
     readonly iconColor = signal('');
     readonly saving = signal(false);
     readonly dirty = signal(false);
-    protected readonly ChannelType = ChannelType;
+    protected get ChannelType(): typeof ChannelType {
+        return ChannelType;
+    }
     private guildService = inject(GuildService);
 
     ngOnInit(): void {
-        const c = this.channel();
+        this.reset();
+    }
+
+    reset(c: ChannelDto = this.channel()): void {
         this.name.set(c.name);
         this.description.set(c.description ?? '');
         this.isAgeRestricted.set(c.isAgeRestricted);
@@ -77,7 +82,7 @@ export class ChannelOverviewComponent implements OnInit {
         this.guildService.updateChannel(this.channel().id, dto).subscribe({
             next: updated => {
                 this.channelUpdated.emit(updated);
-                this.dirty.set(false);
+                this.reset({...this.channel(), ...updated});
                 this.saving.set(false);
             },
             error: () => this.saving.set(false),

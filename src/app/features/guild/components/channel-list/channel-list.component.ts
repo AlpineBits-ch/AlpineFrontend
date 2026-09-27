@@ -666,7 +666,7 @@ export class ChannelListComponent {
             {
                 label: 'Edit Channel',
                 icon: 'pi pi-pencil',
-                command: () => this.channelSettingsModal()?.open(channel, this.guild()),
+                command: () => this.channelSettingsModal()?.open(channel),
             },
             // Voice channels only: the endpoint behind it answers 400 for anything else. Opens its panel on hover as well as on click, so it carries both.
             ...(channel.type === ChannelType.Voice
@@ -699,7 +699,7 @@ export class ChannelListComponent {
                 label: 'Delete Channel',
                 icon: 'pi pi-trash',
                 danger: true,
-                command: () => this.channelSettingsModal()?.open(channel, this.guild()),
+                command: () => this.channelSettingsModal()?.open(channel),
             },
         ];
     }

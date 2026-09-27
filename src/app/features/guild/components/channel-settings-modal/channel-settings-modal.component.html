@@ -10,7 +10,7 @@
     appendTo="body"
     styleClass="settings-dialog"
 >
-    @if (channel() && guild()) {
+    @if (channel()) {
         <div class="flex h-full flex-col sm:flex-row">
             <!-- ── Left nav ──────────────────────────────────────────────────────── -->
             <nav
@@ -76,23 +76,26 @@
                     class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0"
                     style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
                 >
-                    @switch (activePage()) {
-                        @case ('overview') {
-                            <app-channel-overview (channelUpdated)="onChannelUpdated($event)" [channel]="channel()!" />
-                        }
-                        @case ('forum') {
-                            <app-forum-settings [channel]="channel()!" />
-                        }
-                        @case ('permissions') {
-                            <app-channel-permissions
-                                (channelUpdated)="onChannelUpdated($event)"
-                                [categories]="categories()"
-                                [channel]="channel()!"
-                                [guild]="guild()!"
-                            />
-                        }
-                        @case ('encryption') {
-                            <app-channel-encryption [channel]="channel()!" [guild]="guild()!" />
+                    <!-- Keyed on the id so every page is rebuilt when the modal opens on another channel. -->
+                    @for (id of [channel()!.id]; track id) {
+                        @switch (activePage()) {
+                            @case ('overview') {
+                                <app-channel-overview (channelUpdated)="onChannelUpdated($event)" [channel]="channel()!" />
+                            }
+                            @case ('forum') {
+                                <app-forum-settings [channel]="channel()!" />
+                            }
+                            @case ('permissions') {
+                                <app-channel-permissions
+                                    (channelUpdated)="onChannelUpdated($event)"
+                                    [categories]="categories()"
+                                    [channel]="channel()!"
+                                    [guild]="guild()"
+                                />
+                            }
+                            @case ('encryption') {
+                                <app-channel-encryption [channel]="channel()!" [guild]="guild()" />
+                            }
                         }
                     }
                 </div>

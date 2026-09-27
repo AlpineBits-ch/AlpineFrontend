@@ -106,7 +106,7 @@
     @if (dirty()) {
         <div class="flex items-center gap-3 pt-1">
             <p-button (onClick)="save()" [loading]="saving()" label="Save Changes" severity="primary" size="small" />
-            <p-button (onClick)="ngOnInit()" [text]="true" label="Reset" severity="secondary" size="small" />
+            <p-button (onClick)="reset()" [text]="true" label="Reset" severity="secondary" size="small" />
         </div>
     }
 </div>
