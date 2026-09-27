@@ -53,10 +53,10 @@ describe('CacheSealService', () => {
 
     it('round-trips a value through the stored key', async () => {
         const seal = configure(new FakeSecureStore(KEY));
-        const sealed = await seal.seal({userName: 'ada'});
+        const sealed = await seal.seal({userName: 'ada@venta'});
         expect(sealed).not.toBeNull();
-        expect(sealed).not.toContain('ada');
-        expect(await seal.unseal<{userName: string}>(sealed!)).toEqual({userName: 'ada'});
+        expect(sealed).not.toContain('ada@venta');
+        expect(await seal.unseal<{userName: string}>(sealed!)).toEqual({userName: 'ada@venta'});
     });
 
     it('reports unavailable and never mints when the key is absent', async () => {
