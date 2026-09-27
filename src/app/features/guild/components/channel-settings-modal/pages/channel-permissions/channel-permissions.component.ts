@@ -116,7 +116,8 @@ export class ChannelPermissionsComponent {
         };
         this.guildService.updateChannel(c.id, dto).subscribe({
             next: updated => {
-                this.overrides.set(updated.permissions);
+                // Older servers answer without permissions; null hands the grid back to the live channel.
+                this.overrides.set(updated.permissions ?? null);
                 this.channelUpdated.emit(updated);
             },
             error: err => {
