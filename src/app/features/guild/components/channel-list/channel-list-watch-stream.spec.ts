@@ -171,3 +171,32 @@ describe('ChannelListComponent.onWatchStream', () => {
         expect(requestSpy).not.toHaveBeenCalled();
     });
 });
+
+describe('ChannelListComponent guild.ChannelReordered', () => {
+    it('applies the category as well as the position', () => {
+        const fixture = render(vi.fn());
+        const host = fixture.componentInstance as unknown as {
+            localChannels: ReturnType<typeof signal<ChannelDto[]>>;
+        };
+        host.localChannels.set([
+            {...CHANNEL, id: 'a', position: 0, categoryId: undefined},
+            {...CHANNEL, id: 'b', position: 0, categoryId: 'cat'},
+        ]);
+
+        (TestBed.inject(RealtimeConnectionService) as unknown as FakeRealtimeConnection).emit(
+            'guild.ChannelReordered',
+            {
+                categories: [],
+                channels: [
+                    {channelId: 'b', position: 0, categoryId: 'cat'},
+                    {channelId: 'a', position: 1, categoryId: 'cat'},
+                ],
+            },
+        );
+
+        expect(host.localChannels().map(c => [c.id, c.position, c.categoryId])).toEqual([
+            ['a', 1, 'cat'],
+            ['b', 0, 'cat'],
+        ]);
+    });
+});

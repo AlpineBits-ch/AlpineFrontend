@@ -442,9 +442,14 @@ export class ChannelListComponent {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(dto => {
                 if (dto.channels.length > 0) {
-                    const posMap = new Map(dto.channels.map(c => [c.channelId, c.position]));
+                    const byId = new Map(dto.channels.map(c => [c.channelId, c]));
                     this.localChannels.update(channels =>
-                        channels.map(c => (posMap.has(c.id) ? {...c, position: posMap.get(c.id)!} : c)),
+                        channels.map(c => {
+                            const moved = byId.get(c.id);
+                            return moved
+                                ? {...c, position: moved.position, categoryId: moved.categoryId ?? undefined}
+                                : c;
+                        }),
                     );
                 }
                 if (dto.categories.length > 0) {
