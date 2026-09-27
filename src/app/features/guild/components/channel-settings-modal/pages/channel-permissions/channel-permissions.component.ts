@@ -105,7 +105,16 @@ export class ChannelPermissionsComponent {
 
     setPrivate(isPrivate: boolean): void {
         this.privateSwitch.set(isPrivate);
-        this.guildService.updateChannel(this.channel().id, {isPrivate}).subscribe({
+        const c = this.channel();
+        // The route replaces name, description, age gate and slowmode, so they ride along unchanged.
+        const dto = {
+            name: c.name,
+            description: c.description ?? '',
+            isAgeRestricted: c.isAgeRestricted,
+            slowModeSeconds: c.slowModeSeconds,
+            isPrivate,
+        };
+        this.guildService.updateChannel(c.id, dto).subscribe({
             next: updated => {
                 this.overrides.set(updated.permissions);
                 this.channelUpdated.emit(updated);

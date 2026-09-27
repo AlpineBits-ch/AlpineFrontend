@@ -189,12 +189,15 @@ describe('ChannelPermissionsComponent page', () => {
         expect(guildService.syncChannelPermissions).toHaveBeenCalledWith(CHANNEL);
     });
 
-    it('writes the private flag through updateChannel', () => {
+    it('writes the private flag with the fields the route replaces, so a lone flag cannot 500', () => {
         const {component, guildService} = setup();
 
         component.setPrivate(true);
 
-        expect(guildService.updateChannel).toHaveBeenCalledWith(CHANNEL, {isPrivate: true});
+        expect(guildService.updateChannel).toHaveBeenCalledWith(
+            CHANNEL,
+            expect.objectContaining({name: 'general', description: '', isPrivate: true}),
+        );
     });
 
     // Finding 1 (fix round 1): the scope handed to the editor must carry the server's answer,

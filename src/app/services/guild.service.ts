@@ -96,7 +96,7 @@ export interface UpdateChannelDto {
     name?: string;
     description?: string;
     isAgeRestricted?: boolean;
-    /** PATCH, so a lone {isPrivate} is a valid body: everything else is left as is. */
+    /** Omitted leaves privacy alone. Name, description, age gate and slowmode are replaced, so send them. */
     isPrivate?: boolean;
     slowModeSeconds?: number;
     /** Empty string clears it back to the type default; omitting it leaves the stored value alone. */
