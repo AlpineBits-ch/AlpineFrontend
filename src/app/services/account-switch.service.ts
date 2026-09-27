@@ -3,9 +3,9 @@ import {AccountRegistryService, AccountSlot} from './account-registry.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {SessionTeardownService} from './session-teardown.service';
 import {
-    adoptBootstrapTokens,
     BOOTSTRAP_SLOT_ID,
     clearScopedOAuthKeys,
+    moveScopedOAuthKeys,
     setActiveSlotId,
 } from './scoped-oauth-storage';
 import {clearGuildLayoutCache} from './guild-layout-cache';
@@ -81,8 +81,9 @@ export class AccountSwitchService {
         const previous = await this.accounts.activeSlotId();
         const slot = await this.accounts.ensureSlot(identity);
 
-        // The sign-in wrote its tokens to the bootstrap slot; without moving them the new slot has empty keys.
-        if (previous === BOOTSTRAP_SLOT_ID) adoptBootstrapTokens(slot.id);
+        // The sign-in wrote its tokens to whichever slot was live: bootstrap, or an expired account
+        // someone else just signed in over. Without moving them the right slot has empty keys.
+        moveScopedOAuthKeys(previous, slot.id);
 
         return slot;
     }

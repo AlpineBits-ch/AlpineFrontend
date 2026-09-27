@@ -5,18 +5,11 @@ import {Router} from '@angular/router';
 import {catchError, from, switchMap, throwError} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from '../services/api-config.service';
+import {AuthService, refreshWasRefused} from '../services/auth.service';
 import {isAnonymousStatusUrl} from '../services/status-api.service';
 
-// Shared across all interceptor invocations: while a refresh is in flight every concurrent 401
-// waits on the same promise instead of triggering its own softLogout().
-let isRefreshing = false;
-let refreshPromise: Promise<string> | null = null;
-
-/** Reset module-level state between test runs. */
-export function _resetInterceptorState(): void {
-    isRefreshing = false;
-    refreshPromise = null;
-}
+// Refresh flights that already ended the session, so concurrent 401s sharing one log out once.
+const endedBy = new WeakSet<Promise<string>>();
 
 export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     const apiConfig = inject(ApiConfigService);
@@ -34,6 +27,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     if (isAnonymousStatusUrl(request.url)) return next(request);
 
     const oAuthService = inject(OAuthService);
+    const authService = inject(AuthService);
     const router = inject(Router);
     const accessCode = oAuthService.getAccessToken();
 
@@ -55,26 +49,18 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                 return throwError(() => err);
             }
 
-            if (!isRefreshing) {
-                isRefreshing = true;
-                refreshPromise = oAuthService
-                    .refreshToken()
-                    .then(() => {
-                        isRefreshing = false;
-                        refreshPromise = null;
-                        return oAuthService.getAccessToken() as string;
-                    })
-                    .catch((refreshErr: unknown) => {
-                        isRefreshing = false;
-                        refreshPromise = null;
-                        softLogout(oAuthService, router);
-                        throw refreshErr;
-                    });
-            }
+            // Shared with the sockets and the token_expires handler: a second flight would spend
+            // the same single-use refresh token.
+            const flight = authService.refresh();
 
-            // All concurrent 401s, including the one that started the refresh, wait on the same
-            // promise and retry with the new token once it resolves.
-            return from(refreshPromise!).pipe(
+            return from(flight).pipe(
+                catchError(refreshErr => {
+                    if (refreshWasRefused(refreshErr) && !endedBy.has(flight)) {
+                        endedBy.add(flight);
+                        softLogout(oAuthService, router);
+                    }
+                    return throwError(() => err);
+                }),
                 switchMap(newToken => {
                     const retried = request.clone({setHeaders: {Authorization: `Bearer ${newToken}`}});
                     return next(retried).pipe(
@@ -86,7 +72,6 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                         }),
                     );
                 }),
-                catchError(() => throwError(() => err)),
             );
         }),
     );

@@ -22,6 +22,7 @@ import {environment} from '../../../environments/environment';
 import {QrLoginPanelComponent} from './qr-login-panel/qr-login-panel.component';
 import {InstancePickerComponent} from './instance-picker/instance-picker.component';
 import {AccountRegistryService, AccountSlot} from '../../services/account-registry.service';
+import {rememberedAccounts} from './remembered-accounts';
 import {AccountSwitchService} from '../../services/account-switch.service';
 import {signInBlocked} from './sign-in-blocked';
 import {BlockedSignInComponent} from './blocked-sign-in/blocked-sign-in.component';
@@ -149,6 +150,7 @@ export class Login {
     private switcher = inject(AccountSwitchService);
     private support = inject(SupportService);
 
+    private readonly knownAccounts = signal<AccountSlot[]>([]);
     /** Accounts already signed in on this machine, offered as a way back. */
     protected readonly returnableAccounts = signal<AccountSlot[]>([]);
 
@@ -159,7 +161,7 @@ export class Login {
      * construction and already records when it was last used.</p>
      */
     protected readonly recentInstances = computed(() => {
-        const newestFirst = [...this.returnableAccounts()].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+        const newestFirst = [...this.knownAccounts()].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
         return [...new Set(newestFirst.map(slot => ApiConfigService.urlToDomain(slot.serverUrl)))];
     });
 
@@ -168,7 +170,14 @@ export class Login {
         // {@link hasSession} answers that before any screen is matched, and a redirect here would
         // break "Add Account", which leaves the previous account signed in on purpose.
 
-        void this.accounts.list().then(slots => this.returnableAccounts.set(slots));
+        void Promise.all([this.accounts.list(), this.accounts.activeSlotId()]).then(([slots, liveSlotId]) => {
+            const {expired, returnable} = rememberedAccounts(slots, liveSlotId);
+            this.knownAccounts.set(slots);
+            this.returnableAccounts.set(returnable);
+            if (expired?.username) {
+                this.loginModel.update(m => (m.username ? m : {...m, username: expired.username}));
+            }
+        });
 
         // The instance this install was last pointed at. During "Add Account" the slot-scoped key
         // misses on purpose and this falls back to the shared last-server-used.

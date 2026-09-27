@@ -4,7 +4,7 @@
  */
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
-import {provideHttpClient} from '@angular/common/http';
+import {HttpErrorResponse, provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {AuthService} from './auth.service';
@@ -80,4 +80,37 @@ it('passes the mfa code through unchanged', async () => {
 
     const [, params] = oauth.fetchTokenUsingGrant.mock.calls[0];
     expect(params['mfa_code']).toBe('123456');
+});
+
+describe('isLoggedIn with an expired access token', () => {
+    function expired(refresh: () => Promise<void>, refreshToken: string | null = 'refresh-token') {
+        const {service, oauth} = setup();
+        Object.assign(oauth, {
+            hasValidAccessToken: vi.fn(() => false),
+            getRefreshToken: vi.fn(() => refreshToken),
+            refreshToken: vi.fn(refresh),
+            getAccessToken: vi.fn(() => 'tok'),
+        });
+        return service;
+    }
+
+    it('stays signed in when the refresh cannot reach the server', async () => {
+        const service = expired(() => Promise.reject(new HttpErrorResponse({status: 0})));
+        expect(await service.isLoggedIn()).toBe(true);
+    });
+
+    it('stays signed in when the token endpoint answers 503', async () => {
+        const service = expired(() => Promise.reject(new HttpErrorResponse({status: 503})));
+        expect(await service.isLoggedIn()).toBe(true);
+    });
+
+    it('is signed out when the server refuses the refresh token', async () => {
+        const service = expired(() => Promise.reject(new HttpErrorResponse({status: 400})));
+        expect(await service.isLoggedIn()).toBe(false);
+    });
+
+    it('is signed out with no refresh token at all', async () => {
+        const service = expired(() => Promise.resolve(), null);
+        expect(await service.isLoggedIn()).toBe(false);
+    });
 });

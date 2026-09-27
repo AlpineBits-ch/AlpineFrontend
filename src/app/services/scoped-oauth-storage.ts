@@ -143,11 +143,16 @@ export function migrateLegacyOAuthKeys(slotId: string): boolean {
  * @returns true when something was moved.
  */
 export function adoptBootstrapTokens(toSlotId: string): boolean {
-    if (toSlotId === BOOTSTRAP_SLOT_ID) return false;
+    return moveScopedOAuthKeys(BOOTSTRAP_SLOT_ID, toSlotId);
+}
+
+/** Moves one slot's tokens onto another, key by key. */
+export function moveScopedOAuthKeys(fromSlotId: string, toSlotId: string): boolean {
+    if (fromSlotId === toSlotId || toSlotId === BOOTSTRAP_SLOT_ID) return false;
 
     let moved = false;
     for (const key of OAUTH_KEYS) {
-        const from = scopedOAuthKey(BOOTSTRAP_SLOT_ID, key);
+        const from = scopedOAuthKey(fromSlotId, key);
         const value = localStorage.getItem(from);
         if (value === null) continue;
 

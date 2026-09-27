@@ -1,11 +1,20 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {catchError, from, Observable, switchMap, tap, throwError} from 'rxjs';
 import {OAuthService, TokenResponse} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {describeCurrentDevice} from './device-description';
 import {checkJsonSettings} from '../core/json-settings-limits';
+
+/**
+ * Whether a failed refresh means the session is over. Only the token endpoint answering with a
+ * client error says so; no network, a timeout, a rate limit or a 5xx leaves the refresh token valid.
+ */
+export function refreshWasRefused(err: unknown): boolean {
+    if (!(err instanceof HttpErrorResponse)) return false;
+    return err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429;
+}
 
 @Injectable({
     providedIn: 'root',
@@ -80,8 +89,9 @@ export class AuthService {
         }
         try {
             await this.refresh();
-        } catch {
-            return false;
+        } catch (err) {
+            // Offline at launch is not signed out: the refresh token is still good.
+            return !refreshWasRefused(err) && !!this.oauthService.getRefreshToken();
         }
         return this.oauthService.hasValidAccessToken();
     }

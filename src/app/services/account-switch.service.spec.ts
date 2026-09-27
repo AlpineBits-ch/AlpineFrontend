@@ -287,6 +287,18 @@ describe('adoptSignedInAccount', () => {
         expect(localStorage.getItem(scopedOAuthKey(a.id, 'access_token'))).toBe('existing');
     });
 
+    it('moves a sign-in made over an expired account onto the account that signed in', async () => {
+        const {a, b} = await twoAccounts();
+        // a's session expired on the login screen; b signed in there, so b's tokens sit under a.
+        trackedSet(scopedOAuthKey(a.id, 'refresh_token'), 'refresh-b');
+
+        await service.adoptSignedInAccount({userId: 'user-b', serverUrl: 'https://b.example'});
+
+        expect(await registry.activeSlotId()).toBe(b.id);
+        expect(localStorage.getItem(scopedOAuthKey(b.id, 'refresh_token'))).toBe('refresh-b');
+        expect(localStorage.getItem(scopedOAuthKey(a.id, 'refresh_token'))).toBeNull();
+    });
+
     it('activates the slot that already exists rather than making a second', async () => {
         const first = await service.adoptSignedInAccount({
             userId: 'user-a',

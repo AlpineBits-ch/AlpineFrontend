@@ -1,12 +1,14 @@
 /** Tests for tokenInterceptor, centred on concurrent 401s sharing a single refresh promise. */
 
-import {HttpClient, provideHttpClient, withInterceptors} from '@angular/common/http';
+import {HttpClient, HttpErrorResponse, provideHttpClient, withInterceptors} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {TestBed} from '@angular/core/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {Router} from '@angular/router';
-import {_resetInterceptorState, tokenInterceptor} from './token-interceptor';
+import {tokenInterceptor} from './token-interceptor';
 import {ApiConfigService} from '../services/api-config.service';
+import {AuthService} from '../services/auth.service';
+import {DeviceIdentityService} from '../services/device-identity.service';
 
 const API = 'https://api.venta.gg/test';
 
@@ -17,6 +19,7 @@ function setup() {
         getRefreshToken: vi.fn(() => 'refresh-token') as ReturnType<typeof vi.fn>,
 
         refreshToken: vi.fn() as any,
+        hasValidAccessToken: vi.fn(() => false),
         logOut: vi.fn(),
     };
     const router = {navigate: vi.fn()};
@@ -28,10 +31,12 @@ function setup() {
             {provide: OAuthService, useValue: oAuth},
             {provide: Router, useValue: router},
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.venta.gg'}},
+            {provide: DeviceIdentityService, useValue: {}},
         ],
     });
 
     return {
+        auth: TestBed.inject(AuthService),
         http: TestBed.inject(HttpClient),
         ctrl: TestBed.inject(HttpTestingController),
         oAuth,
@@ -48,9 +53,12 @@ function tick() {
 }
 
 beforeEach(() => {
-    _resetInterceptorState();
     vi.clearAllMocks();
 });
+
+function tokenEndpointError(status: number) {
+    return new HttpErrorResponse({status, url: 'https://api.venta.gg/connect/token'});
+}
 
 afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
@@ -143,34 +151,63 @@ it('does NOT call softLogout for concurrent 401s while refresh is in-flight', as
 // Refresh failure
 // ---------------------------------------------------------------------------
 
-it('calls softLogout exactly once when the refresh fails, regardless of concurrent 401 count', async () => {
+it('ends the session once when the server refuses the refresh, regardless of concurrent 401 count', async () => {
     const {http, ctrl, oAuth, router} = setup();
 
     let reject!: (e: unknown) => void;
     oAuth.refreshToken.mockReturnValue(new Promise<void>((_, r) => (reject = r)));
 
-    http.get(API).subscribe({
-        next: () => {},
-        error: () => {},
-    });
-    http.get(API).subscribe({
-        next: () => {},
-        error: () => {},
-    });
-    http.get(API).subscribe({
-        next: () => {},
-        error: () => {},
-    });
+    for (let i = 0; i < 3; i++) http.get(API).subscribe({error: () => {}});
 
     flush401(ctrl);
     await tick();
 
-    reject(new Error('network error'));
+    reject(tokenEndpointError(400));
     await tick();
 
     expect(oAuth.logOut).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledWith(['/authentication']);
+});
+
+it.each([
+    ['no network', () => tokenEndpointError(0)],
+    ['a gateway error', () => tokenEndpointError(502)],
+    ['a rate limit', () => tokenEndpointError(429)],
+    ['a timeout', () => new Error('Timeout has occurred')],
+])('keeps the session when the refresh fails with %s', async (_label, failure) => {
+    const {http, ctrl, oAuth, router} = setup();
+    oAuth.refreshToken.mockRejectedValue(failure());
+
+    let error: unknown;
+    http.get(API).subscribe({error: e => (error = e)});
+
+    flush401(ctrl);
+    await tick();
+
+    expect(oAuth.logOut).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect((error as HttpErrorResponse).status).toBe(401);
+});
+
+it('shares one refresh with the sockets instead of spending the refresh token twice', async () => {
+    const {auth, http, ctrl, oAuth} = setup();
+
+    let resolve!: () => void;
+    oAuth.refreshToken.mockReturnValue(new Promise<void>(r => (resolve = r)));
+
+    const socketToken = auth.ensureValidToken();
+    http.get(API).subscribe({error: () => {}});
+    flush401(ctrl);
+    await tick();
+
+    expect(oAuth.refreshToken).toHaveBeenCalledTimes(1);
+
+    oAuth.getAccessToken.mockReturnValue('new-token');
+    resolve();
+    expect(await socketToken).toBe('new-token');
+    await tick();
+    ctrl.match(API).forEach(r => r.flush({ok: true}));
 });
 
 // ---------------------------------------------------------------------------
