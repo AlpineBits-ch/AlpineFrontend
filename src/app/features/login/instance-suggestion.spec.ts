@@ -48,7 +48,10 @@ function setup(loginError: unknown) {
                     ),
                 },
             },
-            {provide: AccountRegistryService, useValue: {list: async () => []}},
+            {
+                provide: AccountRegistryService,
+                useValue: {list: async () => [], activeSlotId: async () => 'slot-a'},
+            },
             {provide: AccountSwitchService, useValue: {switchTo: vi.fn()}},
             {provide: UserSettingsService, useValue: {load: vi.fn()}},
             {provide: EmailVerificationService, useValue: {show: vi.fn()}},
