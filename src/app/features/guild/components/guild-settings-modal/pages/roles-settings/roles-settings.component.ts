@@ -39,6 +39,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {guildFeatures} from '../../../../guild-features';
 import {RoleChannelsComponent} from './role-channels/role-channels.component';
 import {RoleRailComponent} from './role-rail/role-rail.component';
+import {changedRolePositions, insertCreatedRole, sortRolesByRank} from './role-rail/role-reorder';
 import {injectGuildRoster} from '../../../../shared/guild-roster';
 import {countRoleOverrides, countVisibleChannels} from './role-stats';
 import {RealtimeConnectionService} from '../../../../../../services/realtime-connection.service';
@@ -205,16 +206,16 @@ export class RolesSettingsComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
+        this.roles.set(sortRolesByRank(this.guild().roles));
         this.realtime
             .stream('guild.RolesReordered')
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(dto => {
                 const posMap = new Map(dto.roles.map(r => [r.roleId, r.position]));
                 this.roles.update(list =>
-                    list
-                        .map(r => (posMap.has(r.id) ? {...r, position: posMap.get(r.id)!} : r))
-                        .sort((a, b) => a.position - b.position),
+                    sortRolesByRank(
+                        list.map(r => (posMap.has(r.id) ? {...r, position: posMap.get(r.id)!} : r)),
+                    ),
                 );
             });
     }
@@ -222,21 +223,19 @@ export class RolesSettingsComponent implements OnInit {
     /** The rail already validated the move; this just persists it and rolls back on failure. */
     onReorder(reordered: RoleDto[]): void {
         const previous = this.roles();
+        const changed = changedRolePositions(previous, reordered);
         this.roles.set(reordered);
+        if (changed.length === 0) return;
 
-        this.guildService
-            .reorderRoles(this.guild().id, {
-                roles: reordered.map(r => ({roleId: r.id, position: r.position})),
-            })
-            .subscribe({
-                error: err => {
-                    this.toastService.httpError(
-                        this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'),
-                        err,
-                    );
-                    this.roles.set(previous);
-                },
-            });
+        this.guildService.reorderRoles(this.guild().id, {roles: changed}).subscribe({
+            error: err => {
+                this.toastService.httpError(
+                    this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'),
+                    err,
+                );
+                this.roles.set(previous);
+            },
+        });
     }
 
     /** Clicking a role in the list discarded pending edits without a word. Ask first. */
@@ -355,7 +354,7 @@ export class RolesSettingsComponent implements OnInit {
         };
         this.guildService.createRole(dto).subscribe({
             next: role => {
-                this.roles.update(list => [...list, role]);
+                this.roles.update(list => insertCreatedRole(list, role));
                 this.showCreateDialog.set(false);
                 this.createName.set('');
                 this.createColor.set('#4B5BC4');
