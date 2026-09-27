@@ -12,6 +12,7 @@ import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {ShareWatchService} from '../../../../services/share-watch.service';
+import {ProfileService} from '../../../../services/profile.service';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 
 const CHANNEL = {
@@ -89,6 +90,7 @@ function render(options: Options = {}): ComponentFixture<VoiceChannelComponent> 
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
+            {provide: ProfileService, useValue: {ownProfile: signal(null)}},
             // app-call-screen-layout injects the real ShareWatchService unless overridden; its dependency chain (GuildWebsocketService/VoiceWebsocketService -> RealtimeConnectionService -> AuthService -> OAuthService) is otherwise unavailable in this test module.
             {
                 provide: ShareWatchService,

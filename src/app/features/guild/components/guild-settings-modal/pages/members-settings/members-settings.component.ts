@@ -230,6 +230,10 @@ export class MembersSettingsComponent implements OnInit {
     }
 
     /** Whether kick and ban are worth offering at all; the server refuses both for the owner and for the caller's own membership, so showing them only bought the user an error toast. Leaving is its own control elsewhere; this page is for acting on other people. */
+    isOwner(row: MemberRow): boolean {
+        return row.member.userId === this.guild().ownerId;
+    }
+
     canModerate(row: MemberRow): boolean {
         const userId = row.member.userId;
         return userId !== this.guild().ownerId && userId !== this.profileService.ownProfile()?.userId;

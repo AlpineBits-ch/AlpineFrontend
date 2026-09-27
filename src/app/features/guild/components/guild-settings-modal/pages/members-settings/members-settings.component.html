@@ -103,15 +103,18 @@
 
                     <!-- Actions stay visible: hidden-until-hover buttons are still tappable, and this modal is full-screen on mobile where nothing hovers. -->
                     <div class="flex items-center gap-1 opacity-70 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                        <p-button
-                            (onClick)="openEditPermissions(row)"
-                            [pTooltip]="'GUILD_SETTINGS.MEMBERS.EDIT_PERMISSIONS' | translate"
-                            [text]="true"
-                            icon="pi pi-shield"
-                            severity="secondary"
-                            size="small"
-                            tooltipPosition="top"
-                        />
+                        <!-- The owner holds every permission, so there is nothing to override. -->
+                        @if (!isOwner(row)) {
+                            <p-button
+                                (onClick)="openEditPermissions(row)"
+                                [pTooltip]="'GUILD_SETTINGS.MEMBERS.EDIT_PERMISSIONS' | translate"
+                                [text]="true"
+                                icon="pi pi-shield"
+                                severity="secondary"
+                                size="small"
+                                tooltipPosition="top"
+                            />
+                        }
                         <!-- The server refuses both of these for the owner and for ourselves. -->
                         @if (canModerate(row)) {
                             <p-button

@@ -11,8 +11,8 @@ import {CreatedTemplateDto, GuildTemplateService} from '../../../../../../servic
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {hasPermission, Permissions} from '../../../../../../enums/permissions.enum';
-import {unionMemberPermissions} from '../../../../guild-permissions';
+import {Permissions} from '../../../../../../enums/permissions.enum';
+import {guildAbilities} from '../../../../guild-permissions';
 
 @Component({
     selector: 'app-templates-settings',
@@ -42,15 +42,12 @@ export class TemplatesSettingsComponent implements OnInit {
     private translate = inject(TranslateService);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
-    // Snapshotting a whole guild is a Manage Server-level action server-side; without this gate any member who can open guild settings gets to click Save and collect a 403. Mirrors EmojiSettingsComponent.canManageEmojis, plus the owner short-circuit used by ChannelListComponent (SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for the guild owner).
-    readonly canCreateTemplate = computed(() => {
-        const ownUserId = this.profileService.ownProfile()?.userId;
-        if (ownUserId && ownUserId === this.guild().ownerId) return true;
-        const member = this.ownMember();
-        if (!member) return false;
-        const perms = unionMemberPermissions(member);
-        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageGuild);
-    });
+    // Snapshotting a whole guild is a Manage Server-level action server-side.
+    readonly canCreateTemplate = computed(() =>
+        guildAbilities(this.ownMember(), this.guild(), this.profileService.ownProfile()?.userId).can(
+            Permissions.ManageGuild,
+        ),
+    );
 
     ngOnInit(): void {
         this.guildService.getOwnMember(this.guild().id).subscribe(m => this.ownMember.set(m));

@@ -23,8 +23,9 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {GuildEmojiService} from '../../../../../../services/guild-emoji.service';
 import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
 import {ToastService} from '../../../../../../services/toast.service';
-import {hasPermission, Permissions} from '../../../../../../enums/permissions.enum';
-import {unionMemberPermissions} from '../../../../guild-permissions';
+import {Permissions} from '../../../../../../enums/permissions.enum';
+import {guildAbilities} from '../../../../guild-permissions';
+import {ProfileService} from '../../../../../../services/profile.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 /** Server-side naming rule, mirrored so the field can say so before the request. */
@@ -111,6 +112,7 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     private guildEmojiStore = inject(GuildEmojiStore);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
+    private profileService = inject(ProfileService);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     private nextKey = 0;
     /** dragenter/dragleave fire per child element, so the overlay is refcounted, not toggled. */
@@ -122,8 +124,9 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     readonly canManageEmojis = computed(() => {
         const member = this.ownMember();
         if (!member) return false;
-        const perms = unionMemberPermissions(member);
-        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageEmojis);
+        return guildAbilities(member, this.guild(), this.profileService.ownProfile()?.userId).can(
+            Permissions.ManageEmojis,
+        );
     });
 
     ngOnInit(): void {

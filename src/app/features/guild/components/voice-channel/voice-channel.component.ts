@@ -7,7 +7,6 @@ import {GuildService} from '../../../../services/guild.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
-import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {RustMediaService} from '../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../models/stream-preset';
 import {VIDEO_BLOCK_KEYS} from '../../../../core/voice-limits';
@@ -19,6 +18,8 @@ import {CallContextMenuComponent} from '../../../../shared/call/call-context-men
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {AutoHideCallControlsDirective} from '../../../../shared/call/auto-hide-call-controls.directive';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
+import {guildAbilities} from '../../guild-permissions';
+import {ProfileService} from '../../../../services/profile.service';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
 import {VoiceRingPickerComponent} from '../../../../shared/call/voice-ring-picker/voice-ring-picker.component';
@@ -149,13 +150,14 @@ export class VoiceChannelComponent {
     private callFocus = inject(CallFocusService);
     private presence = inject(CallStagePresenceService);
     private settingsUi = inject(SettingsUiService);
+    private profileService = inject(ProfileService);
     private readonly ownMember = signal<GuildMemberDto | null>(null);
 
     // ── Permission checks ──────────────────────────────────────────────────────
     protected readonly isSuperadmin = computed(() => {
-        const m = this.ownMember();
-        if (!m) return false;
-        return hasPermission(parsePermissions(m.permissions), Permissions.Superadmin);
+        const ws = this.navService.workspace();
+        const guild = ws.type === 'server' ? ws.guild : null;
+        return guildAbilities(this.ownMember(), guild, this.profileService.ownProfile()?.userId).isSuperadmin;
     });
     /** Kick and ban belong to the Moderation module, which a guild can have switched off. */
     protected readonly hasModeration = computed(() => {

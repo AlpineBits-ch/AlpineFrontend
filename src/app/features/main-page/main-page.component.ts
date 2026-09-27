@@ -21,7 +21,7 @@ import {ForumPostListComponent} from '../guild/components/forum-channel/forum-po
 import {ChannelHostComponent} from '../guild/components/channel-host/channel-host.component';
 import {forumParentOf} from '../guild/components/channel/channel-utils';
 import {stringifyPermissions} from '../../enums/permissions.enum';
-import {unionMemberPermissions} from '../guild/guild-permissions';
+import {effectiveGuildPermissions} from '../guild/guild-permissions';
 import {ServerTaskbarComponent} from '../guild/components/server-taskbar/server-taskbar.component';
 import {ActivityFeedComponent} from './components/activity-feed/activity-feed.component';
 import {ConversationInfoPanelComponent} from '../messaging/components/conversation-info-panel/conversation-info-panel.component';
@@ -258,9 +258,9 @@ export class MainPageComponent implements OnDestroy {
             this.eventsMemberPermissions.set('');
             if (!guildId) return;
             this.guildService.getOwnMember(guildId).subscribe({
-                // Re-serialized from the parsed union: a mask can arrive as a JSON number, and the
-                // panel takes names.
-                next: m => this.eventsMemberPermissions.set(stringifyPermissions(unionMemberPermissions(m))),
+                // The server-resolved mask, which carries Superadmin for the owner; re-serialized because the panel takes names.
+                next: m =>
+                    this.eventsMemberPermissions.set(stringifyPermissions(effectiveGuildPermissions(m))),
                 error: () => this.eventsMemberPermissions.set(''),
             });
         });

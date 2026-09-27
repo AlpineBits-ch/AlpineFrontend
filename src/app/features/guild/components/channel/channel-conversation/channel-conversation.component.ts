@@ -19,8 +19,8 @@ import {ChannelDto, ChannelType} from '../../../../../dtos/response/guild.dto';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
 import {SelfGuildMemberDto} from '../../../../../dtos/response/member.dto';
 import {MessageType} from '../../../../../enums/message-type.enum';
-import {hasPermission, Permissions} from '../../../../../enums/permissions.enum';
-import {guildAbilities, unionMemberPermissions} from '../../../guild-permissions';
+import {Permissions} from '../../../../../enums/permissions.enum';
+import {guildAbilities, NO_ABILITIES} from '../../../guild-permissions';
 import {ModulePermissions} from '../../../../../enums/module-permissions.enum';
 import {GuildFeature, guildHasFeature} from '../../../guild-features';
 import {PersonaService} from '../../../../../services/persona.service';
@@ -278,18 +278,18 @@ export class ChannelConversationComponent implements AfterViewInit {
     private messageStore = inject(MessageStore);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
-    protected readonly canPinMessages = computed(() => {
+    private readonly abilities = computed(() => {
+        const ws = this.navService.workspace();
         const member = this.ownMember();
-        if (!member) return false;
-        const perms = unionMemberPermissions(member);
-        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
+        if (ws.type !== 'server' || !member) return NO_ABILITIES;
+        return guildAbilities(member, ws.guild, this.profileService.ownProfile()?.userId);
     });
 
+    protected readonly canPinMessages = computed(() => this.abilities().can(Permissions.PinMessages));
+
     /** Lets a moderator dismiss a link preview on someone else's message. */
-    protected readonly canDeleteAnyMessage = computed(
-        () =>
-            hasPermission(this.threadPermissions(), Permissions.Superadmin) ||
-            hasPermission(this.threadPermissions(), Permissions.DeleteAnyMessage),
+    protected readonly canDeleteAnyMessage = computed(() =>
+        this.abilities().can(Permissions.DeleteAnyMessage),
     );
 
     /** Hidden, not disabled: a thread off an encrypted channel would be created in the clear. */
@@ -301,20 +301,11 @@ export class ChannelConversationComponent implements AfterViewInit {
         // deep as the server will start one; an ordinary thread does not offer it again.
         if (this.channel().type !== ChannelType.Text && !this.scene()) return false;
         if (this.encryption.state() !== 'plain') return false;
-        const perms = this.threadPermissions();
-        return (
-            hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.CreateThreads)
-        );
+        return this.abilities().can(Permissions.CreateThreads);
     });
 
     protected readonly threadStarter = signal<MessageDto | null>(null);
     protected readonly showCreateThread = signal(false);
-
-    private readonly threadPermissions = computed(() => {
-        const member = this.ownMember();
-        if (!member) return 0n;
-        return unionMemberPermissions(member);
-    });
 
     private readonly channelWindow = computed(() => this.messageStore.channelMeta()[this.channel().id]);
 

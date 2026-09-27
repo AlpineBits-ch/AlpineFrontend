@@ -26,8 +26,8 @@ import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
-import {guildAbilities, unionMemberPermissions} from '../../guild-permissions';
+import {Permissions} from '../../../../enums/permissions.enum';
+import {guildAbilities, NO_ABILITIES} from '../../guild-permissions';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {SceneService} from '../../../../services/scene.service';
 import {SceneHeaderComponent} from '../../scenes/scene-header/scene-header.component';
@@ -206,17 +206,14 @@ export class ChannelComponent {
     private messageStore = inject(MessageStore);
     private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
 
-    private readonly threadPermissions = computed(() => {
+    private readonly abilities = computed(() => {
+        const ws = this.navService.workspace();
         const member = this.ownMember();
-        if (!member) return 0n;
-        return unionMemberPermissions(member);
+        if (ws.type !== 'server' || !member) return NO_ABILITIES;
+        return guildAbilities(member, ws.guild, this.profileService.ownProfile()?.userId);
     });
 
-    protected readonly canManageAnyThread = computed(
-        () =>
-            hasPermission(this.threadPermissions(), Permissions.Superadmin) ||
-            hasPermission(this.threadPermissions(), Permissions.ManageAnyThread),
-    );
+    protected readonly canManageAnyThread = computed(() => this.abilities().can(Permissions.ManageAnyThread));
 
     /** Some thread payloads omit createdByUserId; when missing, falls back to the moderator bit rather than offering an edit that would 403. */
     protected readonly canEditTags = computed(() => {
@@ -227,7 +224,7 @@ export class ChannelComponent {
     });
 
     protected readonly canUseModeratedTags = computed(
-        () => this.canManageAnyThread() || hasPermission(this.threadPermissions(), Permissions.ManageChannel),
+        () => this.canManageAnyThread() || this.abilities().can(Permissions.ManageChannel),
     );
 
     protected readonly searchEntry = computed(
